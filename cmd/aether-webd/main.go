@@ -1,7 +1,17 @@
 package main
 
 import (
+	"fmt"
+	"net/http"
+
+	"github.com/bengrewell/aether-webui/internal/aether"
+	"github.com/bengrewell/aether-webui/internal/k8sinfo"
+	"github.com/bengrewell/aether-webui/internal/sysinfo"
+	"github.com/bengrewell/aether-webui/internal/webuiapi"
 	"github.com/bgrewell/usage"
+	"github.com/danielgtaylor/huma/v2"
+	"github.com/danielgtaylor/huma/v2/adapters/humachi"
+	"github.com/go-chi/chi/v5"
 )
 
 var (
@@ -39,10 +49,10 @@ func main() {
 
 	if !parsed {
 		u.PrintUsage()
+		return
 	}
 
 	_ = flagDebug
-	_ = flagListen
 	_ = flagTLSCert
 	_ = flagTLSKey
 	_ = flagMTLSCACert
@@ -50,4 +60,27 @@ func main() {
 	_ = flagExecUser
 	_ = flagExecEnv
 
+	// Create Chi router and Huma API
+	router := chi.NewMux()
+	api := humachi.New(router, huma.DefaultConfig("Aether WebUI API", version))
+
+	// Initialize providers with mock implementations
+	sysProvider := sysinfo.NewMockProvider()
+	sysResolver := sysinfo.NewDefaultNodeResolver(sysProvider)
+	k8sProvider := k8sinfo.NewMockProvider()
+	aetherProvider := aether.NewMockProvider("local")
+	aetherResolver := aether.NewDefaultHostResolver(aetherProvider)
+
+	// Register routes
+	webuiapi.RegisterHealthRoutes(api)
+	webuiapi.RegisterSystemRoutes(api, sysResolver)
+	webuiapi.RegisterMetricsRoutes(api, sysResolver)
+	webuiapi.RegisterKubernetesRoutes(api, k8sProvider)
+	webuiapi.RegisterAetherRoutes(api, aetherResolver)
+
+	// Start HTTP server
+	fmt.Printf("Starting server on %s\n", *flagListen)
+	if err := http.ListenAndServe(*flagListen, router); err != nil {
+		fmt.Printf("Server error: %v\n", err)
+	}
 }
