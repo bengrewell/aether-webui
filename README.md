@@ -1,7 +1,7 @@
 # Aether WebUI
 
 [![Build](https://github.com/bengrewell/aether-webui/actions/workflows/build.yaml/badge.svg)](https://github.com/bengrewell/aether-webui/actions/workflows/build.yaml)
-[![codecov](https://codecov.io/gh/bengrewell/aether-webui/branch/main/graph/badge.svg)](https://codecov.io/gh/bengrewell/aether-webui)
+[![codecov](https://codecov.io/github/bengrewell/aether-webui/graph/badge.svg?token=J3ZEEWEQT0)](https://codecov.io/github/bengrewell/aether-webui)
 
 Backend API service for the Aether WebUI. This service is responsible for executing deployment tasks, gathering system information, and monitoring the health and metrics of Aether 5G deployments. It manages SD-Core components, gNBs (such as srsRAN and OCUDU), Kubernetes clusters, and host systems.
 
