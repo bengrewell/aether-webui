@@ -1,16 +1,14 @@
 package main
 
 import (
-	"time"
-
 	"github.com/bgrewell/usage"
 )
 
 var (
-	version    string = "debug"
-	buildDate  string = time.Now().Format("2006-01-02 15:04:05")
-	branch     string = "debug"
-	commitHash string = "debug"
+	version    string = "dev"
+	buildDate  string = "unknown"
+	branch     string = "unknown"
+	commitHash string = "unknown"
 )
 
 func main() {
