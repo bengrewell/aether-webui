@@ -1,0 +1,40 @@
+[Unit]
+Description=Aether WebUI Backend API Service
+Documentation=https://github.com/bengrewell/aether-webui
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=aether-webd
+Group=aether-webd
+
+# Binary location
+ExecStart=/usr/local/bin/aether-webd --listen 0.0.0.0:8680
+
+# Environment file for additional configuration
+EnvironmentFile=-/etc/aether-webd/env
+
+# Restart policy
+Restart=on-failure
+RestartSec=5
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=aether-webd
+
+[Install]
+WantedBy=multi-user.target

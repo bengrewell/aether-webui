@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: aether-webd
+  labels:
+    app: aether-webd
+    app.kubernetes.io/name: aether-webd
+    app.kubernetes.io/component: backend
+spec:
+  type: ClusterIP
+  # Uncomment for external access:
+  # type: LoadBalancer
+  # type: NodePort
+  selector:
+    app: aether-webd
+  ports:
+    - name: http
+      port: 8680
+      targetPort: http
+      protocol: TCP
+      # Uncomment for NodePort:
+      # nodePort: 30680

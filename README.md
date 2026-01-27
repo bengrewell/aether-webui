@@ -31,6 +31,8 @@ make coverage-html  # Generate HTML coverage report
 make clean          # Remove build artifacts
 make run            # Build and run
 make version        # Display version info that would be injected
+make docker-build   # Build Docker image
+make docker-push    # Build and push Docker image
 ```
 
 ## Usage
@@ -103,6 +105,82 @@ Version information is automatically injected at build time using ldflags:
 
 - **On push/PR to main**: Runs tests and builds (artifact uploaded)
 - **On tag push (v*)**: Creates GitHub release with GoReleaser
+
+## Deployment
+
+### Systemd
+
+Install and run as a systemd service:
+
+```bash
+# Create service user
+sudo useradd -r -s /bin/false aether-webd
+
+# Install binary
+sudo cp bin/aether-webd /usr/local/bin/
+sudo chmod +x /usr/local/bin/aether-webd
+
+# Install service file
+sudo cp deploy/systemd/aether-webd.service /etc/systemd/system/
+
+# Create config directory (optional)
+sudo mkdir -p /etc/aether-webd
+echo 'AETHER_WEBD_OPTS="--listen 0.0.0.0:8680"' | sudo tee /etc/aether-webd/env
+
+# Enable and start
+sudo systemctl daemon-reload
+sudo systemctl enable aether-webd
+sudo systemctl start aether-webd
+```
+
+### Docker
+
+Build and run as a container:
+
+```bash
+# Build image
+make docker-build
+
+# Run container
+docker run -d \
+  --name aether-webd \
+  -p 8680:8680 \
+  ghcr.io/bengrewell/aether-webd:latest
+
+# Run with TLS
+docker run -d \
+  --name aether-webd \
+  -p 8680:8680 \
+  -v /path/to/certs:/certs:ro \
+  ghcr.io/bengrewell/aether-webd:latest \
+  --listen 0.0.0.0:8680 \
+  --tls-cert /certs/cert.pem \
+  --tls-key /certs/key.pem
+```
+
+### Kubernetes
+
+Deploy to a Kubernetes cluster:
+
+```bash
+# Apply manifests
+kubectl apply -f deploy/k8s/
+
+# Check deployment status
+kubectl get pods -l app=aether-webd
+kubectl get svc aether-webd
+
+# View logs
+kubectl logs -l app=aether-webd
+```
+
+For TLS, create a secret and uncomment the volume mounts in `deployment.yaml`:
+
+```bash
+kubectl create secret tls aether-webd-tls \
+  --cert=/path/to/cert.pem \
+  --key=/path/to/key.pem
+```
 
 ## Contributing
 

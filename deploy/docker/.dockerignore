@@ -1,0 +1,27 @@
+# Build artifacts
+bin/
+coverage.out
+coverage.html
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Documentation
+*.md
+!README.md
+
+# CI/CD
+.github/
+
+# Deploy files (not needed in container)
+deploy/
+
+# Claude
+.claude/

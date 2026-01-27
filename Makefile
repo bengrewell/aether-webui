@@ -9,13 +9,17 @@ BINARY_NAME := aether-webd
 CMD_PATH := ./cmd/aether-webd
 BIN_DIR := bin
 
+# Docker settings
+DOCKER_IMAGE := ghcr.io/bengrewell/aether-webd
+DOCKER_TAG := $(VERSION)
+
 # Linker flags for version injection
 LDFLAGS := -X 'main.version=$(VERSION)' \
            -X 'main.commitHash=$(COMMIT)' \
            -X 'main.branch=$(BRANCH)' \
            -X 'main.buildDate=$(DATE)'
 
-.PHONY: build clean test coverage coverage-html run version
+.PHONY: build clean test coverage coverage-html run version docker-build docker-push
 
 # Build the binary with version info
 build:
@@ -50,3 +54,20 @@ version:
 	@echo "Commit:     $(COMMIT)"
 	@echo "Branch:     $(BRANCH)"
 	@echo "Build Date: $(DATE)"
+
+# Build Docker image
+docker-build:
+	docker build \
+		--build-arg VERSION=$(VERSION) \
+		--build-arg COMMIT=$(COMMIT) \
+		--build-arg BRANCH=$(BRANCH) \
+		--build-arg BUILD_DATE=$(DATE) \
+		-t $(DOCKER_IMAGE):$(DOCKER_TAG) \
+		-t $(DOCKER_IMAGE):latest \
+		-f deploy/docker/Dockerfile .
+	@echo "Built $(DOCKER_IMAGE):$(DOCKER_TAG)"
+
+# Push Docker image
+docker-push: docker-build
+	docker push $(DOCKER_IMAGE):$(DOCKER_TAG)
+	docker push $(DOCKER_IMAGE):latest
