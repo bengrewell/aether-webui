@@ -126,6 +126,9 @@ type UEConfig struct {
 // GNBStatus represents the deployment status of a gNB.
 type GNBStatus struct {
 	ID           string          `json:"id"`
+	Name         string          `json:"name,omitempty"`
+	Host         string          `json:"host"`
+	Type         string          `json:"type"`
 	State        DeploymentState `json:"state"`
 	Message      string          `json:"message,omitempty"`
 	DeployedAt   *time.Time      `json:"deployed_at,omitempty"`
