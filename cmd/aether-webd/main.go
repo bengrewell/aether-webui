@@ -14,7 +14,7 @@ var (
 func main() {
 
 	u := usage.NewUsage(
-		usage.WithApplicationName("aether-webuid"),
+		usage.WithApplicationName("aether-webd"),
 		usage.WithApplicationVersion(version),
 		usage.WithApplicationBuildDate(buildDate),
 		usage.WithApplicationCommitHash(commitHash),

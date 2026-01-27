@@ -1,9 +1,9 @@
 version: 2
-project_name: aether-webuid
+project_name: aether-webd
 
 builds:
-  - main: ./cmd/aether-webuid
-    binary: aether-webuid
+  - main: ./cmd/aether-webd
+    binary: aether-webd
     ldflags:
       - -X 'main.version={{.Version}}'
       - -X 'main.commitHash={{.ShortCommit}}'

@@ -5,8 +5,8 @@ BRANCH := $(shell git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
 DATE := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 
 # Binary name and paths
-BINARY_NAME := aether-webuid
-CMD_PATH := ./cmd/aether-webuid
+BINARY_NAME := aether-webd
+CMD_PATH := ./cmd/aether-webd
 BIN_DIR := bin
 
 # Linker flags for version injection

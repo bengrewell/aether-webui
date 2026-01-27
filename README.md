@@ -15,8 +15,8 @@ Backend API service for the Aether WebUI. This service is responsible for execut
 # Build the binary with version info from git
 make build
 
-# The binary will be in bin/aether-webuid
-./bin/aether-webuid --version
+# The binary will be in bin/aether-webd
+./bin/aether-webd --version
 ```
 
 ### Other Make Targets
@@ -31,7 +31,7 @@ make version   # Display version info that would be injected
 ## Usage
 
 ```bash
-aether-webuid [options]
+aether-webd [options]
 ```
 
 ### Options
@@ -61,13 +61,13 @@ aether-webuid [options]
 
 ```bash
 # Run on all interfaces
-aether-webuid --listen 0.0.0.0:8680
+aether-webd --listen 0.0.0.0:8680
 
 # Run with HTTPS
-aether-webuid --tls-cert /path/to/cert.pem --tls-key /path/to/key.pem
+aether-webd --tls-cert /path/to/cert.pem --tls-key /path/to/key.pem
 
 # Run with mTLS (client certificate required)
-aether-webuid --tls-cert cert.pem --tls-key key.pem --mtls-ca-cert ca.pem
+aether-webd --tls-cert cert.pem --tls-key key.pem --mtls-ca-cert ca.pem
 ```
 
 ## Development
