@@ -46,11 +46,33 @@ func TestListHosts(t *testing.T) {
 	}
 }
 
-func TestGetCoreConfig(t *testing.T) {
+func TestListCores(t *testing.T) {
 	router, _ := setupAetherTestAPI()
 
-	t.Run("default host", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/aether/core/config", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/aether/core", nil)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	var response aether.CoreList
+	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+		t.Fatalf("Failed to decode response: %v", err)
+	}
+
+	if len(response.Cores) == 0 {
+		t.Error("Expected at least one core")
+	}
+}
+
+func TestGetCore(t *testing.T) {
+	router, _ := setupAetherTestAPI()
+
+	t.Run("existing core", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/aether/core/core-0", nil)
 		w := httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)
@@ -64,24 +86,27 @@ func TestGetCoreConfig(t *testing.T) {
 			t.Fatalf("Failed to decode response: %v", err)
 		}
 
+		if response.ID != "core-0" {
+			t.Errorf("Expected ID 'core-0', got '%s'", response.ID)
+		}
 		if response.Helm.ChartRef == "" {
 			t.Error("Expected non-empty ChartRef")
 		}
 	})
 
-	t.Run("explicit local host", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/aether/core/config?host=local", nil)
+	t.Run("non-existent core", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/aether/core/non-existent", nil)
 		w := httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)
 
-		if w.Code != http.StatusOK {
-			t.Errorf("Expected status %d, got %d", http.StatusOK, w.Code)
+		if w.Code != http.StatusNotFound {
+			t.Errorf("Expected status %d, got %d", http.StatusNotFound, w.Code)
 		}
 	})
 
 	t.Run("invalid host", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/aether/core/config?host=unknown", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/aether/core/core-0?host=unknown", nil)
 		w := httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)
@@ -92,10 +117,73 @@ func TestGetCoreConfig(t *testing.T) {
 	})
 }
 
-func TestUpdateCoreConfig(t *testing.T) {
+func TestDeployCore(t *testing.T) {
+	router, _ := setupAetherTestAPI()
+
+	t.Run("deploy without config body", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/aether/core", nil)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("Expected status %d, got %d", http.StatusOK, w.Code)
+		}
+
+		var response aether.DeploymentResponse
+		if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+			t.Fatalf("Failed to decode response: %v", err)
+		}
+
+		if !response.Success {
+			t.Error("Expected Success to be true")
+		}
+		if response.ID == "" {
+			t.Error("Expected generated ID")
+		}
+	})
+
+	t.Run("deploy with config body and custom name", func(t *testing.T) {
+		config := aether.CoreConfig{
+			Name:       "Custom Core",
+			Standalone: true,
+			DataIface:  "eth0",
+			Helm: aether.HelmConfig{
+				ChartRef:     "custom/chart",
+				ChartVersion: "2.0.0",
+			},
+		}
+		body, _ := json.Marshal(config)
+
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/aether/core", bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("Expected status %d, got %d", http.StatusOK, w.Code)
+		}
+
+		var response aether.DeploymentResponse
+		if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+			t.Fatalf("Failed to decode response: %v", err)
+		}
+
+		if !response.Success {
+			t.Error("Expected Success to be true")
+		}
+		if response.ID == "" {
+			t.Error("Expected generated ID")
+		}
+	})
+}
+
+func TestUpdateCore(t *testing.T) {
 	router, _ := setupAetherTestAPI()
 
 	config := aether.CoreConfig{
+		Name:       "Updated Core",
 		Standalone: true,
 		DataIface:  "eth0",
 		Helm: aether.HelmConfig{
@@ -105,18 +193,105 @@ func TestUpdateCoreConfig(t *testing.T) {
 	}
 	body, _ := json.Marshal(config)
 
-	req := httptest.NewRequest(http.MethodPut, "/api/v1/aether/core/config", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	w := httptest.NewRecorder()
+	t.Run("existing core", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPut, "/api/v1/aether/core/core-0", bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
 
-	router.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("Expected status %d, got %d", http.StatusOK, w.Code)
-	}
+		if w.Code != http.StatusOK {
+			t.Errorf("Expected status %d, got %d", http.StatusOK, w.Code)
+		}
+	})
+
+	t.Run("non-existent core", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPut, "/api/v1/aether/core/non-existent", bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusNotFound {
+			t.Errorf("Expected status %d, got %d", http.StatusNotFound, w.Code)
+		}
+	})
+}
+
+func TestUndeployCore(t *testing.T) {
+	router, _ := setupAetherTestAPI()
+
+	t.Run("existing core", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodDelete, "/api/v1/aether/core/core-0", nil)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("Expected status %d, got %d", http.StatusOK, w.Code)
+		}
+
+		var response aether.DeploymentResponse
+		if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+			t.Fatalf("Failed to decode response: %v", err)
+		}
+
+		if !response.Success {
+			t.Error("Expected Success to be true")
+		}
+	})
+
+	t.Run("non-existent core", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodDelete, "/api/v1/aether/core/non-existent", nil)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusNotFound {
+			t.Errorf("Expected status %d, got %d", http.StatusNotFound, w.Code)
+		}
+	})
 }
 
 func TestGetCoreStatus(t *testing.T) {
+	router, _ := setupAetherTestAPI()
+
+	t.Run("existing core", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/aether/core/core-0/status", nil)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("Expected status %d, got %d", http.StatusOK, w.Code)
+		}
+
+		var response aether.CoreStatus
+		if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+			t.Fatalf("Failed to decode response: %v", err)
+		}
+
+		if response.State == "" {
+			t.Error("Expected non-empty State")
+		}
+		if response.Host == "" {
+			t.Error("Expected non-empty Host")
+		}
+	})
+
+	t.Run("non-existent core", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/aether/core/non-existent/status", nil)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusNotFound {
+			t.Errorf("Expected status %d, got %d", http.StatusNotFound, w.Code)
+		}
+	})
+}
+
+func TestListCoreStatuses(t *testing.T) {
 	router, _ := setupAetherTestAPI()
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/aether/core/status", nil)
@@ -128,60 +303,9 @@ func TestGetCoreStatus(t *testing.T) {
 		t.Errorf("Expected status %d, got %d", http.StatusOK, w.Code)
 	}
 
-	var response aether.CoreStatus
+	var response aether.CoreStatusList
 	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
 		t.Fatalf("Failed to decode response: %v", err)
-	}
-
-	if response.State == "" {
-		t.Error("Expected non-empty State")
-	}
-	if response.Host == "" {
-		t.Error("Expected non-empty Host")
-	}
-}
-
-func TestDeployCore(t *testing.T) {
-	router, _ := setupAetherTestAPI()
-
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/aether/core/deploy", nil)
-	w := httptest.NewRecorder()
-
-	router.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Errorf("Expected status %d, got %d", http.StatusOK, w.Code)
-	}
-
-	var response aether.DeploymentResponse
-	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
-		t.Fatalf("Failed to decode response: %v", err)
-	}
-
-	if !response.Success {
-		t.Error("Expected Success to be true")
-	}
-}
-
-func TestUndeployCore(t *testing.T) {
-	router, _ := setupAetherTestAPI()
-
-	req := httptest.NewRequest(http.MethodDelete, "/api/v1/aether/core", nil)
-	w := httptest.NewRecorder()
-
-	router.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Errorf("Expected status %d, got %d", http.StatusOK, w.Code)
-	}
-
-	var response aether.DeploymentResponse
-	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
-		t.Fatalf("Failed to decode response: %v", err)
-	}
-
-	if !response.Success {
-		t.Error("Expected Success to be true")
 	}
 }
 
@@ -242,36 +366,63 @@ func TestGetGNB(t *testing.T) {
 	})
 }
 
-func TestCreateGNB(t *testing.T) {
+func TestDeployGNB(t *testing.T) {
 	router, _ := setupAetherTestAPI()
 
-	gnb := aether.GNBConfig{
-		ID:         "gnb-new",
-		Name:       "New gNB",
-		Type:       "srsran",
-		IP:         "10.0.0.100",
-		Simulation: true,
-	}
-	body, _ := json.Marshal(gnb)
+	t.Run("deploy with config body and custom name", func(t *testing.T) {
+		gnb := aether.GNBConfig{
+			Name:       "New gNB",
+			Type:       "srsran",
+			IP:         "10.0.0.100",
+			Simulation: true,
+		}
+		body, _ := json.Marshal(gnb)
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/aether/gnb", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/aether/gnb", bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
 
-	router.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("Expected status %d, got %d", http.StatusOK, w.Code)
-	}
+		if w.Code != http.StatusOK {
+			t.Errorf("Expected status %d, got %d", http.StatusOK, w.Code)
+		}
 
-	var response aether.DeploymentResponse
-	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
-		t.Fatalf("Failed to decode response: %v", err)
-	}
+		var response aether.DeploymentResponse
+		if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+			t.Fatalf("Failed to decode response: %v", err)
+		}
 
-	if !response.Success {
-		t.Error("Expected Success to be true")
-	}
+		if !response.Success {
+			t.Error("Expected Success to be true")
+		}
+		if response.ID == "" {
+			t.Error("Expected generated ID")
+		}
+	})
+
+	t.Run("deploy without config body uses defaults", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/aether/gnb", nil)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("Expected status %d, got %d", http.StatusOK, w.Code)
+		}
+
+		var response aether.DeploymentResponse
+		if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+			t.Fatalf("Failed to decode response: %v", err)
+		}
+
+		if !response.Success {
+			t.Error("Expected Success to be true")
+		}
+		if response.ID == "" {
+			t.Error("Expected generated ID")
+		}
+	})
 }
 
 func TestUpdateGNB(t *testing.T) {
@@ -310,7 +461,7 @@ func TestUpdateGNB(t *testing.T) {
 	})
 }
 
-func TestDeleteGNB(t *testing.T) {
+func TestUndeployGNB(t *testing.T) {
 	router, _ := setupAetherTestAPI()
 
 	t.Run("existing gNB", func(t *testing.T) {
@@ -394,8 +545,10 @@ func TestAetherEndpointsContentType(t *testing.T) {
 
 	endpoints := []string{
 		"/api/v1/aether/hosts",
-		"/api/v1/aether/core/config",
+		"/api/v1/aether/core",
+		"/api/v1/aether/core/core-0",
 		"/api/v1/aether/core/status",
+		"/api/v1/aether/core/core-0/status",
 		"/api/v1/aether/gnb",
 		"/api/v1/aether/gnb/gnb-0",
 		"/api/v1/aether/gnb/status",

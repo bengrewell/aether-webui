@@ -12,26 +12,50 @@ type HostInput struct {
 	Host string `query:"host" default:"local" doc:"Target host identifier. Use 'local' or empty for the local host."`
 }
 
+// CorePathInput includes path parameter for Core ID.
+type CorePathInput struct {
+	Host string `query:"host" default:"local" doc:"Target host identifier."`
+	ID   string `path:"id" doc:"SD-Core identifier"`
+}
+
 // GNBPathInput includes path parameter for gNB ID.
 type GNBPathInput struct {
 	Host string `query:"host" default:"local" doc:"Target host identifier."`
 	ID   string `path:"id" doc:"gNB identifier"`
 }
 
-// CoreConfigOutput is the response for GET /api/v1/aether/core/config
+// CoreListOutput is the response for GET /api/v1/aether/core
+type CoreListOutput struct {
+	Body aether.CoreList
+}
+
+// CoreConfigOutput is the response for GET /api/v1/aether/core/{id}
 type CoreConfigOutput struct {
 	Body aether.CoreConfig
 }
 
-// CoreConfigInput is the request body for PUT /api/v1/aether/core/config
-type CoreConfigInput struct {
-	Host string `query:"host" default:"local" doc:"Target host identifier."`
-	Body aether.CoreConfig
+// CoreDeployInput is the request body for POST /api/v1/aether/core
+// All fields are optional - ID is always generated, Name uses default if not provided
+type CoreDeployInput struct {
+	Host string              `query:"host" default:"local" doc:"Target host identifier."`
+	Body *aether.CoreConfig `doc:"Optional configuration. If not provided, defaults are used. ID field is ignored and always server-generated."`
 }
 
-// CoreStatusOutput is the response for GET /api/v1/aether/core/status
+// CoreUpdateInput is the request body for PUT /api/v1/aether/core/{id}
+type CoreUpdateInput struct {
+	Host string            `query:"host" default:"local" doc:"Target host identifier."`
+	ID   string            `path:"id" doc:"SD-Core identifier"`
+	Body aether.CoreConfig `doc:"Configuration to update. ID field in body is ignored."`
+}
+
+// CoreStatusOutput is the response for GET /api/v1/aether/core/{id}/status
 type CoreStatusOutput struct {
 	Body aether.CoreStatus
+}
+
+// CoreStatusListOutput is the response for GET /api/v1/aether/core/status
+type CoreStatusListOutput struct {
+	Body aether.CoreStatusList
 }
 
 // DeploymentOutput is the response for deployment actions.
@@ -49,17 +73,18 @@ type GNBOutput struct {
 	Body aether.GNBConfig
 }
 
-// GNBCreateInput is the request body for POST /api/v1/aether/gnb
-type GNBCreateInput struct {
-	Host string `query:"host" default:"local" doc:"Target host identifier."`
-	Body aether.GNBConfig
+// GNBDeployInput is the request body for POST /api/v1/aether/gnb
+// All fields are optional - ID is always generated, Name uses default if not provided
+type GNBDeployInput struct {
+	Host string             `query:"host" default:"local" doc:"Target host identifier."`
+	Body *aether.GNBConfig `doc:"Optional configuration. If not provided, defaults are used. ID field is ignored and always server-generated."`
 }
 
 // GNBUpdateInput is the request body for PUT /api/v1/aether/gnb/{id}
 type GNBUpdateInput struct {
-	Host string `query:"host" default:"local" doc:"Target host identifier."`
-	ID   string `path:"id" doc:"gNB identifier"`
-	Body aether.GNBConfig
+	Host string           `query:"host" default:"local" doc:"Target host identifier."`
+	ID   string           `path:"id" doc:"gNB identifier"`
+	Body aether.GNBConfig `doc:"Configuration to update. ID field in body is ignored."`
 }
 
 // GNBStatusOutput is the response for GET /api/v1/aether/gnb/{id}/status
@@ -95,99 +120,138 @@ func RegisterAetherRoutes(api huma.API, resolver aether.HostResolver) {
 		return output, nil
 	})
 
-	// Core configuration endpoints
+	// SD-Core endpoints
 	huma.Register(api, huma.Operation{
-		OperationID: "get-core-config",
+		OperationID: "list-cores",
 		Method:      "GET",
-		Path:        "/api/v1/aether/core/config",
-		Summary:     "Get SD-Core configuration",
-		Description: "Returns the current SD-Core configuration for the specified host",
+		Path:        "/api/v1/aether/core",
+		Summary:     "List SD-Core deployments",
+		Description: "Returns all SD-Core deployments on the specified host",
 		Tags:        []string{"Aether", "Core"},
-	}, func(ctx context.Context, input *HostInput) (*CoreConfigOutput, error) {
+	}, func(ctx context.Context, input *HostInput) (*CoreListOutput, error) {
 		provider, err := resolver.Resolve(input.Host)
 		if err != nil {
 			return nil, huma.Error400BadRequest("invalid host", err)
 		}
-		config, err := provider.GetCoreConfig(ctx)
+		list, err := provider.ListCores(ctx)
 		if err != nil {
-			return nil, huma.Error500InternalServerError("failed to get core config", err)
+			return nil, huma.Error500InternalServerError("failed to list cores", err)
+		}
+		return &CoreListOutput{Body: *list}, nil
+	})
+
+	huma.Register(api, huma.Operation{
+		OperationID: "get-core",
+		Method:      "GET",
+		Path:        "/api/v1/aether/core/{id}",
+		Summary:     "Get SD-Core configuration",
+		Description: "Returns the configuration for a specific SD-Core deployment",
+		Tags:        []string{"Aether", "Core"},
+	}, func(ctx context.Context, input *CorePathInput) (*CoreConfigOutput, error) {
+		provider, err := resolver.Resolve(input.Host)
+		if err != nil {
+			return nil, huma.Error400BadRequest("invalid host", err)
+		}
+		config, err := provider.GetCore(ctx, input.ID)
+		if err != nil {
+			return nil, huma.Error404NotFound("core not found", err)
 		}
 		return &CoreConfigOutput{Body: *config}, nil
 	})
 
 	huma.Register(api, huma.Operation{
-		OperationID: "update-core-config",
-		Method:      "PUT",
-		Path:        "/api/v1/aether/core/config",
-		Summary:     "Update SD-Core configuration",
-		Description: "Updates the SD-Core configuration for the specified host",
-		Tags:        []string{"Aether", "Core"},
-	}, func(ctx context.Context, input *CoreConfigInput) (*CoreConfigOutput, error) {
-		provider, err := resolver.Resolve(input.Host)
-		if err != nil {
-			return nil, huma.Error400BadRequest("invalid host", err)
-		}
-		if err := provider.UpdateCoreConfig(ctx, &input.Body); err != nil {
-			return nil, huma.Error500InternalServerError("failed to update core config", err)
-		}
-		return &CoreConfigOutput{Body: input.Body}, nil
-	})
-
-	huma.Register(api, huma.Operation{
-		OperationID: "get-core-status",
-		Method:      "GET",
-		Path:        "/api/v1/aether/core/status",
-		Summary:     "Get SD-Core status",
-		Description: "Returns the deployment status of SD-Core on the specified host",
-		Tags:        []string{"Aether", "Core"},
-	}, func(ctx context.Context, input *HostInput) (*CoreStatusOutput, error) {
-		provider, err := resolver.Resolve(input.Host)
-		if err != nil {
-			return nil, huma.Error400BadRequest("invalid host", err)
-		}
-		status, err := provider.GetCoreStatus(ctx)
-		if err != nil {
-			return nil, huma.Error500InternalServerError("failed to get core status", err)
-		}
-		return &CoreStatusOutput{Body: *status}, nil
-	})
-
-	huma.Register(api, huma.Operation{
 		OperationID: "deploy-core",
 		Method:      "POST",
-		Path:        "/api/v1/aether/core/deploy",
+		Path:        "/api/v1/aether/core",
 		Summary:     "Deploy SD-Core",
-		Description: "Initiates deployment of SD-Core on the specified host",
+		Description: "Deploys a new SD-Core instance on the specified host. Configuration is optional - defaults are used if not provided. The ID is always server-generated and returned in the response.",
 		Tags:        []string{"Aether", "Core"},
-	}, func(ctx context.Context, input *HostInput) (*DeploymentOutput, error) {
+	}, func(ctx context.Context, input *CoreDeployInput) (*DeploymentOutput, error) {
 		provider, err := resolver.Resolve(input.Host)
 		if err != nil {
 			return nil, huma.Error400BadRequest("invalid host", err)
 		}
-		resp, err := provider.DeployCore(ctx)
+		resp, err := provider.DeployCore(ctx, input.Body)
 		if err != nil {
-			return nil, huma.Error500InternalServerError("failed to deploy core", err)
+			return nil, huma.Error400BadRequest("failed to deploy SD-Core", err)
 		}
 		return &DeploymentOutput{Body: *resp}, nil
+	})
+
+	huma.Register(api, huma.Operation{
+		OperationID: "update-core",
+		Method:      "PUT",
+		Path:        "/api/v1/aether/core/{id}",
+		Summary:     "Update SD-Core configuration",
+		Description: "Updates the configuration for a specific SD-Core deployment",
+		Tags:        []string{"Aether", "Core"},
+	}, func(ctx context.Context, input *CoreUpdateInput) (*CoreConfigOutput, error) {
+		provider, err := resolver.Resolve(input.Host)
+		if err != nil {
+			return nil, huma.Error400BadRequest("invalid host", err)
+		}
+		if err := provider.UpdateCore(ctx, input.ID, &input.Body); err != nil {
+			return nil, huma.Error404NotFound("core not found", err)
+		}
+		input.Body.ID = input.ID
+		return &CoreConfigOutput{Body: input.Body}, nil
 	})
 
 	huma.Register(api, huma.Operation{
 		OperationID: "undeploy-core",
 		Method:      "DELETE",
-		Path:        "/api/v1/aether/core",
+		Path:        "/api/v1/aether/core/{id}",
 		Summary:     "Undeploy SD-Core",
-		Description: "Initiates removal of SD-Core from the specified host",
+		Description: "Removes a specific SD-Core deployment from the specified host",
 		Tags:        []string{"Aether", "Core"},
-	}, func(ctx context.Context, input *HostInput) (*DeploymentOutput, error) {
+	}, func(ctx context.Context, input *CorePathInput) (*DeploymentOutput, error) {
 		provider, err := resolver.Resolve(input.Host)
 		if err != nil {
 			return nil, huma.Error400BadRequest("invalid host", err)
 		}
-		resp, err := provider.UndeployCore(ctx)
+		resp, err := provider.UndeployCore(ctx, input.ID)
 		if err != nil {
-			return nil, huma.Error500InternalServerError("failed to undeploy core", err)
+			return nil, huma.Error404NotFound("core not found", err)
 		}
 		return &DeploymentOutput{Body: *resp}, nil
+	})
+
+	huma.Register(api, huma.Operation{
+		OperationID: "get-core-status",
+		Method:      "GET",
+		Path:        "/api/v1/aether/core/{id}/status",
+		Summary:     "Get SD-Core status",
+		Description: "Returns the deployment status of a specific SD-Core instance",
+		Tags:        []string{"Aether", "Core"},
+	}, func(ctx context.Context, input *CorePathInput) (*CoreStatusOutput, error) {
+		provider, err := resolver.Resolve(input.Host)
+		if err != nil {
+			return nil, huma.Error400BadRequest("invalid host", err)
+		}
+		status, err := provider.GetCoreStatus(ctx, input.ID)
+		if err != nil {
+			return nil, huma.Error404NotFound("core not found", err)
+		}
+		return &CoreStatusOutput{Body: *status}, nil
+	})
+
+	huma.Register(api, huma.Operation{
+		OperationID: "list-core-statuses",
+		Method:      "GET",
+		Path:        "/api/v1/aether/core/status",
+		Summary:     "List all SD-Core statuses",
+		Description: "Returns deployment status for all SD-Core instances on the specified host",
+		Tags:        []string{"Aether", "Core"},
+	}, func(ctx context.Context, input *HostInput) (*CoreStatusListOutput, error) {
+		provider, err := resolver.Resolve(input.Host)
+		if err != nil {
+			return nil, huma.Error400BadRequest("invalid host", err)
+		}
+		statuses, err := provider.ListCoreStatuses(ctx)
+		if err != nil {
+			return nil, huma.Error500InternalServerError("failed to list core statuses", err)
+		}
+		return &CoreStatusListOutput{Body: *statuses}, nil
 	})
 
 	// gNB endpoints
@@ -230,20 +294,20 @@ func RegisterAetherRoutes(api huma.API, resolver aether.HostResolver) {
 	})
 
 	huma.Register(api, huma.Operation{
-		OperationID: "create-gnb",
+		OperationID: "deploy-gnb",
 		Method:      "POST",
 		Path:        "/api/v1/aether/gnb",
-		Summary:     "Create and deploy gNB",
-		Description: "Creates and deploys a new gNB on the specified host",
+		Summary:     "Deploy gNB",
+		Description: "Deploys a new gNB on the specified host. Configuration is optional - defaults are used if not provided. The ID is always server-generated and returned in the response.",
 		Tags:        []string{"Aether", "gNB"},
-	}, func(ctx context.Context, input *GNBCreateInput) (*DeploymentOutput, error) {
+	}, func(ctx context.Context, input *GNBDeployInput) (*DeploymentOutput, error) {
 		provider, err := resolver.Resolve(input.Host)
 		if err != nil {
 			return nil, huma.Error400BadRequest("invalid host", err)
 		}
-		resp, err := provider.CreateGNB(ctx, &input.Body)
+		resp, err := provider.DeployGNB(ctx, input.Body)
 		if err != nil {
-			return nil, huma.Error400BadRequest("failed to create gNB", err)
+			return nil, huma.Error400BadRequest("failed to deploy gNB", err)
 		}
 		return &DeploymentOutput{Body: *resp}, nil
 	})
@@ -268,18 +332,18 @@ func RegisterAetherRoutes(api huma.API, resolver aether.HostResolver) {
 	})
 
 	huma.Register(api, huma.Operation{
-		OperationID: "delete-gnb",
+		OperationID: "undeploy-gnb",
 		Method:      "DELETE",
 		Path:        "/api/v1/aether/gnb/{id}",
-		Summary:     "Delete gNB",
-		Description: "Removes a gNB from the specified host",
+		Summary:     "Undeploy gNB",
+		Description: "Removes gNB deployment from the specified host",
 		Tags:        []string{"Aether", "gNB"},
 	}, func(ctx context.Context, input *GNBPathInput) (*DeploymentOutput, error) {
 		provider, err := resolver.Resolve(input.Host)
 		if err != nil {
 			return nil, huma.Error400BadRequest("invalid host", err)
 		}
-		resp, err := provider.DeleteGNB(ctx, input.ID)
+		resp, err := provider.UndeployGNB(ctx, input.ID)
 		if err != nil {
 			return nil, huma.Error404NotFound("gNB not found", err)
 		}
