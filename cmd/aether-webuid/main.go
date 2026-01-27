@@ -25,12 +25,13 @@ func main() {
 	)
 
 	flagDebug := u.AddBooleanOption("d", "debug", false, "Enable debug mode for verbose logging and diagnostic output", "", nil)
+	flagListen := u.AddStringOption("l", "listen", "127.0.0.1:8680", "Address and port the API server will listen on (e.g., 0.0.0.0:8680 for all interfaces)", "", nil)
 
 	secOptions := u.AddGroup(2, "Security Options", "Options that control security settings")
-	flagSkipTLSVerify := u.AddBooleanOption("k", "skip-tls-verify", false, "Skip TLS certificate verification when connecting to remote services", "", secOptions)
-	flagTLSCACert := u.AddStringOption("c", "tls-ca-cert", "", "Path to a custom CA certificate file for TLS verification", "", secOptions)
-	flagTLSClientCert := u.AddStringOption("C", "tls-client-cert", "", "Path to the client TLS certificate file for mutual TLS authentication", "", secOptions)
-	flagTLSClientKey := u.AddStringOption("K", "tls-client-key", "", "Path to the client TLS private key file for mutual TLS authentication", "", secOptions)
+	flagTLSCert := u.AddStringOption("t", "tls-cert", "", "Path to the TLS certificate file for HTTPS. When provided with --tls-key, the server will use HTTPS instead of HTTP.", "", secOptions)
+	flagTLSKey := u.AddStringOption("k", "tls-key", "", "Path to the TLS private key file for HTTPS. Required when --tls-cert is specified.", "", secOptions)
+	flagMTLSCACert := u.AddStringOption("m", "mtls-ca-cert", "", "Path to the CA certificate file for verifying client certificates. Enables mutual TLS (mTLS) authentication when specified.", "", secOptions)
+	flagEnableRBAC := u.AddBooleanOption("r", "enable-rbac", false, "Enable role-based access control (RBAC) authentication and authorization middleware.", "", secOptions)
 
 	exeOptions := u.AddGroup(1, "Execution Options", "Options that control API command execution")
 	flagExecUser := u.AddStringOption("u", "exec-user", "", "User account under which API commands will be executed", "", exeOptions)
@@ -43,10 +44,11 @@ func main() {
 	}
 
 	_ = flagDebug
-	_ = flagSkipTLSVerify
-	_ = flagTLSCACert
-	_ = flagTLSClientCert
-	_ = flagTLSClientKey
+	_ = flagListen
+	_ = flagTLSCert
+	_ = flagTLSKey
+	_ = flagMTLSCACert
+	_ = flagEnableRBAC
 	_ = flagExecUser
 	_ = flagExecEnv
 
