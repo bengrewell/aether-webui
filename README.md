@@ -1,5 +1,8 @@
 # Aether WebUI
 
+[![Build](https://github.com/bengrewell/aether-webui/actions/workflows/build.yaml/badge.svg)](https://github.com/bengrewell/aether-webui/actions/workflows/build.yaml)
+[![codecov](https://codecov.io/gh/bengrewell/aether-webui/branch/main/graph/badge.svg)](https://codecov.io/gh/bengrewell/aether-webui)
+
 Backend API service for the Aether WebUI. This service is responsible for executing deployment tasks, gathering system information, and monitoring the health and metrics of Aether 5G deployments. It manages SD-Core components, gNBs (such as srsRAN and OCUDU), Kubernetes clusters, and host systems.
 
 ## Building
@@ -22,10 +25,12 @@ make build
 ### Other Make Targets
 
 ```bash
-make test      # Run tests
-make clean     # Remove build artifacts
-make run       # Build and run
-make version   # Display version info that would be injected
+make test           # Run tests with coverage
+make coverage       # Run tests and display coverage summary
+make coverage-html  # Generate HTML coverage report
+make clean          # Remove build artifacts
+make run            # Build and run
+make version        # Display version info that would be injected
 ```
 
 ## Usage
@@ -98,6 +103,37 @@ Version information is automatically injected at build time using ldflags:
 
 - **On push/PR to main**: Runs tests and builds (artifact uploaded)
 - **On tag push (v*)**: Creates GitHub release with GoReleaser
+
+## Contributing
+
+### Test Coverage Requirements
+
+We prioritize test coverage to maintain code quality. Please follow these guidelines:
+
+- **Target coverage: 70%** - All new code should aim for at least 70% test coverage
+- **No coverage regression** - PRs should not decrease overall coverage
+- **Test new features** - All new features must include tests
+- **Test bug fixes** - Bug fixes should include regression tests
+
+### Running Tests Locally
+
+```bash
+# Run tests with coverage
+make test
+
+# View coverage summary in terminal
+make coverage
+
+# Generate HTML coverage report (opens coverage.html)
+make coverage-html
+```
+
+### Writing Tests
+
+- Place tests in `*_test.go` files alongside the code being tested
+- Use table-driven tests for multiple test cases
+- Mock external dependencies (HTTP clients, databases, etc.)
+- Test both success and error paths
 
 ## License
 

@@ -15,7 +15,7 @@ LDFLAGS := -X 'main.version=$(VERSION)' \
            -X 'main.branch=$(BRANCH)' \
            -X 'main.buildDate=$(DATE)'
 
-.PHONY: build clean test run version
+.PHONY: build clean test coverage coverage-html run version
 
 # Build the binary with version info
 build:
@@ -25,11 +25,20 @@ build:
 
 # Remove build artifacts
 clean:
-	rm -rf $(BIN_DIR)
+	rm -rf $(BIN_DIR) coverage.out coverage.html
 
-# Run tests
+# Run tests with coverage
 test:
-	go test -v ./...
+	go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
+
+# View coverage report in terminal
+coverage: test
+	go tool cover -func=coverage.out
+
+# Generate HTML coverage report
+coverage-html: test
+	go tool cover -html=coverage.out -o coverage.html
+	@echo "Coverage report generated: coverage.html"
 
 # Build and run
 run: build
