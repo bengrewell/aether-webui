@@ -8,18 +8,20 @@ type Provider interface {
 	Host() string
 
 	// Core (SD-Core) management
-	GetCoreConfig(ctx context.Context) (*CoreConfig, error)
-	UpdateCoreConfig(ctx context.Context, config *CoreConfig) error
-	DeployCore(ctx context.Context) (*DeploymentResponse, error)
-	UndeployCore(ctx context.Context) (*DeploymentResponse, error)
-	GetCoreStatus(ctx context.Context) (*CoreStatus, error)
+	ListCores(ctx context.Context) (*CoreList, error)
+	GetCore(ctx context.Context, id string) (*CoreConfig, error)
+	DeployCore(ctx context.Context, config *CoreConfig) (*DeploymentResponse, error)
+	UpdateCore(ctx context.Context, id string, config *CoreConfig) error
+	UndeployCore(ctx context.Context, id string) (*DeploymentResponse, error)
+	GetCoreStatus(ctx context.Context, id string) (*CoreStatus, error)
+	ListCoreStatuses(ctx context.Context) (*CoreStatusList, error)
 
 	// gNB management
 	ListGNBs(ctx context.Context) (*GNBList, error)
 	GetGNB(ctx context.Context, id string) (*GNBConfig, error)
-	CreateGNB(ctx context.Context, config *GNBConfig) (*DeploymentResponse, error)
+	DeployGNB(ctx context.Context, config *GNBConfig) (*DeploymentResponse, error)
 	UpdateGNB(ctx context.Context, id string, config *GNBConfig) error
-	DeleteGNB(ctx context.Context, id string) (*DeploymentResponse, error)
+	UndeployGNB(ctx context.Context, id string) (*DeploymentResponse, error)
 	GetGNBStatus(ctx context.Context, id string) (*GNBStatus, error)
 	ListGNBStatuses(ctx context.Context) (*GNBStatusList, error)
 }
