@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/bengrewell/aether-webui/internal/aether"
 	"github.com/bengrewell/aether-webui/internal/k8sinfo"
 	"github.com/bengrewell/aether-webui/internal/sysinfo"
 	"github.com/bengrewell/aether-webui/internal/webuiapi"
@@ -67,12 +68,15 @@ func main() {
 	sysProvider := sysinfo.NewMockProvider()
 	sysResolver := sysinfo.NewDefaultNodeResolver(sysProvider)
 	k8sProvider := k8sinfo.NewMockProvider()
+	aetherProvider := aether.NewMockProvider("local")
+	aetherResolver := aether.NewDefaultHostResolver(aetherProvider)
 
 	// Register routes
 	webuiapi.RegisterHealthRoutes(api)
 	webuiapi.RegisterSystemRoutes(api, sysResolver)
 	webuiapi.RegisterMetricsRoutes(api, sysResolver)
 	webuiapi.RegisterKubernetesRoutes(api, k8sProvider)
+	webuiapi.RegisterAetherRoutes(api, aetherResolver)
 
 	// Start HTTP server
 	fmt.Printf("Starting server on %s\n", *flagListen)
