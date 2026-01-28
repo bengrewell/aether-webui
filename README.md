@@ -5,6 +5,28 @@
 
 Backend API service for the Aether WebUI. This service is responsible for executing deployment tasks, gathering system information, and monitoring the health and metrics of Aether 5G deployments. It manages SD-Core components, gNBs (such as srsRAN and OCUDU), Kubernetes clusters, and host systems.
 
+## Quick Install
+
+Install aether-webd as a systemd service with a single command:
+
+```bash
+# Install latest version
+curl -fsSL https://raw.githubusercontent.com/bengrewell/aether-webui/main/scripts/install.sh | sudo bash
+
+# Install specific version
+curl -fsSL https://raw.githubusercontent.com/bengrewell/aether-webui/main/scripts/install.sh | VERSION=v1.0.0 sudo bash
+```
+
+To uninstall:
+
+```bash
+# Basic uninstall (keeps config and user)
+curl -fsSL https://raw.githubusercontent.com/bengrewell/aether-webui/main/scripts/uninstall.sh | sudo bash
+
+# Full uninstall (removes everything)
+curl -fsSL https://raw.githubusercontent.com/bengrewell/aether-webui/main/scripts/uninstall.sh | sudo bash -s -- --purge
+```
+
 ## Features
 
 - **System Monitoring**: Query hardware and OS information (CPU, memory, disk, NICs) and collect real-time metrics
