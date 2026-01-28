@@ -1,13 +1,14 @@
 package main
 
 import (
-	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 
 	"github.com/bengrewell/aether-webui/internal/aether"
 	"github.com/bengrewell/aether-webui/internal/frontend"
 	"github.com/bengrewell/aether-webui/internal/k8sinfo"
+	"github.com/bengrewell/aether-webui/internal/logging"
 	"github.com/bengrewell/aether-webui/internal/state"
 	"github.com/bengrewell/aether-webui/internal/sysinfo"
 	"github.com/bengrewell/aether-webui/internal/webuiapi"
@@ -62,24 +63,46 @@ func main() {
 		return
 	}
 
-	_ = flagDebug
-	_ = flagTLSCert
-	_ = flagTLSKey
-	_ = flagMTLSCACert
-	_ = flagEnableRBAC
-	_ = flagExecUser
-	_ = flagExecEnv
+	// Initialize structured logging
+	logLevel := slog.LevelInfo
+	if *flagDebug {
+		logLevel = slog.LevelDebug
+	}
+	logging.Setup(logging.Options{
+		Level:     logLevel,
+		AddSource: *flagDebug,
+	})
+	slog.Info("aether-webd starting",
+		"version", version,
+		"build_date", buildDate,
+		"branch", branch,
+		"commit", commitHash,
+		"debug", *flagDebug,
+	)
+
+	// Log unimplemented flag values at debug level
+	slog.Debug("security options",
+		"tls_cert", *flagTLSCert,
+		"tls_key", *flagTLSKey,
+		"mtls_ca_cert", *flagMTLSCACert,
+		"enable_rbac", *flagEnableRBAC,
+	)
+	slog.Debug("execution options",
+		"exec_user", *flagExecUser,
+		"exec_env", *flagExecEnv,
+	)
 
 	// Initialize persistent state store
 	stateStore, err := state.NewSQLiteStore(*flagDataDir)
 	if err != nil {
-		fmt.Printf("Failed to initialize state store: %v\n", err)
+		slog.Error("failed to initialize state store", "error", err)
 		os.Exit(1)
 	}
 	defer stateStore.Close()
 
 	// Create Chi router and Huma API
 	router := chi.NewMux()
+	router.Use(logging.RequestLogger())
 	api := humachi.New(router, huma.DefaultConfig("Aether WebUI API", version))
 
 	// Initialize providers with mock implementations
@@ -102,11 +125,11 @@ func main() {
 		var frontendHandler http.Handler
 		if *flagFrontendDir != "" {
 			// Serve from custom directory
-			fmt.Printf("Serving frontend from directory: %s\n", *flagFrontendDir)
+			slog.Info("serving frontend from directory", "path", *flagFrontendDir)
 			frontendHandler = frontend.NewHandler(os.DirFS(*flagFrontendDir), "")
 		} else {
 			// Serve from embedded files
-			fmt.Println("Serving frontend from embedded files")
+			slog.Info("serving frontend from embedded files")
 			frontendHandler = frontend.NewHandler(frontend.DistFS, "dist")
 		}
 		// Mount frontend handler as catch-all (after API routes)
@@ -114,8 +137,8 @@ func main() {
 	}
 
 	// Start HTTP server
-	fmt.Printf("Starting server on %s\n", *flagListen)
+	slog.Info("starting HTTP server", "addr", *flagListen)
 	if err := http.ListenAndServe(*flagListen, router); err != nil {
-		fmt.Printf("Server error: %v\n", err)
+		slog.Error("HTTP server error", "error", err)
 	}
 }
