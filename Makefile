@@ -24,7 +24,7 @@ LDFLAGS := -X 'main.version=$(VERSION)' \
            -X 'main.branch=$(BRANCH)' \
            -X 'main.buildDate=$(DATE)'
 
-.PHONY: build clean test coverage coverage-html run version docker-build docker-push frontend embed-frontend all
+.PHONY: build clean test coverage coverage-html run version docker-build docker-push frontend embed-frontend all ensure-frontend
 
 # Build frontend (requires npm)
 frontend:
@@ -35,13 +35,20 @@ embed-frontend: frontend
 	rm -rf $(EMBED_DIR)
 	cp -r $(FRONTEND_DIST) $(EMBED_DIR)
 
-# Build the binary with version info
-build:
+# Ensure frontend is embedded (build only if missing)
+ensure-frontend:
+	@if [ ! -f $(EMBED_DIR)/index.html ]; then \
+		echo "Frontend not found in $(EMBED_DIR), building..."; \
+		$(MAKE) embed-frontend; \
+	fi
+
+# Build the binary with version info (ensures frontend is embedded)
+build: ensure-frontend
 	@mkdir -p $(BIN_DIR)
 	go build -ldflags "$(LDFLAGS)" -o $(BIN_DIR)/$(BINARY_NAME) $(CMD_PATH)
 	@echo "Built $(BIN_DIR)/$(BINARY_NAME) $(VERSION)"
 
-# Build both frontend and backend with embedding
+# Build both frontend and backend with embedding (forces frontend rebuild)
 all: embed-frontend build
 	@echo "Built $(BIN_DIR)/$(BINARY_NAME) $(VERSION) with embedded frontend"
 
