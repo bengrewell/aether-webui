@@ -5,11 +5,18 @@
 
 Backend API service for the Aether WebUI. This service is responsible for executing deployment tasks, gathering system information, and monitoring the health and metrics of Aether 5G deployments. It manages SD-Core components, gNBs (such as srsRAN and OCUDU), Kubernetes clusters, and host systems.
 
+## Features
+
+- **System Monitoring**: Query hardware and OS information (CPU, memory, disk, NICs) and collect real-time metrics
+- **Kubernetes Integration**: Monitor cluster health, nodes, pods, deployments, services, and events
+- **Aether 5G Management**: Full lifecycle management of SD-Core and gNB deployments (install, start, stop, restart, uninstall)
+- **Multi-host Support**: Manage distributed deployments across multiple hosts
+
 ## Building
 
 ### Prerequisites
 
-- Go 1.22 or later
+- Go 1.25 or later
 - Make
 
 ### Build from Source
@@ -75,6 +82,50 @@ aether-webd --tls-cert /path/to/cert.pem --tls-key /path/to/key.pem
 
 # Run with mTLS (client certificate required)
 aether-webd --tls-cert cert.pem --tls-key key.pem --mtls-ca-cert ca.pem
+```
+
+## API Documentation
+
+The service provides a REST API built with [Huma](https://huma.rocks/), which auto-generates OpenAPI documentation.
+
+- **Interactive docs**: `http://localhost:8680/docs` - Swagger UI for exploring and testing endpoints
+- **OpenAPI spec**: `http://localhost:8680/openapi.json` - Machine-readable OpenAPI 3.1 specification
+
+### API Endpoints
+
+The API provides 33 endpoints across 5 categories:
+
+| Category | Endpoints | Description |
+|----------|-----------|-------------|
+| Health | 1 | Service health check |
+| System Info | 5 | CPU, memory, disk, NIC, and OS information |
+| Metrics | 4 | Real-time CPU, memory, disk, and network usage |
+| Kubernetes | 7 | Cluster health, nodes, pods, deployments, services, events |
+| Aether 5G | 16 | Host management, SD-Core and gNB lifecycle operations |
+
+### Example Requests
+
+```bash
+# Health check
+curl http://localhost:8680/healthz
+
+# Get system information
+curl http://localhost:8680/api/v1/system/cpu
+curl http://localhost:8680/api/v1/system/memory
+curl http://localhost:8680/api/v1/system/os
+
+# Get real-time metrics
+curl http://localhost:8680/api/v1/metrics/cpu
+curl http://localhost:8680/api/v1/metrics/memory
+
+# Kubernetes status (requires cluster access)
+curl http://localhost:8680/api/v1/kubernetes/health
+curl http://localhost:8680/api/v1/kubernetes/pods
+
+# Aether 5G management
+curl http://localhost:8680/api/v1/aether/hosts
+curl http://localhost:8680/api/v1/aether/sdcore/status
+curl -X POST http://localhost:8680/api/v1/aether/sdcore/install
 ```
 
 ## Development
