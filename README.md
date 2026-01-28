@@ -40,11 +40,18 @@ curl -fsSL https://raw.githubusercontent.com/bengrewell/aether-webui/main/script
 
 - Go 1.25 or later
 - Make
+- Node.js 18+ and npm (for frontend)
 
 ### Build from Source
 
 ```bash
-# Build the binary with version info from git
+# Initialize the frontend submodule (first time only)
+git submodule update --init
+
+# Build frontend and backend with embedded frontend
+make all
+
+# Or build backend only (without embedded frontend)
 make build
 
 # The binary will be in bin/aether-webd
@@ -54,6 +61,10 @@ make build
 ### Other Make Targets
 
 ```bash
+make all            # Build frontend and backend with embedding
+make build          # Build backend only
+make frontend       # Build frontend only
+make embed-frontend # Build and copy frontend to embed location
 make test           # Run tests with coverage
 make coverage       # Run tests and display coverage summary
 make coverage-html  # Generate HTML coverage report
@@ -93,6 +104,19 @@ aether-webd [options]
 | `-u, --exec-user` | User for command execution | - |
 | `-e, --exec-env` | Environment variables for execution | - |
 
+### Frontend Options
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `-f, --serve-frontend` | Enable serving frontend static files | `true` |
+| `--frontend-dir` | Override embedded frontend with files from this directory | - |
+
+### Storage Options
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--data-dir` | Directory for persistent state database | `/var/lib/aether-webd` |
+
 ### Examples
 
 ```bash
@@ -104,6 +128,12 @@ aether-webd --tls-cert /path/to/cert.pem --tls-key /path/to/key.pem
 
 # Run with mTLS (client certificate required)
 aether-webd --tls-cert cert.pem --tls-key key.pem --mtls-ca-cert ca.pem
+
+# Run API only (no frontend)
+aether-webd --serve-frontend=false
+
+# Run with custom frontend directory (for development)
+aether-webd --frontend-dir ./web/frontend/dist
 ```
 
 ## API Documentation
@@ -115,11 +145,12 @@ The service provides a REST API built with [Huma](https://huma.rocks/), which au
 
 ### API Endpoints
 
-The API provides 33 endpoints across 5 categories:
+The API provides 36 endpoints across 6 categories:
 
 | Category | Endpoints | Description |
 |----------|-----------|-------------|
 | Health | 1 | Service health check |
+| Setup | 3 | Setup wizard status and completion |
 | System Info | 5 | CPU, memory, disk, NIC, and OS information |
 | Metrics | 4 | Real-time CPU, memory, disk, and network usage |
 | Kubernetes | 7 | Cluster health, nodes, pods, deployments, services, events |
@@ -130,6 +161,11 @@ The API provides 33 endpoints across 5 categories:
 ```bash
 # Health check
 curl http://localhost:8680/healthz
+
+# Setup wizard status
+curl http://localhost:8680/api/v1/setup/status
+curl -X POST http://localhost:8680/api/v1/setup/complete
+curl -X DELETE http://localhost:8680/api/v1/setup/status
 
 # Get system information
 curl http://localhost:8680/api/v1/system/cpu
@@ -151,6 +187,44 @@ curl -X POST http://localhost:8680/api/v1/aether/sdcore/install
 ```
 
 ## Development
+
+### Frontend
+
+The frontend is a React application located in the `web/frontend` submodule (github.com/bengrewell/aether-webui-frontend).
+
+#### Setup
+
+```bash
+# Initialize submodule
+git submodule update --init
+
+# Install frontend dependencies
+cd web/frontend && npm install
+```
+
+#### Development Workflow
+
+For frontend development, run the Vite dev server alongside the API:
+
+```bash
+# Terminal 1: Run API backend
+make build && ./bin/aether-webd --serve-frontend=false
+
+# Terminal 2: Run frontend dev server (with hot reload)
+cd web/frontend && npm run dev
+```
+
+The Vite dev server proxies API requests to the backend automatically.
+
+#### Production Build
+
+```bash
+# Build frontend and embed into Go binary
+make all
+
+# The resulting binary includes the frontend - no external files needed
+./bin/aether-webd
+```
 
 ### Versioning
 

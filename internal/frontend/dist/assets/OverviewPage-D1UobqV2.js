@@ -1,0 +1,1 @@
+import{j as e}from"./index-C5-ONvph.js";function r(){return e.jsx("div",{className:"max-w-4xl",children:e.jsx("h1",{className:"text-2xl font-bold text-text-primary",children:"5G Deployment Overview"})})}export{r as default};
