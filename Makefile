@@ -9,6 +9,11 @@ BINARY_NAME := aether-webd
 CMD_PATH := ./cmd/aether-webd
 BIN_DIR := bin
 
+# Frontend paths
+FRONTEND_DIR := web/frontend
+FRONTEND_DIST := $(FRONTEND_DIR)/dist
+EMBED_DIR := internal/frontend/dist
+
 # Docker settings
 DOCKER_IMAGE := ghcr.io/bengrewell/aether-webd
 DOCKER_TAG := $(VERSION)
@@ -19,7 +24,16 @@ LDFLAGS := -X 'main.version=$(VERSION)' \
            -X 'main.branch=$(BRANCH)' \
            -X 'main.buildDate=$(DATE)'
 
-.PHONY: build clean test coverage coverage-html run version docker-build docker-push
+.PHONY: build clean test coverage coverage-html run version docker-build docker-push frontend embed-frontend all
+
+# Build frontend (requires npm)
+frontend:
+	cd $(FRONTEND_DIR) && npm install && npm run build
+
+# Copy frontend dist to embed location
+embed-frontend: frontend
+	rm -rf $(EMBED_DIR)
+	cp -r $(FRONTEND_DIST) $(EMBED_DIR)
 
 # Build the binary with version info
 build:
@@ -27,9 +41,13 @@ build:
 	go build -ldflags "$(LDFLAGS)" -o $(BIN_DIR)/$(BINARY_NAME) $(CMD_PATH)
 	@echo "Built $(BIN_DIR)/$(BINARY_NAME) $(VERSION)"
 
+# Build both frontend and backend with embedding
+all: embed-frontend build
+	@echo "Built $(BIN_DIR)/$(BINARY_NAME) $(VERSION) with embedded frontend"
+
 # Remove build artifacts
 clean:
-	rm -rf $(BIN_DIR) coverage.out coverage.html
+	rm -rf $(BIN_DIR) coverage.out coverage.html $(FRONTEND_DIST) $(EMBED_DIR)
 
 # Run tests with coverage
 test:
