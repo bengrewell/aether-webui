@@ -56,6 +56,12 @@ func NewSQLiteStore(dataDir string) (*SQLiteStore, error) {
 		return nil, fmt.Errorf("failed to initialize schema: %w", err)
 	}
 
+	// Run any pending migrations
+	if err := runMigrations(db); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("failed to run migrations: %w", err)
+	}
+
 	return store, nil
 }
 
@@ -289,6 +295,11 @@ func (s *SQLiteStore) PruneOldMetrics(ctx context.Context, olderThan time.Durati
 		return fmt.Errorf("failed to prune old metrics: %w", err)
 	}
 	return nil
+}
+
+// GetSchemaVersion returns the current schema migration version.
+func (s *SQLiteStore) GetSchemaVersion() (int, error) {
+	return getCurrentVersion(s.db)
 }
 
 // Close closes the database connection.

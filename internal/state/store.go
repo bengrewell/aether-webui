@@ -28,6 +28,9 @@ type Store interface {
 	GetMetricsHistory(ctx context.Context, metricType string, limit int) ([]MetricsSnapshot, error)
 	PruneOldMetrics(ctx context.Context, olderThan time.Duration) error
 
+	// Schema
+	GetSchemaVersion() (int, error)
+
 	// Lifecycle
 	Close() error
 }
