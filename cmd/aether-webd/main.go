@@ -8,6 +8,7 @@ import (
 	"github.com/bengrewell/aether-webui/internal/aether"
 	"github.com/bengrewell/aether-webui/internal/frontend"
 	"github.com/bengrewell/aether-webui/internal/k8sinfo"
+	"github.com/bengrewell/aether-webui/internal/state"
 	"github.com/bengrewell/aether-webui/internal/sysinfo"
 	"github.com/bengrewell/aether-webui/internal/webuiapi"
 	"github.com/bgrewell/usage"
@@ -51,6 +52,9 @@ func main() {
 	flagServeFrontend := u.AddBooleanOption("f", "serve-frontend", true, "Enable serving frontend static files from embedded or custom directory", "", frontendOptions)
 	flagFrontendDir := u.AddStringOption("", "frontend-dir", "", "Override embedded frontend with files from this directory (for development)", "", frontendOptions)
 
+	storageOptions := u.AddGroup(4, "Storage Options", "Options that control persistent state storage")
+	flagDataDir := u.AddStringOption("", "data-dir", "/var/lib/aether-webd", "Directory for persistent state database", "", storageOptions)
+
 	parsed := u.Parse()
 
 	if !parsed {
@@ -66,6 +70,14 @@ func main() {
 	_ = flagExecUser
 	_ = flagExecEnv
 
+	// Initialize persistent state store
+	stateStore, err := state.NewSQLiteStore(*flagDataDir)
+	if err != nil {
+		fmt.Printf("Failed to initialize state store: %v\n", err)
+		os.Exit(1)
+	}
+	defer stateStore.Close()
+
 	// Create Chi router and Huma API
 	router := chi.NewMux()
 	api := humachi.New(router, huma.DefaultConfig("Aether WebUI API", version))
@@ -79,6 +91,7 @@ func main() {
 
 	// Register routes
 	webuiapi.RegisterHealthRoutes(api)
+	webuiapi.RegisterSetupRoutes(api, stateStore)
 	webuiapi.RegisterSystemRoutes(api, sysResolver)
 	webuiapi.RegisterMetricsRoutes(api, sysResolver)
 	webuiapi.RegisterKubernetesRoutes(api, k8sProvider)

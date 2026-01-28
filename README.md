@@ -111,6 +111,12 @@ aether-webd [options]
 | `-f, --serve-frontend` | Enable serving frontend static files | `true` |
 | `--frontend-dir` | Override embedded frontend with files from this directory | - |
 
+### Storage Options
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--data-dir` | Directory for persistent state database | `/var/lib/aether-webd` |
+
 ### Examples
 
 ```bash
@@ -139,11 +145,12 @@ The service provides a REST API built with [Huma](https://huma.rocks/), which au
 
 ### API Endpoints
 
-The API provides 33 endpoints across 5 categories:
+The API provides 36 endpoints across 6 categories:
 
 | Category | Endpoints | Description |
 |----------|-----------|-------------|
 | Health | 1 | Service health check |
+| Setup | 3 | Setup wizard status and completion |
 | System Info | 5 | CPU, memory, disk, NIC, and OS information |
 | Metrics | 4 | Real-time CPU, memory, disk, and network usage |
 | Kubernetes | 7 | Cluster health, nodes, pods, deployments, services, events |
@@ -154,6 +161,11 @@ The API provides 33 endpoints across 5 categories:
 ```bash
 # Health check
 curl http://localhost:8680/healthz
+
+# Setup wizard status
+curl http://localhost:8680/api/v1/setup/status
+curl -X POST http://localhost:8680/api/v1/setup/complete
+curl -X DELETE http://localhost:8680/api/v1/setup/status
 
 # Get system information
 curl http://localhost:8680/api/v1/system/cpu
