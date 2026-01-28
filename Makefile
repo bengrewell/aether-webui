@@ -24,10 +24,17 @@ LDFLAGS := -X 'main.version=$(VERSION)' \
            -X 'main.branch=$(BRANCH)' \
            -X 'main.buildDate=$(DATE)'
 
-.PHONY: build clean test coverage coverage-html run version docker-build docker-push frontend embed-frontend all ensure-frontend
+.PHONY: build clean test coverage coverage-html run version docker-build docker-push frontend embed-frontend all ensure-frontend init-submodules
+
+# Initialize git submodules if needed
+init-submodules:
+	@if [ ! -f $(FRONTEND_DIR)/package.json ]; then \
+		echo "Initializing git submodules..."; \
+		git submodule update --init --recursive; \
+	fi
 
 # Build frontend (requires npm)
-frontend:
+frontend: init-submodules
 	cd $(FRONTEND_DIR) && npm install && npm run build
 
 # Copy frontend dist to embed location
