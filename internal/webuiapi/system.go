@@ -3,7 +3,9 @@ package webuiapi
 import (
 	"context"
 
-	"github.com/bengrewell/aether-webui/internal/sysinfo"
+	"github.com/bengrewell/aether-webui/internal/operator"
+	"github.com/bengrewell/aether-webui/internal/operator/host"
+	"github.com/bengrewell/aether-webui/internal/provider"
 	"github.com/danielgtaylor/huma/v2"
 )
 
@@ -14,31 +16,44 @@ type NodeInput struct {
 
 // CPUInfoOutput is the response for GET /api/v1/system/cpu
 type CPUInfoOutput struct {
-	Body sysinfo.CPUInfo
+	Body host.CPUInfo
 }
 
 // MemoryInfoOutput is the response for GET /api/v1/system/memory
 type MemoryInfoOutput struct {
-	Body sysinfo.MemoryInfo
+	Body host.MemoryInfo
 }
 
 // DiskInfoOutput is the response for GET /api/v1/system/disk
 type DiskInfoOutput struct {
-	Body sysinfo.DiskInfo
+	Body host.DiskInfo
 }
 
 // NICInfoOutput is the response for GET /api/v1/system/nic
 type NICInfoOutput struct {
-	Body sysinfo.NICInfo
+	Body host.NICInfo
 }
 
 // OSInfoOutput is the response for GET /api/v1/system/os
 type OSInfoOutput struct {
-	Body sysinfo.OSInfo
+	Body host.OSInfo
+}
+
+// getHostOperator resolves a node and returns its HostOperator.
+func getHostOperator(resolver provider.ProviderResolver, node string) (host.HostOperator, error) {
+	p, err := resolver.Resolve(provider.NodeID(node))
+	if err != nil {
+		return nil, err
+	}
+	hostOp, ok := p.Operator(operator.DomainHost).(host.HostOperator)
+	if !ok || hostOp == nil {
+		return nil, huma.Error503ServiceUnavailable("host operator not available")
+	}
+	return hostOp, nil
 }
 
 // RegisterSystemRoutes registers static system information routes.
-func RegisterSystemRoutes(api huma.API, resolver sysinfo.NodeResolver) {
+func RegisterSystemRoutes(api huma.API, resolver provider.ProviderResolver) {
 	huma.Register(api, huma.Operation{
 		OperationID: "get-cpu-info",
 		Method:      "GET",
@@ -47,11 +62,11 @@ func RegisterSystemRoutes(api huma.API, resolver sysinfo.NodeResolver) {
 		Description: "Returns static CPU information for the specified node",
 		Tags:        []string{"System"},
 	}, func(ctx context.Context, input *NodeInput) (*CPUInfoOutput, error) {
-		provider, err := resolver.Resolve(input.Node)
+		hostOp, err := getHostOperator(resolver, input.Node)
 		if err != nil {
 			return nil, huma.Error400BadRequest("invalid node", err)
 		}
-		info, err := provider.GetCPUInfo(ctx)
+		info, err := hostOp.GetCPUInfo(ctx)
 		if err != nil {
 			return nil, huma.Error500InternalServerError("failed to get CPU info", err)
 		}
@@ -66,11 +81,11 @@ func RegisterSystemRoutes(api huma.API, resolver sysinfo.NodeResolver) {
 		Description: "Returns static memory information for the specified node",
 		Tags:        []string{"System"},
 	}, func(ctx context.Context, input *NodeInput) (*MemoryInfoOutput, error) {
-		provider, err := resolver.Resolve(input.Node)
+		hostOp, err := getHostOperator(resolver, input.Node)
 		if err != nil {
 			return nil, huma.Error400BadRequest("invalid node", err)
 		}
-		info, err := provider.GetMemoryInfo(ctx)
+		info, err := hostOp.GetMemoryInfo(ctx)
 		if err != nil {
 			return nil, huma.Error500InternalServerError("failed to get memory info", err)
 		}
@@ -85,11 +100,11 @@ func RegisterSystemRoutes(api huma.API, resolver sysinfo.NodeResolver) {
 		Description: "Returns static disk information for the specified node",
 		Tags:        []string{"System"},
 	}, func(ctx context.Context, input *NodeInput) (*DiskInfoOutput, error) {
-		provider, err := resolver.Resolve(input.Node)
+		hostOp, err := getHostOperator(resolver, input.Node)
 		if err != nil {
 			return nil, huma.Error400BadRequest("invalid node", err)
 		}
-		info, err := provider.GetDiskInfo(ctx)
+		info, err := hostOp.GetDiskInfo(ctx)
 		if err != nil {
 			return nil, huma.Error500InternalServerError("failed to get disk info", err)
 		}
@@ -104,11 +119,11 @@ func RegisterSystemRoutes(api huma.API, resolver sysinfo.NodeResolver) {
 		Description: "Returns static network interface information for the specified node",
 		Tags:        []string{"System"},
 	}, func(ctx context.Context, input *NodeInput) (*NICInfoOutput, error) {
-		provider, err := resolver.Resolve(input.Node)
+		hostOp, err := getHostOperator(resolver, input.Node)
 		if err != nil {
 			return nil, huma.Error400BadRequest("invalid node", err)
 		}
-		info, err := provider.GetNICInfo(ctx)
+		info, err := hostOp.GetNICInfo(ctx)
 		if err != nil {
 			return nil, huma.Error500InternalServerError("failed to get NIC info", err)
 		}
@@ -123,11 +138,11 @@ func RegisterSystemRoutes(api huma.API, resolver sysinfo.NodeResolver) {
 		Description: "Returns static operating system information for the specified node",
 		Tags:        []string{"System"},
 	}, func(ctx context.Context, input *NodeInput) (*OSInfoOutput, error) {
-		provider, err := resolver.Resolve(input.Node)
+		hostOp, err := getHostOperator(resolver, input.Node)
 		if err != nil {
 			return nil, huma.Error400BadRequest("invalid node", err)
 		}
-		info, err := provider.GetOSInfo(ctx)
+		info, err := hostOp.GetOSInfo(ctx)
 		if err != nil {
 			return nil, huma.Error500InternalServerError("failed to get OS info", err)
 		}
