@@ -66,6 +66,7 @@ clean:
 # Run linter
 lint:
 	go vet ./...
+	staticcheck ./...
 
 # Run tests with coverage
 test:
