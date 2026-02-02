@@ -1,9 +1,13 @@
 package main
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/bengrewell/aether-webui/internal/aether"
 	"github.com/bengrewell/aether-webui/internal/frontend"
@@ -27,6 +31,7 @@ var (
 
 func main() {
 
+	// Setup usage and command-line options
 	u := usage.NewUsage(
 		usage.WithApplicationName("aether-webd"),
 		usage.WithApplicationVersion(version),
@@ -81,13 +86,13 @@ func main() {
 	)
 
 	// Log unimplemented flag values at debug level
-	slog.Debug("security options",
+	slog.Debug("unimplemented security options",
 		"tls_cert", *flagTLSCert,
 		"tls_key", *flagTLSKey,
 		"mtls_ca_cert", *flagMTLSCACert,
 		"enable_rbac", *flagEnableRBAC,
 	)
-	slog.Debug("execution options",
+	slog.Debug("unimplemented execution options",
 		"exec_user", *flagExecUser,
 		"exec_env", *flagExecEnv,
 	)
@@ -105,10 +110,11 @@ func main() {
 	router.Use(logging.RequestLogger())
 	api := humachi.New(router, huma.DefaultConfig("Aether WebUI API", version))
 
-	// Initialize providers with mock implementations
+	// Initialize providers with mock implementations (TODO: Replace with real implementations)
 	sysProvider := sysinfo.NewMockProvider()
 	sysResolver := sysinfo.NewDefaultNodeResolver(sysProvider)
 	k8sProvider := k8sinfo.NewMockProvider()
+	// TODO: Need k8sResolver
 	aetherProvider := aether.NewMockProvider("local")
 	aetherResolver := aether.NewDefaultHostResolver(aetherProvider)
 
@@ -136,9 +142,43 @@ func main() {
 		router.Handle("/*", frontendHandler)
 	}
 
-	// Start HTTP server
-	slog.Info("starting HTTP server", "addr", *flagListen)
-	if err := http.ListenAndServe(*flagListen, router); err != nil {
-		slog.Error("HTTP server error", "error", err)
+	// Create server with explicit configuration
+	server := &http.Server{
+		Addr:    *flagListen,
+		Handler: router,
+	}
+
+	// Start server in goroutine
+	go func() {
+		slog.Info("starting HTTP server", "addr", *flagListen)
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			slog.Error("HTTP server error", "error", err)
+			os.Exit(1)
+		}
+	}()
+
+	// Signal handling for graceful shutdown
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	var lastSignal time.Time
+	confirmWindow := 3 * time.Second
+
+	for {
+		<-sigChan
+		now := time.Now()
+		if now.Sub(lastSignal) <= confirmWindow {
+			// Second press within window - shutdown
+			slog.Info("shutting down server...")
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			if err := server.Shutdown(ctx); err != nil {
+				slog.Error("server shutdown error", "error", err)
+			}
+			return
+		}
+		// First press - warn user
+		lastSignal = now
+		slog.Warn("interrupt received, press Ctrl+C again within 3 seconds to quit")
 	}
 }
