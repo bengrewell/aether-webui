@@ -24,7 +24,7 @@ LDFLAGS := -X 'main.version=$(VERSION)' \
            -X 'main.branch=$(BRANCH)' \
            -X 'main.buildDate=$(DATE)'
 
-.PHONY: build clean test coverage coverage-html run version docker-build docker-push frontend embed-frontend all ensure-frontend init-submodules
+.PHONY: build clean test coverage coverage-html run version docker-build docker-push frontend embed-frontend all ensure-frontend init-submodules lint
 
 # Initialize git submodules if needed
 init-submodules:
@@ -62,6 +62,11 @@ all: embed-frontend build
 # Remove build artifacts
 clean:
 	rm -rf $(BIN_DIR) coverage.out coverage.html $(FRONTEND_DIST) $(EMBED_DIR)
+
+# Run linter
+lint:
+	go vet ./...
+	staticcheck ./...
 
 # Run tests with coverage
 test:
