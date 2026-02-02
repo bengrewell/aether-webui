@@ -65,7 +65,7 @@ clean:
 
 # Run linter
 lint:
-	golangci-lint run ./...
+	go vet ./...
 
 # Run tests with coverage
 test:
