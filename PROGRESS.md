@@ -5,6 +5,7 @@
 
 ## Recent Updates
 <!-- Rolling log of significant changes, most recent first -->
+- **Feb 4, 2026**: Refactored exec operator into execution shim (`internal/executor/`) - operators like Aether now receive Executor via dependency injection
 - **Feb 4, 2025**: Implemented Host Operator with gopsutil - all static info and dynamic metrics now functional, plus historical metrics with time-series aggregation
 - **Week of Feb 3, 2025**: Restructured progress tracking for stakeholder reporting
 
@@ -128,23 +129,17 @@ Cluster monitoring and workload visibility.
   - [ ] `GetGNBStatus` — Single gNB health
   - [ ] `ListGNBStatuses` — All gNBs health
 
-#### Exec Operator (`internal/operator/exec`)
-Command execution and task management.
+#### Executor Shim (`internal/executor/`)
+Command execution infrastructure (not an operator). Operators use this via dependency injection.
 
-- [ ] **Core Execution**
-  - [ ] `Execute` — Synchronous command execution
-  - [ ] `ExecuteAsync` — Async execution with task ID
-  - [ ] `GetTaskStatus` — Poll async task status
-  - [ ] `CancelTask` — Abort running task
-- [ ] **Invocable Operations**
-  - [ ] `Shell` — Execute shell commands
-  - [ ] `Ansible` — Run Ansible playbooks
-  - [ ] `Script` — Execute script files
-  - [ ] `Helm` — Run Helm commands
-  - [ ] `Kubectl` — Run kubectl commands
-  - [ ] `Docker` — Run Docker commands
-  - [ ] `TaskStatusOp` — Query task status
-  - [ ] `ListTasks` — List all tasks
+- [x] **Core Interface** — Executor interface with domain-specific methods
+- [x] **File Operations** — ReadFile, WriteFile, RenderTemplate, FileExists, MkdirAll
+- [x] **Helm Operations** — RunHelmInstall, RunHelmUpgrade, RunHelmUninstall, RunHelmList, RunHelmStatus
+- [x] **Kubectl Operations** — RunKubectl, KubectlApply, KubectlDelete, KubectlGet
+- [x] **Docker Operations** — RunDockerCommand, DockerRun, DockerStop, DockerRemove
+- [x] **Ansible Operations** — RunAnsiblePlaybook
+- [x] **Shell/Script** — RunShell, RunScript (explicit opt-in)
+- [x] **MockExecutor** — Test double with call tracking for unit testing operators
 
 ### Frontend
 

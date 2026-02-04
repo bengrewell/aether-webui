@@ -1,3 +1,5 @@
+github.com/bgrewell/go-execute v0.0.0-20251231174630-b3dc81e1654e h1:cy45Ja6/xQqaogvSDEuxey88Gq7poab813zXtEXYdu0=
+github.com/bgrewell/go-execute v0.0.0-20251231174630-b3dc81e1654e/go.mod h1:0qpee27G4nRiEglReSMJe3Zt1N+TMFspDgykMw5TSaA=
 github.com/bgrewell/usage v0.0.0-20260202174102-7420635fba0e h1:yYwHc46iBqOqUMqXmmEQno0kApA95d5QBl5V/xMeW44=
 github.com/bgrewell/usage v0.0.0-20260202174102-7420635fba0e/go.mod h1:UewBnSDwtreFTHTkEF/GJku52IM2duwkCRLkAiNeeIY=
 github.com/danielgtaylor/huma/v2 v2.35.0 h1:FRg3FgVKcMogVhbNY7FjyTwk+p/orLBR3hQBvXXg7dw=

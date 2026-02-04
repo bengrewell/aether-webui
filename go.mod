@@ -12,6 +12,7 @@ require (
 )
 
 require (
+	github.com/bgrewell/go-execute v0.0.0-20251231174630-b3dc81e1654e // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/ebitengine/purego v0.9.1 // indirect
 	github.com/fatih/color v1.18.0 // indirect

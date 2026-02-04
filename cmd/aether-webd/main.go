@@ -9,11 +9,11 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/bengrewell/aether-webui/internal/executor"
 	"github.com/bengrewell/aether-webui/internal/frontend"
 	"github.com/bengrewell/aether-webui/internal/logging"
 	"github.com/bengrewell/aether-webui/internal/metrics"
 	"github.com/bengrewell/aether-webui/internal/operator/aether"
-	"github.com/bengrewell/aether-webui/internal/operator/exec"
 	"github.com/bengrewell/aether-webui/internal/operator/host"
 	"github.com/bengrewell/aether-webui/internal/operator/kube"
 	"github.com/bengrewell/aether-webui/internal/provider"
@@ -129,18 +129,21 @@ func main() {
 	router.Use(logging.RequestLogger())
 	api := humachi.New(router, huma.DefaultConfig("Aether WebUI API", version))
 
+	// Create executor for command execution
+	cmdExecutor := executor.New(executor.Config{
+		DefaultTimeout: 10 * time.Minute,
+	})
+
 	// Create operators
 	hostOp := host.New()
 	kubeOp := kube.New()
-	aetherOp := aether.New()
-	execOp := exec.New()
+	aetherOp := aether.New(cmdExecutor)
 
 	// Create local provider with operators
 	localProvider := provider.NewLocalProvider(
 		provider.WithOperator(hostOp),
 		provider.WithOperator(kubeOp),
 		provider.WithOperator(aetherOp),
-		provider.WithOperator(execOp),
 	)
 
 	// Create unified resolver

@@ -13,7 +13,6 @@ func TestDomainConstants(t *testing.T) {
 		{DomainHost, "host"},
 		{DomainKube, "kube"},
 		{DomainAether, "aether"},
-		{DomainExec, "exec"},
 	}
 	for _, tc := range tests {
 		if string(tc.domain) != tc.want {

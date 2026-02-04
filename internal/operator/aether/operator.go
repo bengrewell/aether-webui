@@ -3,6 +3,7 @@ package aether
 import (
 	"context"
 
+	"github.com/bengrewell/aether-webui/internal/executor"
 	"github.com/bengrewell/aether-webui/internal/operator"
 )
 
@@ -30,11 +31,13 @@ type AetherOperator interface {
 }
 
 // Operator returns "not implemented" for all methods.
-type Operator struct{}
+type Operator struct {
+	exec executor.Executor
+}
 
-// New creates a new Aether operator.
-func New() *Operator {
-	return &Operator{}
+// New creates a new Aether operator with the given executor.
+func New(exec executor.Executor) *Operator {
+	return &Operator{exec: exec}
 }
 
 // Domain returns the operator's domain.
