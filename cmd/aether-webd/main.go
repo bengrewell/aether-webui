@@ -11,6 +11,7 @@ import (
 
 	"github.com/bengrewell/aether-webui/internal/frontend"
 	"github.com/bengrewell/aether-webui/internal/logging"
+	"github.com/bengrewell/aether-webui/internal/metrics"
 	"github.com/bengrewell/aether-webui/internal/operator/aether"
 	"github.com/bengrewell/aether-webui/internal/operator/exec"
 	"github.com/bengrewell/aether-webui/internal/operator/host"
@@ -63,6 +64,10 @@ func main() {
 	storageOptions := u.AddGroup(4, "Storage Options", "Options that control persistent state storage")
 	flagDataDir := u.AddStringOption("", "data-dir", "/var/lib/aether-webd", "Directory for persistent state database", "", storageOptions)
 
+	metricsOptions := u.AddGroup(5, "Metrics Options", "Options that control metrics collection")
+	flagMetricsInterval := u.AddStringOption("", "metrics-interval", "10s", "How often to collect system metrics (e.g., '10s', '30s', '1m')", "", metricsOptions)
+	flagMetricsRetention := u.AddStringOption("", "metrics-retention", "24h", "How long to retain historical metrics data (e.g., '24h', '7d')", "", metricsOptions)
+
 	parsed := u.Parse()
 
 	if !parsed {
@@ -99,6 +104,18 @@ func main() {
 		"exec_env", *flagExecEnv,
 	)
 
+	// Parse metrics configuration
+	metricsInterval, err := time.ParseDuration(*flagMetricsInterval)
+	if err != nil {
+		slog.Error("invalid metrics-interval", "value", *flagMetricsInterval, "error", err)
+		os.Exit(1)
+	}
+	metricsRetention, err := time.ParseDuration(*flagMetricsRetention)
+	if err != nil {
+		slog.Error("invalid metrics-retention", "value", *flagMetricsRetention, "error", err)
+		os.Exit(1)
+	}
+
 	// Initialize persistent state store
 	stateStore, err := state.NewSQLiteStore(*flagDataDir)
 	if err != nil {
@@ -112,7 +129,7 @@ func main() {
 	router.Use(logging.RequestLogger())
 	api := humachi.New(router, huma.DefaultConfig("Aether WebUI API", version))
 
-	// Create operators (TODO: Replace with real implementations)
+	// Create operators
 	hostOp := host.New()
 	kubeOp := kube.New()
 	aetherOp := aether.New()
@@ -133,7 +150,10 @@ func main() {
 	webuiapi.RegisterHealthRoutes(api)
 	webuiapi.RegisterSetupRoutes(api, stateStore)
 	webuiapi.RegisterSystemRoutes(api, resolver)
-	webuiapi.RegisterMetricsRoutes(api, resolver)
+	webuiapi.RegisterMetricsRoutesWithStore(api, webuiapi.MetricsRoutesDeps{
+		Resolver: resolver,
+		Store:    stateStore,
+	})
 	webuiapi.RegisterKubernetesRoutes(api, resolver)
 	webuiapi.RegisterAetherRoutes(api, resolver)
 
@@ -159,6 +179,21 @@ func main() {
 		Handler: router,
 	}
 
+	// Create context for graceful shutdown
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Start metrics collector
+	collector := metrics.NewCollector(hostOp, stateStore, metrics.Config{
+		Interval:  metricsInterval,
+		Retention: metricsRetention,
+	})
+	go func() {
+		if err := collector.Start(ctx); err != nil && err != context.Canceled {
+			slog.Error("metrics collector error", "error", err)
+		}
+	}()
+
 	// Start server in goroutine
 	go func() {
 		slog.Info("starting HTTP server", "addr", *flagListen)
@@ -181,9 +216,14 @@ func main() {
 		if now.Sub(lastSignal) <= confirmWindow {
 			// Second press within window - shutdown
 			slog.Info("shutting down server...")
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			defer cancel()
-			if err := server.Shutdown(ctx); err != nil {
+
+			// Cancel context to stop metrics collector
+			cancel()
+			collector.Stop()
+
+			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer shutdownCancel()
+			if err := server.Shutdown(shutdownCtx); err != nil {
 				slog.Error("server shutdown error", "error", err)
 			}
 			return

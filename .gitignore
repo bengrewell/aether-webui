@@ -1,5 +1,6 @@
 # Build artifacts
 bin/
+/aether-webd
 
 # Test coverage
 coverage.out
