@@ -112,11 +112,11 @@ func main() {
 	router.Use(logging.RequestLogger())
 	api := humachi.New(router, huma.DefaultConfig("Aether WebUI API", version))
 
-	// Create stub operators (TODO: Replace with real implementations)
-	hostOp := host.NewStubOperator()
-	kubeOp := kube.NewStubOperator()
-	aetherOp := aether.NewStubOperator()
-	execOp := exec.NewStubOperator()
+	// Create operators (TODO: Replace with real implementations)
+	hostOp := host.New()
+	kubeOp := kube.New()
+	aetherOp := aether.New()
+	execOp := exec.New()
 
 	// Create local provider with operators
 	localProvider := provider.NewLocalProvider(

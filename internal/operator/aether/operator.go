@@ -29,21 +29,21 @@ type AetherOperator interface {
 	ListGNBStatuses(ctx context.Context) (*GNBStatusList, error)
 }
 
-// StubOperator returns "not implemented" for all methods.
-type StubOperator struct{}
+// Operator returns "not implemented" for all methods.
+type Operator struct{}
 
-// NewStubOperator creates a new stub Aether operator.
-func NewStubOperator() *StubOperator {
-	return &StubOperator{}
+// New creates a new Aether operator.
+func New() *Operator {
+	return &Operator{}
 }
 
 // Domain returns the operator's domain.
-func (o *StubOperator) Domain() operator.Domain {
+func (o *Operator) Domain() operator.Domain {
 	return operator.DomainAether
 }
 
 // Health returns the operator's health status.
-func (o *StubOperator) Health(_ context.Context) (*operator.OperatorHealth, error) {
+func (o *Operator) Health(_ context.Context) (*operator.OperatorHealth, error) {
 	return &operator.OperatorHealth{
 		Status:  "unavailable",
 		Message: "not implemented",
@@ -51,71 +51,71 @@ func (o *StubOperator) Health(_ context.Context) (*operator.OperatorHealth, erro
 }
 
 // ListCores returns all SD-Core deployments.
-func (o *StubOperator) ListCores(_ context.Context) (*CoreList, error) {
+func (o *Operator) ListCores(_ context.Context) (*CoreList, error) {
 	return nil, operator.ErrNotImplemented
 }
 
 // GetCore returns a specific SD-Core configuration.
-func (o *StubOperator) GetCore(_ context.Context, _ string) (*CoreConfig, error) {
+func (o *Operator) GetCore(_ context.Context, _ string) (*CoreConfig, error) {
 	return nil, operator.ErrNotImplemented
 }
 
 // DeployCore deploys a new SD-Core instance.
-func (o *StubOperator) DeployCore(_ context.Context, _ *CoreConfig) (*DeploymentResponse, error) {
+func (o *Operator) DeployCore(_ context.Context, _ *CoreConfig) (*DeploymentResponse, error) {
 	return nil, operator.ErrNotImplemented
 }
 
 // UpdateCore updates an SD-Core configuration.
-func (o *StubOperator) UpdateCore(_ context.Context, _ string, _ *CoreConfig) error {
+func (o *Operator) UpdateCore(_ context.Context, _ string, _ *CoreConfig) error {
 	return operator.ErrNotImplemented
 }
 
 // UndeployCore removes an SD-Core deployment.
-func (o *StubOperator) UndeployCore(_ context.Context, _ string) (*DeploymentResponse, error) {
+func (o *Operator) UndeployCore(_ context.Context, _ string) (*DeploymentResponse, error) {
 	return nil, operator.ErrNotImplemented
 }
 
 // GetCoreStatus returns the status of a specific SD-Core.
-func (o *StubOperator) GetCoreStatus(_ context.Context, _ string) (*CoreStatus, error) {
+func (o *Operator) GetCoreStatus(_ context.Context, _ string) (*CoreStatus, error) {
 	return nil, operator.ErrNotImplemented
 }
 
 // ListCoreStatuses returns status for all SD-Core deployments.
-func (o *StubOperator) ListCoreStatuses(_ context.Context) (*CoreStatusList, error) {
+func (o *Operator) ListCoreStatuses(_ context.Context) (*CoreStatusList, error) {
 	return nil, operator.ErrNotImplemented
 }
 
 // ListGNBs returns all gNB configurations.
-func (o *StubOperator) ListGNBs(_ context.Context) (*GNBList, error) {
+func (o *Operator) ListGNBs(_ context.Context) (*GNBList, error) {
 	return nil, operator.ErrNotImplemented
 }
 
 // GetGNB returns a specific gNB configuration.
-func (o *StubOperator) GetGNB(_ context.Context, _ string) (*GNBConfig, error) {
+func (o *Operator) GetGNB(_ context.Context, _ string) (*GNBConfig, error) {
 	return nil, operator.ErrNotImplemented
 }
 
 // DeployGNB deploys a new gNB instance.
-func (o *StubOperator) DeployGNB(_ context.Context, _ *GNBConfig) (*DeploymentResponse, error) {
+func (o *Operator) DeployGNB(_ context.Context, _ *GNBConfig) (*DeploymentResponse, error) {
 	return nil, operator.ErrNotImplemented
 }
 
 // UpdateGNB updates a gNB configuration.
-func (o *StubOperator) UpdateGNB(_ context.Context, _ string, _ *GNBConfig) error {
+func (o *Operator) UpdateGNB(_ context.Context, _ string, _ *GNBConfig) error {
 	return operator.ErrNotImplemented
 }
 
 // UndeployGNB removes a gNB deployment.
-func (o *StubOperator) UndeployGNB(_ context.Context, _ string) (*DeploymentResponse, error) {
+func (o *Operator) UndeployGNB(_ context.Context, _ string) (*DeploymentResponse, error) {
 	return nil, operator.ErrNotImplemented
 }
 
 // GetGNBStatus returns the status of a specific gNB.
-func (o *StubOperator) GetGNBStatus(_ context.Context, _ string) (*GNBStatus, error) {
+func (o *Operator) GetGNBStatus(_ context.Context, _ string) (*GNBStatus, error) {
 	return nil, operator.ErrNotImplemented
 }
 
 // ListGNBStatuses returns status for all gNBs.
-func (o *StubOperator) ListGNBStatuses(_ context.Context) (*GNBStatusList, error) {
+func (o *Operator) ListGNBStatuses(_ context.Context) (*GNBStatusList, error) {
 	return nil, operator.ErrNotImplemented
 }

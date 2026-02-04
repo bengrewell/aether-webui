@@ -19,21 +19,21 @@ type KubeOperator interface {
 	GetServices(ctx context.Context, namespace string) (*ServiceList, error)
 }
 
-// StubOperator returns "not implemented" for all methods.
-type StubOperator struct{}
+// Operator returns "not implemented" for all methods.
+type Operator struct{}
 
-// NewStubOperator creates a new stub Kubernetes operator.
-func NewStubOperator() *StubOperator {
-	return &StubOperator{}
+// New creates a new Kubernetes operator.
+func New() *Operator {
+	return &Operator{}
 }
 
 // Domain returns the operator's domain.
-func (o *StubOperator) Domain() operator.Domain {
+func (o *Operator) Domain() operator.Domain {
 	return operator.DomainKube
 }
 
 // Health returns the operator's health status.
-func (o *StubOperator) Health(_ context.Context) (*operator.OperatorHealth, error) {
+func (o *Operator) Health(_ context.Context) (*operator.OperatorHealth, error) {
 	return &operator.OperatorHealth{
 		Status:  "unavailable",
 		Message: "not implemented",
@@ -41,36 +41,36 @@ func (o *StubOperator) Health(_ context.Context) (*operator.OperatorHealth, erro
 }
 
 // GetClusterHealth returns cluster health information.
-func (o *StubOperator) GetClusterHealth(_ context.Context) (*ClusterHealth, error) {
+func (o *Operator) GetClusterHealth(_ context.Context) (*ClusterHealth, error) {
 	return nil, operator.ErrNotImplemented
 }
 
 // GetNodes returns cluster node information.
-func (o *StubOperator) GetNodes(_ context.Context) (*NodeList, error) {
+func (o *Operator) GetNodes(_ context.Context) (*NodeList, error) {
 	return nil, operator.ErrNotImplemented
 }
 
 // GetNamespaces returns namespace information.
-func (o *StubOperator) GetNamespaces(_ context.Context) (*NamespaceList, error) {
+func (o *Operator) GetNamespaces(_ context.Context) (*NamespaceList, error) {
 	return nil, operator.ErrNotImplemented
 }
 
 // GetEvents returns cluster events.
-func (o *StubOperator) GetEvents(_ context.Context, _ string, _ int) (*EventList, error) {
+func (o *Operator) GetEvents(_ context.Context, _ string, _ int) (*EventList, error) {
 	return nil, operator.ErrNotImplemented
 }
 
 // GetPods returns pod information.
-func (o *StubOperator) GetPods(_ context.Context, _ string) (*PodList, error) {
+func (o *Operator) GetPods(_ context.Context, _ string) (*PodList, error) {
 	return nil, operator.ErrNotImplemented
 }
 
 // GetDeployments returns deployment information.
-func (o *StubOperator) GetDeployments(_ context.Context, _ string) (*DeploymentList, error) {
+func (o *Operator) GetDeployments(_ context.Context, _ string) (*DeploymentList, error) {
 	return nil, operator.ErrNotImplemented
 }
 
 // GetServices returns service information.
-func (o *StubOperator) GetServices(_ context.Context, _ string) (*ServiceList, error) {
+func (o *Operator) GetServices(_ context.Context, _ string) (*ServiceList, error) {
 	return nil, operator.ErrNotImplemented
 }

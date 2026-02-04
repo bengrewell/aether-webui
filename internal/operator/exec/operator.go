@@ -18,21 +18,21 @@ type ExecOperator interface {
 	CancelTask(ctx context.Context, taskID string) error
 }
 
-// StubOperator returns "not implemented" for all methods.
-type StubOperator struct{}
+// Operator returns "not implemented" for all methods.
+type Operator struct{}
 
-// NewStubOperator creates a new stub exec operator.
-func NewStubOperator() *StubOperator {
-	return &StubOperator{}
+// New creates a new exec operator.
+func New() *Operator {
+	return &Operator{}
 }
 
 // Domain returns the operator's domain.
-func (o *StubOperator) Domain() operator.Domain {
+func (o *Operator) Domain() operator.Domain {
 	return operator.DomainExec
 }
 
 // Health returns the operator's health status.
-func (o *StubOperator) Health(_ context.Context) (*operator.OperatorHealth, error) {
+func (o *Operator) Health(_ context.Context) (*operator.OperatorHealth, error) {
 	return &operator.OperatorHealth{
 		Status:  "unavailable",
 		Message: "not implemented",
@@ -40,27 +40,27 @@ func (o *StubOperator) Health(_ context.Context) (*operator.OperatorHealth, erro
 }
 
 // Execute runs a command synchronously.
-func (o *StubOperator) Execute(_ context.Context, _ *Command) (*CommandResult, error) {
+func (o *Operator) Execute(_ context.Context, _ *Command) (*CommandResult, error) {
 	return nil, operator.ErrNotImplemented
 }
 
 // ExecuteAsync runs a command asynchronously and returns a task ID.
-func (o *StubOperator) ExecuteAsync(_ context.Context, _ *Command) (string, error) {
+func (o *Operator) ExecuteAsync(_ context.Context, _ *Command) (string, error) {
 	return "", operator.ErrNotImplemented
 }
 
 // GetTaskStatus returns the status of an async task.
-func (o *StubOperator) GetTaskStatus(_ context.Context, _ string) (*TaskStatus, error) {
+func (o *Operator) GetTaskStatus(_ context.Context, _ string) (*TaskStatus, error) {
 	return nil, operator.ErrNotImplemented
 }
 
 // CancelTask cancels a running async task.
-func (o *StubOperator) CancelTask(_ context.Context, _ string) error {
+func (o *Operator) CancelTask(_ context.Context, _ string) error {
 	return operator.ErrNotImplemented
 }
 
 // SupportedOperations returns the list of operations this operator supports.
-func (o *StubOperator) SupportedOperations() []operator.Operation {
+func (o *Operator) SupportedOperations() []operator.Operation {
 	return []operator.Operation{
 		{Name: string(Shell), Type: operator.Action, Description: "Execute a shell command"},
 		{Name: string(Ansible), Type: operator.Action, Description: "Run an Ansible playbook"},
@@ -74,7 +74,7 @@ func (o *StubOperator) SupportedOperations() []operator.Operation {
 }
 
 // Invoke executes a named operation with the given arguments.
-func (o *StubOperator) Invoke(_ context.Context, opType operator.OperationType, operation string, _ ...any) (any, error) {
+func (o *Operator) Invoke(_ context.Context, opType operator.OperationType, operation string, _ ...any) (any, error) {
 	op := Op(operation)
 	switch opType {
 	case operator.Action:
