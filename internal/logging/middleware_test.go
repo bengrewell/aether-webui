@@ -151,3 +151,63 @@ func TestResponseWriterCapturesBytes(t *testing.T) {
 		t.Errorf("expected 11 bytes written, got %d", rw.bytes)
 	}
 }
+
+func TestRequestLoggerErrorBodyCapture(t *testing.T) {
+	var buf bytes.Buffer
+	Setup(Options{Writer: &buf, NoColor: true})
+
+	handler := RequestLogger()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{"error":"something went wrong"}`))
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/fail", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	out := buf.String()
+	if !containsSubstring(out, "something went wrong") {
+		t.Error("expected error body content to appear in log output")
+	}
+}
+
+func TestResponseWriterErrorBodyTruncation(t *testing.T) {
+	rec := httptest.NewRecorder()
+	rw := &responseWriter{ResponseWriter: rec}
+
+	// Trigger error body capture
+	rw.WriteHeader(http.StatusInternalServerError)
+
+	// Write more than 1KB in a single call
+	largeBody := make([]byte, 2048)
+	for i := range largeBody {
+		largeBody[i] = 'x'
+	}
+	rw.Write(largeBody)
+
+	if rw.errorBody.Len() != 1024 {
+		t.Errorf("expected errorBody to be truncated to 1024 bytes, got %d", rw.errorBody.Len())
+	}
+}
+
+func TestResponseWriterErrorBodyMultipleWritesTruncation(t *testing.T) {
+	rec := httptest.NewRecorder()
+	rw := &responseWriter{ResponseWriter: rec}
+
+	// Trigger error body capture
+	rw.WriteHeader(http.StatusInternalServerError)
+
+	// Write multiple chunks that together exceed 1KB
+	chunk := make([]byte, 512)
+	for i := range chunk {
+		chunk[i] = 'y'
+	}
+
+	rw.Write(chunk) // 512 bytes
+	rw.Write(chunk) // 1024 bytes total
+	rw.Write(chunk) // Should not add more since already at limit
+
+	if rw.errorBody.Len() != 1024 {
+		t.Errorf("expected errorBody to be truncated to 1024 bytes, got %d", rw.errorBody.Len())
+	}
+}

@@ -74,6 +74,34 @@ func TestWith(t *testing.T) {
 	}
 }
 
+func TestSetupDefaultTimeFormat(t *testing.T) {
+	var buf bytes.Buffer
+	// Call Setup with empty Options - TimeFormat should default to time.DateTime
+	Setup(Options{
+		Writer:  &buf,
+		NoColor: true,
+		// TimeFormat intentionally omitted to test default
+	})
+
+	slog.Info("test-default-time")
+
+	out := buf.String()
+	if !containsSubstring(out, "test-default-time") {
+		t.Error("expected message to be logged with default time format")
+	}
+}
+
+func TestSetupDefaultWriter(t *testing.T) {
+	// Call Setup with nil Writer - should default to os.Stderr without panic
+	Setup(Options{
+		NoColor: true,
+		// Writer intentionally omitted to test default
+	})
+
+	// Just verify it doesn't panic and logger is usable
+	slog.Info("test-default-writer")
+}
+
 func containsSubstring(s, substr string) bool {
 	return bytes.Contains([]byte(s), []byte(substr))
 }
