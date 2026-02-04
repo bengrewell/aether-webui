@@ -3,32 +3,33 @@ package webuiapi
 import (
 	"context"
 
-	"github.com/bengrewell/aether-webui/internal/sysinfo"
+	"github.com/bengrewell/aether-webui/internal/operator/host"
+	"github.com/bengrewell/aether-webui/internal/provider"
 	"github.com/danielgtaylor/huma/v2"
 )
 
 // CPUUsageOutput is the response for GET /api/v1/metrics/cpu
 type CPUUsageOutput struct {
-	Body sysinfo.CPUUsage
+	Body host.CPUUsage
 }
 
 // MemoryUsageOutput is the response for GET /api/v1/metrics/memory
 type MemoryUsageOutput struct {
-	Body sysinfo.MemoryUsage
+	Body host.MemoryUsage
 }
 
 // DiskUsageOutput is the response for GET /api/v1/metrics/disk
 type DiskUsageOutput struct {
-	Body sysinfo.DiskUsage
+	Body host.DiskUsage
 }
 
 // NICUsageOutput is the response for GET /api/v1/metrics/nic
 type NICUsageOutput struct {
-	Body sysinfo.NICUsage
+	Body host.NICUsage
 }
 
 // RegisterMetricsRoutes registers dynamic metrics routes.
-func RegisterMetricsRoutes(api huma.API, resolver sysinfo.NodeResolver) {
+func RegisterMetricsRoutes(api huma.API, resolver provider.ProviderResolver) {
 	huma.Register(api, huma.Operation{
 		OperationID: "get-cpu-usage",
 		Method:      "GET",
@@ -37,11 +38,11 @@ func RegisterMetricsRoutes(api huma.API, resolver sysinfo.NodeResolver) {
 		Description: "Returns current CPU usage metrics for the specified node",
 		Tags:        []string{"Metrics"},
 	}, func(ctx context.Context, input *NodeInput) (*CPUUsageOutput, error) {
-		provider, err := resolver.Resolve(input.Node)
+		hostOp, err := getHostOperator(resolver, input.Node)
 		if err != nil {
 			return nil, huma.Error400BadRequest("invalid node", err)
 		}
-		usage, err := provider.GetCPUUsage(ctx)
+		usage, err := hostOp.GetCPUUsage(ctx)
 		if err != nil {
 			return nil, huma.Error500InternalServerError("failed to get CPU usage", err)
 		}
@@ -56,11 +57,11 @@ func RegisterMetricsRoutes(api huma.API, resolver sysinfo.NodeResolver) {
 		Description: "Returns current memory usage metrics for the specified node",
 		Tags:        []string{"Metrics"},
 	}, func(ctx context.Context, input *NodeInput) (*MemoryUsageOutput, error) {
-		provider, err := resolver.Resolve(input.Node)
+		hostOp, err := getHostOperator(resolver, input.Node)
 		if err != nil {
 			return nil, huma.Error400BadRequest("invalid node", err)
 		}
-		usage, err := provider.GetMemoryUsage(ctx)
+		usage, err := hostOp.GetMemoryUsage(ctx)
 		if err != nil {
 			return nil, huma.Error500InternalServerError("failed to get memory usage", err)
 		}
@@ -75,11 +76,11 @@ func RegisterMetricsRoutes(api huma.API, resolver sysinfo.NodeResolver) {
 		Description: "Returns current disk usage metrics for the specified node",
 		Tags:        []string{"Metrics"},
 	}, func(ctx context.Context, input *NodeInput) (*DiskUsageOutput, error) {
-		provider, err := resolver.Resolve(input.Node)
+		hostOp, err := getHostOperator(resolver, input.Node)
 		if err != nil {
 			return nil, huma.Error400BadRequest("invalid node", err)
 		}
-		usage, err := provider.GetDiskUsage(ctx)
+		usage, err := hostOp.GetDiskUsage(ctx)
 		if err != nil {
 			return nil, huma.Error500InternalServerError("failed to get disk usage", err)
 		}
@@ -94,11 +95,11 @@ func RegisterMetricsRoutes(api huma.API, resolver sysinfo.NodeResolver) {
 		Description: "Returns current network interface usage metrics for the specified node",
 		Tags:        []string{"Metrics"},
 	}, func(ctx context.Context, input *NodeInput) (*NICUsageOutput, error) {
-		provider, err := resolver.Resolve(input.Node)
+		hostOp, err := getHostOperator(resolver, input.Node)
 		if err != nil {
 			return nil, huma.Error400BadRequest("invalid node", err)
 		}
-		usage, err := provider.GetNICUsage(ctx)
+		usage, err := hostOp.GetNICUsage(ctx)
 		if err != nil {
 			return nil, huma.Error500InternalServerError("failed to get NIC usage", err)
 		}

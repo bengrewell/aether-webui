@@ -1,24 +1,40 @@
 package logging
 
 import (
+	"bytes"
 	"log/slog"
 	"net/http"
 	"time"
 )
 
-// responseWriter wraps http.ResponseWriter to capture status code and bytes written.
+// responseWriter wraps http.ResponseWriter to capture status code, bytes written,
+// and optionally the response body for error responses.
 type responseWriter struct {
 	http.ResponseWriter
-	status int
-	bytes  int
+	status    int
+	bytes     int
+	errorBody *bytes.Buffer // only populated for 4xx/5xx responses
 }
 
 func (rw *responseWriter) WriteHeader(code int) {
 	rw.status = code
+	// Capture body for error responses
+	if code >= 400 {
+		rw.errorBody = &bytes.Buffer{}
+	}
 	rw.ResponseWriter.WriteHeader(code)
 }
 
 func (rw *responseWriter) Write(b []byte) (int, error) {
+	// Capture error response body (limited to 1KB to avoid memory issues)
+	if rw.errorBody != nil && rw.errorBody.Len() < 1024 {
+		remaining := 1024 - rw.errorBody.Len()
+		if len(b) <= remaining {
+			rw.errorBody.Write(b)
+		} else {
+			rw.errorBody.Write(b[:remaining])
+		}
+	}
 	n, err := rw.ResponseWriter.Write(b)
 	rw.bytes += n
 	return n, err
@@ -58,6 +74,11 @@ func RequestLogger() func(http.Handler) http.Handler {
 				slog.String("duration", duration.Round(100*time.Microsecond).String()),
 				slog.String("remote_addr", r.RemoteAddr),
 				slog.Int("bytes", rw.bytes),
+			}
+
+			// Include error body for 4xx/5xx responses
+			if rw.errorBody != nil && rw.errorBody.Len() > 0 {
+				attrs = append(attrs, slog.String("error", rw.errorBody.String()))
 			}
 
 			if slog.Default().Enabled(r.Context(), slog.LevelDebug) {

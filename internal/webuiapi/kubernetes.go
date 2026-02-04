@@ -3,58 +3,75 @@ package webuiapi
 import (
 	"context"
 
-	"github.com/bengrewell/aether-webui/internal/k8sinfo"
+	"github.com/bengrewell/aether-webui/internal/operator"
+	"github.com/bengrewell/aether-webui/internal/operator/kube"
+	"github.com/bengrewell/aether-webui/internal/provider"
 	"github.com/danielgtaylor/huma/v2"
 )
 
 // NamespaceInput is the common input for endpoints that accept a namespace parameter.
 type NamespaceInput struct {
+	Node      string `query:"node" default:"local" doc:"Target node identifier. Use 'local' or empty for the local node."`
 	Namespace string `query:"namespace" default:"" doc:"Filter by namespace. Empty or 'all' returns resources from all namespaces."`
 }
 
 // EventsInput extends NamespaceInput with event-specific parameters.
 type EventsInput struct {
+	Node      string `query:"node" default:"local" doc:"Target node identifier. Use 'local' or empty for the local node."`
 	Namespace string `query:"namespace" default:"" doc:"Filter by namespace. Empty or 'all' returns events from all namespaces."`
 	Limit     int    `query:"limit" default:"50" minimum:"1" maximum:"500" doc:"Maximum number of events to return."`
 }
 
 // ClusterHealthOutput is the response for GET /api/v1/kubernetes/health
 type ClusterHealthOutput struct {
-	Body k8sinfo.ClusterHealth
+	Body kube.ClusterHealth
 }
 
 // NodeListOutput is the response for GET /api/v1/kubernetes/nodes
 type NodeListOutput struct {
-	Body k8sinfo.NodeList
+	Body kube.NodeList
 }
 
 // NamespaceListOutput is the response for GET /api/v1/kubernetes/namespaces
 type NamespaceListOutput struct {
-	Body k8sinfo.NamespaceList
+	Body kube.NamespaceList
 }
 
 // EventListOutput is the response for GET /api/v1/kubernetes/events
 type EventListOutput struct {
-	Body k8sinfo.EventList
+	Body kube.EventList
 }
 
 // PodListOutput is the response for GET /api/v1/kubernetes/pods
 type PodListOutput struct {
-	Body k8sinfo.PodList
+	Body kube.PodList
 }
 
 // DeploymentListOutput is the response for GET /api/v1/kubernetes/deployments
 type DeploymentListOutput struct {
-	Body k8sinfo.DeploymentList
+	Body kube.DeploymentList
 }
 
 // ServiceListOutput is the response for GET /api/v1/kubernetes/services
 type ServiceListOutput struct {
-	Body k8sinfo.ServiceList
+	Body kube.ServiceList
+}
+
+// getKubeOperator resolves a node and returns its KubeOperator.
+func getKubeOperator(resolver provider.ProviderResolver, node string) (kube.KubeOperator, error) {
+	p, err := resolver.Resolve(provider.NodeID(node))
+	if err != nil {
+		return nil, err
+	}
+	kubeOp, ok := p.Operator(operator.DomainKube).(kube.KubeOperator)
+	if !ok || kubeOp == nil {
+		return nil, huma.Error503ServiceUnavailable("kubernetes operator not available")
+	}
+	return kubeOp, nil
 }
 
 // RegisterKubernetesRoutes registers Kubernetes monitoring routes.
-func RegisterKubernetesRoutes(api huma.API, provider k8sinfo.Provider) {
+func RegisterKubernetesRoutes(api huma.API, resolver provider.ProviderResolver) {
 	// Cluster-level endpoints
 	huma.Register(api, huma.Operation{
 		OperationID: "get-cluster-health",
@@ -63,8 +80,12 @@ func RegisterKubernetesRoutes(api huma.API, provider k8sinfo.Provider) {
 		Summary:     "Get cluster health",
 		Description: "Returns overall health status of the Kubernetes cluster",
 		Tags:        []string{"Kubernetes"},
-	}, func(ctx context.Context, input *struct{}) (*ClusterHealthOutput, error) {
-		health, err := provider.GetClusterHealth(ctx)
+	}, func(ctx context.Context, input *NodeInput) (*ClusterHealthOutput, error) {
+		kubeOp, err := getKubeOperator(resolver, input.Node)
+		if err != nil {
+			return nil, huma.Error400BadRequest("invalid node", err)
+		}
+		health, err := kubeOp.GetClusterHealth(ctx)
 		if err != nil {
 			return nil, huma.Error500InternalServerError("failed to get cluster health", err)
 		}
@@ -78,8 +99,12 @@ func RegisterKubernetesRoutes(api huma.API, provider k8sinfo.Provider) {
 		Summary:     "List cluster nodes",
 		Description: "Returns information about all nodes in the cluster",
 		Tags:        []string{"Kubernetes"},
-	}, func(ctx context.Context, input *struct{}) (*NodeListOutput, error) {
-		nodes, err := provider.GetNodes(ctx)
+	}, func(ctx context.Context, input *NodeInput) (*NodeListOutput, error) {
+		kubeOp, err := getKubeOperator(resolver, input.Node)
+		if err != nil {
+			return nil, huma.Error400BadRequest("invalid node", err)
+		}
+		nodes, err := kubeOp.GetNodes(ctx)
 		if err != nil {
 			return nil, huma.Error500InternalServerError("failed to get nodes", err)
 		}
@@ -93,8 +118,12 @@ func RegisterKubernetesRoutes(api huma.API, provider k8sinfo.Provider) {
 		Summary:     "List namespaces",
 		Description: "Returns information about all namespaces in the cluster",
 		Tags:        []string{"Kubernetes"},
-	}, func(ctx context.Context, input *struct{}) (*NamespaceListOutput, error) {
-		namespaces, err := provider.GetNamespaces(ctx)
+	}, func(ctx context.Context, input *NodeInput) (*NamespaceListOutput, error) {
+		kubeOp, err := getKubeOperator(resolver, input.Node)
+		if err != nil {
+			return nil, huma.Error400BadRequest("invalid node", err)
+		}
+		namespaces, err := kubeOp.GetNamespaces(ctx)
 		if err != nil {
 			return nil, huma.Error500InternalServerError("failed to get namespaces", err)
 		}
@@ -109,7 +138,11 @@ func RegisterKubernetesRoutes(api huma.API, provider k8sinfo.Provider) {
 		Description: "Returns recent events from the cluster, optionally filtered by namespace",
 		Tags:        []string{"Kubernetes"},
 	}, func(ctx context.Context, input *EventsInput) (*EventListOutput, error) {
-		events, err := provider.GetEvents(ctx, input.Namespace, input.Limit)
+		kubeOp, err := getKubeOperator(resolver, input.Node)
+		if err != nil {
+			return nil, huma.Error400BadRequest("invalid node", err)
+		}
+		events, err := kubeOp.GetEvents(ctx, input.Namespace, input.Limit)
 		if err != nil {
 			return nil, huma.Error500InternalServerError("failed to get events", err)
 		}
@@ -125,7 +158,11 @@ func RegisterKubernetesRoutes(api huma.API, provider k8sinfo.Provider) {
 		Description: "Returns information about pods, optionally filtered by namespace",
 		Tags:        []string{"Kubernetes"},
 	}, func(ctx context.Context, input *NamespaceInput) (*PodListOutput, error) {
-		pods, err := provider.GetPods(ctx, input.Namespace)
+		kubeOp, err := getKubeOperator(resolver, input.Node)
+		if err != nil {
+			return nil, huma.Error400BadRequest("invalid node", err)
+		}
+		pods, err := kubeOp.GetPods(ctx, input.Namespace)
 		if err != nil {
 			return nil, huma.Error500InternalServerError("failed to get pods", err)
 		}
@@ -140,7 +177,11 @@ func RegisterKubernetesRoutes(api huma.API, provider k8sinfo.Provider) {
 		Description: "Returns information about deployments, optionally filtered by namespace",
 		Tags:        []string{"Kubernetes"},
 	}, func(ctx context.Context, input *NamespaceInput) (*DeploymentListOutput, error) {
-		deployments, err := provider.GetDeployments(ctx, input.Namespace)
+		kubeOp, err := getKubeOperator(resolver, input.Node)
+		if err != nil {
+			return nil, huma.Error400BadRequest("invalid node", err)
+		}
+		deployments, err := kubeOp.GetDeployments(ctx, input.Namespace)
 		if err != nil {
 			return nil, huma.Error500InternalServerError("failed to get deployments", err)
 		}
@@ -155,7 +196,11 @@ func RegisterKubernetesRoutes(api huma.API, provider k8sinfo.Provider) {
 		Description: "Returns information about services, optionally filtered by namespace",
 		Tags:        []string{"Kubernetes"},
 	}, func(ctx context.Context, input *NamespaceInput) (*ServiceListOutput, error) {
-		services, err := provider.GetServices(ctx, input.Namespace)
+		kubeOp, err := getKubeOperator(resolver, input.Node)
+		if err != nil {
+			return nil, huma.Error400BadRequest("invalid node", err)
+		}
+		services, err := kubeOp.GetServices(ctx, input.Namespace)
 		if err != nil {
 			return nil, huma.Error500InternalServerError("failed to get services", err)
 		}

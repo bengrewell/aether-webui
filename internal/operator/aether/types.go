@@ -2,6 +2,53 @@ package aether
 
 import "time"
 
+// Op represents a specific operation the aether operator can perform.
+type Op string
+
+// Query operations for SD-Core
+const (
+	// ListCoresOp queries all SD-Core deployments.
+	ListCoresOp Op = "list_cores"
+	// GetCoreOp queries a specific SD-Core configuration.
+	GetCoreOp Op = "get_core"
+	// GetCoreStatusOp queries status of a specific SD-Core.
+	GetCoreStatusOp Op = "get_core_status"
+	// ListCoreStatusesOp queries status for all SD-Cores.
+	ListCoreStatusesOp Op = "list_core_statuses"
+)
+
+// Query operations for gNB
+const (
+	// ListGNBsOp queries all gNB configurations.
+	ListGNBsOp Op = "list_gnbs"
+	// GetGNBOp queries a specific gNB configuration.
+	GetGNBOp Op = "get_gnb"
+	// GetGNBStatusOp queries status of a specific gNB.
+	GetGNBStatusOp Op = "get_gnb_status"
+	// ListGNBStatusesOp queries status for all gNBs.
+	ListGNBStatusesOp Op = "list_gnb_statuses"
+)
+
+// Action operations for SD-Core
+const (
+	// DeployCoreOp deploys a new SD-Core instance.
+	DeployCoreOp Op = "deploy_core"
+	// UpdateCoreOp updates an SD-Core configuration.
+	UpdateCoreOp Op = "update_core"
+	// UndeployCoreOp removes an SD-Core deployment.
+	UndeployCoreOp Op = "undeploy_core"
+)
+
+// Action operations for gNB
+const (
+	// DeployGNBOp deploys a new gNB instance.
+	DeployGNBOp Op = "deploy_gnb"
+	// UpdateGNBOp updates a gNB configuration.
+	UpdateGNBOp Op = "update_gnb"
+	// UndeployGNBOp removes a gNB deployment.
+	UndeployGNBOp Op = "undeploy_gnb"
+)
+
 // DeploymentState represents the state of a deployment.
 type DeploymentState string
 
@@ -61,14 +108,14 @@ type AMFConfig struct {
 
 // CoreStatus represents the deployment status of the SD-Core.
 type CoreStatus struct {
-	ID           string            `json:"id"`
-	Name         string            `json:"name,omitempty"`
-	Host         string            `json:"host"`
-	State        DeploymentState   `json:"state"`
-	Message      string            `json:"message,omitempty"`
-	DeployedAt   *time.Time        `json:"deployed_at,omitempty"`
-	Version      string            `json:"version,omitempty"`
-	Components   []ComponentStatus `json:"components,omitempty"`
+	ID         string            `json:"id"`
+	Name       string            `json:"name,omitempty"`
+	Host       string            `json:"host"`
+	State      DeploymentState   `json:"state"`
+	Message    string            `json:"message,omitempty"`
+	DeployedAt *time.Time        `json:"deployed_at,omitempty"`
+	Version    string            `json:"version,omitempty"`
+	Components []ComponentStatus `json:"components,omitempty"`
 }
 
 // CoreList represents a list of SD-Core deployments.
@@ -125,15 +172,15 @@ type UEConfig struct {
 
 // GNBStatus represents the deployment status of a gNB.
 type GNBStatus struct {
-	ID           string          `json:"id"`
-	Name         string          `json:"name,omitempty"`
-	Host         string          `json:"host"`
-	Type         string          `json:"type"`
-	State        DeploymentState `json:"state"`
-	Message      string          `json:"message,omitempty"`
-	DeployedAt   *time.Time      `json:"deployed_at,omitempty"`
-	Connected    bool            `json:"connected"`
-	UEsAttached  int             `json:"ues_attached"`
+	ID          string          `json:"id"`
+	Name        string          `json:"name,omitempty"`
+	Host        string          `json:"host"`
+	Type        string          `json:"type"`
+	State       DeploymentState `json:"state"`
+	Message     string          `json:"message,omitempty"`
+	DeployedAt  *time.Time      `json:"deployed_at,omitempty"`
+	Connected   bool            `json:"connected"`
+	UEsAttached int             `json:"ues_attached"`
 }
 
 // GNBList represents a list of gNBs.

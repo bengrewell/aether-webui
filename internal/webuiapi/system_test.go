@@ -2,200 +2,277 @@ package webuiapi
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	"github.com/bengrewell/aether-webui/internal/sysinfo"
-	"github.com/danielgtaylor/huma/v2"
-	"github.com/danielgtaylor/huma/v2/adapters/humachi"
-	"github.com/go-chi/chi/v5"
+	"github.com/bengrewell/aether-webui/internal/operator/host"
 )
 
-func setupSystemTestAPI() (http.Handler, huma.API) {
-	router := chi.NewMux()
-	api := humachi.New(router, huma.DefaultConfig("Test API", "1.0.0"))
-	mockProvider := sysinfo.NewMockProvider()
-	resolver := sysinfo.NewDefaultNodeResolver(mockProvider)
-	RegisterSystemRoutes(api, resolver)
-	return router, api
-}
-
-func TestGetCPUInfo(t *testing.T) {
-	router, _ := setupSystemTestAPI()
+func TestGetCPUInfoSuccess(t *testing.T) {
+	hostOp := &mockHostOperator{
+		cpuInfo: &host.CPUInfo{
+			Model:        "Intel Xeon",
+			Vendor:       "Intel",
+			Cores:        8,
+			Threads:      16,
+			FrequencyMHz: 3200,
+			CacheKB:      16384,
+		},
+	}
+	router := newSystemTestRouter(t, hostOp)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/system/cpu", nil)
 	w := httptest.NewRecorder()
-
 	router.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Errorf("Expected status %d, got %d", http.StatusOK, w.Code)
+		t.Fatalf("expected 200, got %d; body: %s", w.Code, w.Body.String())
 	}
 
-	var response sysinfo.CPUInfo
-	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
-		t.Fatalf("Failed to decode response: %v", err)
+	var resp host.CPUInfo
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode failed: %v", err)
 	}
-
-	if response.Model == "" {
-		t.Error("Expected non-empty Model")
+	if resp.Model != "Intel Xeon" {
+		t.Errorf("Model = %q, want %q", resp.Model, "Intel Xeon")
 	}
-	if response.Cores <= 0 {
-		t.Errorf("Expected positive Cores, got %d", response.Cores)
+	if resp.Cores != 8 {
+		t.Errorf("Cores = %d, want %d", resp.Cores, 8)
 	}
 }
 
-func TestGetCPUInfoWithNodeParam(t *testing.T) {
-	router, _ := setupSystemTestAPI()
+func TestGetCPUInfoError(t *testing.T) {
+	hostOp := &mockHostOperator{
+		cpuInfoErr: errors.New("hardware error"),
+	}
+	router := newSystemTestRouter(t, hostOp)
 
-	t.Run("local node", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/system/cpu?node=local", nil)
-		w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/system/cpu", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
 
-		router.ServeHTTP(w, req)
-
-		if w.Code != http.StatusOK {
-			t.Errorf("Expected status %d, got %d", http.StatusOK, w.Code)
-		}
-	})
-
-	t.Run("invalid node", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/system/cpu?node=remote-node", nil)
-		w := httptest.NewRecorder()
-
-		router.ServeHTTP(w, req)
-
-		if w.Code != http.StatusBadRequest {
-			t.Errorf("Expected status %d, got %d", http.StatusBadRequest, w.Code)
-		}
-	})
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", w.Code)
+	}
 }
 
-func TestGetMemoryInfo(t *testing.T) {
-	router, _ := setupSystemTestAPI()
+func TestGetMemoryInfoSuccess(t *testing.T) {
+	hostOp := &mockHostOperator{
+		memoryInfo: &host.MemoryInfo{
+			TotalBytes: 34359738368,
+			Type:       "DDR4",
+			SpeedMHz:   3200,
+			Slots:      4,
+			SlotsUsed:  2,
+		},
+	}
+	router := newSystemTestRouter(t, hostOp)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/system/memory", nil)
 	w := httptest.NewRecorder()
-
 	router.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Errorf("Expected status %d, got %d", http.StatusOK, w.Code)
+		t.Fatalf("expected 200, got %d; body: %s", w.Code, w.Body.String())
 	}
 
-	var response sysinfo.MemoryInfo
-	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
-		t.Fatalf("Failed to decode response: %v", err)
+	var resp host.MemoryInfo
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode failed: %v", err)
 	}
-
-	if response.TotalBytes == 0 {
-		t.Error("Expected non-zero TotalBytes")
-	}
-	if response.Type == "" {
-		t.Error("Expected non-empty Type")
+	if resp.TotalBytes != 34359738368 {
+		t.Errorf("TotalBytes = %d, want %d", resp.TotalBytes, 34359738368)
 	}
 }
 
-func TestGetDiskInfo(t *testing.T) {
-	router, _ := setupSystemTestAPI()
+func TestGetMemoryInfoError(t *testing.T) {
+	hostOp := &mockHostOperator{
+		memoryInfoErr: errors.New("memory read error"),
+	}
+	router := newSystemTestRouter(t, hostOp)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/system/memory", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", w.Code)
+	}
+}
+
+func TestGetDiskInfoSuccess(t *testing.T) {
+	hostOp := &mockHostOperator{
+		diskInfo: &host.DiskInfo{
+			Disks: []host.Disk{
+				{Device: "/dev/sda", Model: "Samsung SSD", SizeBytes: 512000000000, Type: "ssd"},
+			},
+		},
+	}
+	router := newSystemTestRouter(t, hostOp)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/system/disk", nil)
 	w := httptest.NewRecorder()
-
 	router.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Errorf("Expected status %d, got %d", http.StatusOK, w.Code)
+		t.Fatalf("expected 200, got %d; body: %s", w.Code, w.Body.String())
 	}
 
-	var response sysinfo.DiskInfo
-	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
-		t.Fatalf("Failed to decode response: %v", err)
+	var resp host.DiskInfo
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode failed: %v", err)
 	}
-
-	if len(response.Disks) == 0 {
-		t.Error("Expected non-empty Disks array")
+	if len(resp.Disks) != 1 {
+		t.Fatalf("expected 1 disk, got %d", len(resp.Disks))
+	}
+	if resp.Disks[0].Device != "/dev/sda" {
+		t.Errorf("Device = %q, want %q", resp.Disks[0].Device, "/dev/sda")
 	}
 }
 
-func TestGetNICInfo(t *testing.T) {
-	router, _ := setupSystemTestAPI()
+func TestGetDiskInfoError(t *testing.T) {
+	hostOp := &mockHostOperator{
+		diskInfoErr: errors.New("disk read error"),
+	}
+	router := newSystemTestRouter(t, hostOp)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/system/disk", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", w.Code)
+	}
+}
+
+func TestGetNICInfoSuccess(t *testing.T) {
+	hostOp := &mockHostOperator{
+		nicInfo: &host.NICInfo{
+			Interfaces: []host.NetworkInterface{
+				{Name: "eth0", MACAddress: "00:11:22:33:44:55", SpeedMbps: 1000, MTU: 1500},
+			},
+		},
+	}
+	router := newSystemTestRouter(t, hostOp)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/system/nic", nil)
 	w := httptest.NewRecorder()
-
 	router.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Errorf("Expected status %d, got %d", http.StatusOK, w.Code)
+		t.Fatalf("expected 200, got %d; body: %s", w.Code, w.Body.String())
 	}
 
-	var response sysinfo.NICInfo
-	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
-		t.Fatalf("Failed to decode response: %v", err)
+	var resp host.NICInfo
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode failed: %v", err)
 	}
-
-	if len(response.Interfaces) == 0 {
-		t.Error("Expected non-empty Interfaces array")
+	if len(resp.Interfaces) != 1 {
+		t.Fatalf("expected 1 interface, got %d", len(resp.Interfaces))
+	}
+	if resp.Interfaces[0].Name != "eth0" {
+		t.Errorf("Name = %q, want %q", resp.Interfaces[0].Name, "eth0")
 	}
 }
 
-func TestGetOSInfo(t *testing.T) {
-	router, _ := setupSystemTestAPI()
+func TestGetNICInfoError(t *testing.T) {
+	hostOp := &mockHostOperator{
+		nicInfoErr: errors.New("network error"),
+	}
+	router := newSystemTestRouter(t, hostOp)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/system/nic", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", w.Code)
+	}
+}
+
+func TestGetOSInfoSuccess(t *testing.T) {
+	hostOp := &mockHostOperator{
+		osInfo: &host.OSInfo{
+			Name:         "Ubuntu",
+			Version:      "22.04",
+			Kernel:       "5.15.0-generic",
+			Architecture: "x86_64",
+			Hostname:     "testhost",
+			Uptime:       86400,
+		},
+	}
+	router := newSystemTestRouter(t, hostOp)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/system/os", nil)
 	w := httptest.NewRecorder()
-
 	router.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Errorf("Expected status %d, got %d", http.StatusOK, w.Code)
+		t.Fatalf("expected 200, got %d; body: %s", w.Code, w.Body.String())
 	}
 
-	var response sysinfo.OSInfo
-	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
-		t.Fatalf("Failed to decode response: %v", err)
+	var resp host.OSInfo
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode failed: %v", err)
 	}
-
-	if response.Name == "" {
-		t.Error("Expected non-empty Name")
+	if resp.Name != "Ubuntu" {
+		t.Errorf("Name = %q, want %q", resp.Name, "Ubuntu")
 	}
-	if response.Kernel == "" {
-		t.Error("Expected non-empty Kernel")
-	}
-	if response.Hostname == "" {
-		t.Error("Expected non-empty Hostname")
+	if resp.Hostname != "testhost" {
+		t.Errorf("Hostname = %q, want %q", resp.Hostname, "testhost")
 	}
 }
 
-func TestSystemEndpointsMethodNotAllowed(t *testing.T) {
-	router, _ := setupSystemTestAPI()
-
-	endpoints := []string{
-		"/api/v1/system/cpu",
-		"/api/v1/system/memory",
-		"/api/v1/system/disk",
-		"/api/v1/system/nic",
-		"/api/v1/system/os",
+func TestGetOSInfoError(t *testing.T) {
+	hostOp := &mockHostOperator{
+		osInfoErr: errors.New("os read error"),
 	}
+	router := newSystemTestRouter(t, hostOp)
 
-	for _, endpoint := range endpoints {
-		t.Run(endpoint, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodPost, endpoint, nil)
-			w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/system/os", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
 
-			router.ServeHTTP(w, req)
-
-			if w.Code != http.StatusMethodNotAllowed {
-				t.Errorf("Expected status %d for POST to %s, got %d", http.StatusMethodNotAllowed, endpoint, w.Code)
-			}
-		})
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", w.Code)
 	}
 }
 
-func TestSystemEndpointsContentType(t *testing.T) {
-	router, _ := setupSystemTestAPI()
+func TestSystemEndpointsWithNodeParameter(t *testing.T) {
+	hostOp := &mockHostOperator{
+		cpuInfo: &host.CPUInfo{Model: "Test CPU"},
+	}
+	router := newSystemTestRouter(t, hostOp)
+
+	// Test with explicit "local" node parameter
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/system/cpu?node=local", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 with node=local, got %d", w.Code)
+	}
+}
+
+func TestSystemEndpointsInvalidNode(t *testing.T) {
+	hostOp := &mockHostOperator{
+		cpuInfo: &host.CPUInfo{Model: "Test CPU"},
+	}
+	router := newSystemTestRouter(t, hostOp)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/system/cpu?node=unknown-node", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 with invalid node, got %d", w.Code)
+	}
+}
+
+func TestSystemEndpointsOperatorUnavailable(t *testing.T) {
+	router := newSystemTestRouterNoOperator(t)
 
 	endpoints := []string{
 		"/api/v1/system/cpu",
@@ -209,13 +286,59 @@ func TestSystemEndpointsContentType(t *testing.T) {
 		t.Run(endpoint, func(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, endpoint, nil)
 			w := httptest.NewRecorder()
-
 			router.ServeHTTP(w, req)
 
-			contentType := w.Header().Get("Content-Type")
-			if contentType != "application/json" {
-				t.Errorf("Expected Content-Type 'application/json' for %s, got '%s'", endpoint, contentType)
+			// When operator is not available, getHostOperator returns 503
+			// but the handler wraps it as 400 (invalid node)
+			if w.Code != http.StatusBadRequest {
+				t.Fatalf("expected 400, got %d; body: %s", w.Code, w.Body.String())
 			}
 		})
+	}
+}
+
+func TestSystemEndpointsContentType(t *testing.T) {
+	hostOp := &mockHostOperator{
+		cpuInfo: &host.CPUInfo{Model: "Test CPU"},
+	}
+	router := newSystemTestRouter(t, hostOp)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/system/cpu", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	ct := w.Header().Get("Content-Type")
+	if ct != "application/json" {
+		t.Errorf("Content-Type = %q, want %q", ct, "application/json")
+	}
+}
+
+func TestSystemEndpointsMethodNotAllowed(t *testing.T) {
+	hostOp := &mockHostOperator{
+		cpuInfo: &host.CPUInfo{Model: "Test CPU"},
+	}
+	router := newSystemTestRouter(t, hostOp)
+
+	methods := []string{http.MethodPost, http.MethodPut, http.MethodDelete, http.MethodPatch}
+	endpoints := []string{
+		"/api/v1/system/cpu",
+		"/api/v1/system/memory",
+		"/api/v1/system/disk",
+		"/api/v1/system/nic",
+		"/api/v1/system/os",
+	}
+
+	for _, endpoint := range endpoints {
+		for _, method := range methods {
+			t.Run(method+" "+endpoint, func(t *testing.T) {
+				req := httptest.NewRequest(method, endpoint, nil)
+				w := httptest.NewRecorder()
+				router.ServeHTTP(w, req)
+
+				if w.Code != http.StatusMethodNotAllowed {
+					t.Fatalf("expected 405, got %d", w.Code)
+				}
+			})
+		}
 	}
 }

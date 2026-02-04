@@ -9,12 +9,14 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/bengrewell/aether-webui/internal/aether"
 	"github.com/bengrewell/aether-webui/internal/frontend"
-	"github.com/bengrewell/aether-webui/internal/k8sinfo"
 	"github.com/bengrewell/aether-webui/internal/logging"
+	"github.com/bengrewell/aether-webui/internal/operator/aether"
+	"github.com/bengrewell/aether-webui/internal/operator/exec"
+	"github.com/bengrewell/aether-webui/internal/operator/host"
+	"github.com/bengrewell/aether-webui/internal/operator/kube"
+	"github.com/bengrewell/aether-webui/internal/provider"
 	"github.com/bengrewell/aether-webui/internal/state"
-	"github.com/bengrewell/aether-webui/internal/sysinfo"
 	"github.com/bengrewell/aether-webui/internal/webuiapi"
 	"github.com/bgrewell/usage"
 	"github.com/danielgtaylor/huma/v2"
@@ -110,21 +112,30 @@ func main() {
 	router.Use(logging.RequestLogger())
 	api := humachi.New(router, huma.DefaultConfig("Aether WebUI API", version))
 
-	// Initialize providers with mock implementations (TODO: Replace with real implementations)
-	sysProvider := sysinfo.NewMockProvider()
-	sysResolver := sysinfo.NewDefaultNodeResolver(sysProvider)
-	k8sProvider := k8sinfo.NewMockProvider()
-	// TODO: Need k8sResolver
-	aetherProvider := aether.NewMockProvider("local")
-	aetherResolver := aether.NewDefaultHostResolver(aetherProvider)
+	// Create operators (TODO: Replace with real implementations)
+	hostOp := host.New()
+	kubeOp := kube.New()
+	aetherOp := aether.New()
+	execOp := exec.New()
 
-	// Register routes
+	// Create local provider with operators
+	localProvider := provider.NewLocalProvider(
+		provider.WithOperator(hostOp),
+		provider.WithOperator(kubeOp),
+		provider.WithOperator(aetherOp),
+		provider.WithOperator(execOp),
+	)
+
+	// Create unified resolver
+	resolver := provider.NewDefaultResolver(localProvider)
+
+	// Register routes with single resolver
 	webuiapi.RegisterHealthRoutes(api)
 	webuiapi.RegisterSetupRoutes(api, stateStore)
-	webuiapi.RegisterSystemRoutes(api, sysResolver)
-	webuiapi.RegisterMetricsRoutes(api, sysResolver)
-	webuiapi.RegisterKubernetesRoutes(api, k8sProvider)
-	webuiapi.RegisterAetherRoutes(api, aetherResolver)
+	webuiapi.RegisterSystemRoutes(api, resolver)
+	webuiapi.RegisterMetricsRoutes(api, resolver)
+	webuiapi.RegisterKubernetesRoutes(api, resolver)
+	webuiapi.RegisterAetherRoutes(api, resolver)
 
 	// Serve frontend if enabled
 	if *flagServeFrontend {
