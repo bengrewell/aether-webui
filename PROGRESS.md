@@ -5,6 +5,7 @@
 
 ## Recent Updates
 <!-- Rolling log of significant changes, most recent first -->
+- **Feb 4, 2025**: Implemented Host Operator with gopsutil - all static info and dynamic metrics now functional, plus historical metrics with time-series aggregation
 - **Week of Feb 3, 2025**: Restructured progress tracking for stakeholder reporting
 
 
@@ -77,19 +78,24 @@ Tracks completion of stubbed code that currently returns `ErrNotImplemented`.
 ### Backend Operators
 
 #### Host Operator (`internal/operator/host`)
-System information and metrics collection.
+System information and metrics collection via gopsutil v4.
 
-- [ ] **Static Information**
-  - [ ] `GetCPUInfo` — CPU model, cores, cache
-  - [ ] `GetMemoryInfo` — Total RAM, type, speed
-  - [ ] `GetDiskInfo` — Drives, partitions, filesystem
-  - [ ] `GetNICInfo` — Network interfaces, MAC, speed
-  - [ ] `GetOSInfo` — Distro, kernel, hostname
-- [ ] **Dynamic Metrics**
-  - [ ] `GetCPUUsage` — Per-core utilization
-  - [ ] `GetMemoryUsage` — Used/free/cached
-  - [ ] `GetDiskUsage` — I/O stats, space used
-  - [ ] `GetNICUsage` — Bandwidth, packets, errors
+- [x] **Static Information** (5-minute in-memory cache)
+  - [x] `GetCPUInfo` — CPU model, cores, threads, frequency, cache
+  - [x] `GetMemoryInfo` — Total RAM
+  - [x] `GetDiskInfo` — Partitions, mount points, disk type detection
+  - [x] `GetNICInfo` — Network interfaces, MAC, MTU, IP addresses
+  - [x] `GetOSInfo` — Platform, kernel, hostname, uptime, architecture
+- [x] **Dynamic Metrics** (real-time)
+  - [x] `GetCPUUsage` — Per-core utilization, user/system/idle %, load averages
+  - [x] `GetMemoryUsage` — Used/free/available/cached, swap, usage %
+  - [x] `GetDiskUsage` — Per-mount usage stats, inodes
+  - [x] `GetNICUsage` — Bytes/packets in/out, errors, drops, rates
+- [x] **Historical Metrics** (time-series)
+  - [x] Background collector with configurable interval/retention
+  - [x] SQLite storage with automatic pruning
+  - [x] Time-series aggregation (window + granularity)
+  - [x] `/history` API endpoints for all metric types
 
 #### Kubernetes Operator (`internal/operator/kube`)
 Cluster monitoring and workload visibility.
