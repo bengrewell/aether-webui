@@ -16,6 +16,9 @@ import (
 // ErrNotFound is returned when a requested key or record does not exist.
 var ErrNotFound = errors.New("not found")
 
+// ErrLocalNodeDelete is returned when attempting to delete the local node.
+var ErrLocalNodeDelete = errors.New("cannot delete the local node")
+
 // SQLiteStore implements Store using SQLite.
 type SQLiteStore struct {
 	db *sql.DB
@@ -330,6 +333,278 @@ func (s *SQLiteStore) PruneOldMetrics(ctx context.Context, olderThan time.Durati
 		return fmt.Errorf("failed to prune old metrics: %w", err)
 	}
 	return nil
+}
+
+// CreateNode inserts a new node into the database.
+func (s *SQLiteStore) CreateNode(ctx context.Context, node *Node) error {
+	now := time.Now().UTC()
+	_, err := s.db.ExecContext(ctx, `
+		INSERT INTO nodes (id, name, node_type, address, ssh_port, username, auth_method, encrypted_password, private_key_path, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, node.ID, node.Name, node.NodeType, node.Address, node.SSHPort, node.Username,
+		node.AuthMethod, node.EncryptedPassword, node.PrivateKeyPath, now, now)
+	if err != nil {
+		return fmt.Errorf("failed to create node: %w", err)
+	}
+	node.CreatedAt = now
+	node.UpdatedAt = now
+	return nil
+}
+
+// GetNode retrieves a node by ID, including its assigned roles.
+func (s *SQLiteStore) GetNode(ctx context.Context, id string) (*Node, error) {
+	node := &Node{}
+	err := s.db.QueryRowContext(ctx, `
+		SELECT id, name, node_type, COALESCE(address,''), COALESCE(ssh_port,22),
+		       COALESCE(username,''), COALESCE(auth_method,''), COALESCE(encrypted_password,''),
+		       COALESCE(private_key_path,''), created_at, updated_at
+		FROM nodes WHERE id = ?
+	`, id).Scan(&node.ID, &node.Name, &node.NodeType, &node.Address, &node.SSHPort,
+		&node.Username, &node.AuthMethod, &node.EncryptedPassword, &node.PrivateKeyPath,
+		&node.CreatedAt, &node.UpdatedAt)
+	if err == sql.ErrNoRows {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get node: %w", err)
+	}
+
+	roles, err := s.getNodeRoleStrings(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	node.Roles = roles
+	return node, nil
+}
+
+// ListNodes retrieves all nodes ordered with local first, then alphabetical by name.
+func (s *SQLiteStore) ListNodes(ctx context.Context) ([]Node, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, name, node_type, COALESCE(address,''), COALESCE(ssh_port,22),
+		       COALESCE(username,''), COALESCE(auth_method,''), COALESCE(encrypted_password,''),
+		       COALESCE(private_key_path,''), created_at, updated_at
+		FROM nodes
+		ORDER BY CASE WHEN node_type = 'local' THEN 0 ELSE 1 END, name ASC
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list nodes: %w", err)
+	}
+	defer rows.Close()
+
+	var nodes []Node
+	for rows.Next() {
+		var n Node
+		if err := rows.Scan(&n.ID, &n.Name, &n.NodeType, &n.Address, &n.SSHPort,
+			&n.Username, &n.AuthMethod, &n.EncryptedPassword, &n.PrivateKeyPath,
+			&n.CreatedAt, &n.UpdatedAt); err != nil {
+			return nil, fmt.Errorf("failed to scan node: %w", err)
+		}
+		roles, err := s.getNodeRoleStrings(ctx, n.ID)
+		if err != nil {
+			return nil, err
+		}
+		n.Roles = roles
+		nodes = append(nodes, n)
+	}
+	return nodes, rows.Err()
+}
+
+// UpdateNode updates an existing node's properties.
+func (s *SQLiteStore) UpdateNode(ctx context.Context, node *Node) error {
+	now := time.Now().UTC()
+	result, err := s.db.ExecContext(ctx, `
+		UPDATE nodes SET name = ?, address = ?, ssh_port = ?, username = ?,
+		       auth_method = ?, encrypted_password = ?, private_key_path = ?, updated_at = ?
+		WHERE id = ?
+	`, node.Name, node.Address, node.SSHPort, node.Username,
+		node.AuthMethod, node.EncryptedPassword, node.PrivateKeyPath, now, node.ID)
+	if err != nil {
+		return fmt.Errorf("failed to update node: %w", err)
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to check update result: %w", err)
+	}
+	if rowsAffected == 0 {
+		return ErrNotFound
+	}
+	node.UpdatedAt = now
+	return nil
+}
+
+// DeleteNode removes a node by ID. Refuses to delete the local node.
+func (s *SQLiteStore) DeleteNode(ctx context.Context, id string) error {
+	// Check if the node is local
+	var nodeType string
+	err := s.db.QueryRowContext(ctx, "SELECT node_type FROM nodes WHERE id = ?", id).Scan(&nodeType)
+	if err == sql.ErrNoRows {
+		return ErrNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("failed to check node type: %w", err)
+	}
+	if nodeType == NodeTypeLocal {
+		return ErrLocalNodeDelete
+	}
+
+	_, err = s.db.ExecContext(ctx, "DELETE FROM nodes WHERE id = ?", id)
+	if err != nil {
+		return fmt.Errorf("failed to delete node: %w", err)
+	}
+	return nil
+}
+
+// EnsureLocalNode creates the local node if it doesn't exist. Idempotent.
+func (s *SQLiteStore) EnsureLocalNode(ctx context.Context) (*Node, error) {
+	_, err := s.db.ExecContext(ctx, `
+		INSERT OR IGNORE INTO nodes (id, name, node_type, created_at, updated_at)
+		VALUES (?, 'Local', 'local', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+	`, LocalNodeID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to ensure local node: %w", err)
+	}
+	return s.GetNode(ctx, LocalNodeID)
+}
+
+// AssignRole assigns a role to a node. Idempotent — duplicate assignments are ignored.
+func (s *SQLiteStore) AssignRole(ctx context.Context, nodeID string, role string) error {
+	_, err := s.db.ExecContext(ctx, `
+		INSERT OR IGNORE INTO node_roles (node_id, role, created_at)
+		VALUES (?, ?, CURRENT_TIMESTAMP)
+	`, nodeID, role)
+	if err != nil {
+		return fmt.Errorf("failed to assign role: %w", err)
+	}
+	return nil
+}
+
+// RemoveRole removes a role from a node.
+func (s *SQLiteStore) RemoveRole(ctx context.Context, nodeID string, role string) error {
+	_, err := s.db.ExecContext(ctx, `
+		DELETE FROM node_roles WHERE node_id = ? AND role = ?
+	`, nodeID, role)
+	if err != nil {
+		return fmt.Errorf("failed to remove role: %w", err)
+	}
+	return nil
+}
+
+// GetNodeRoles retrieves all roles for a node.
+func (s *SQLiteStore) GetNodeRoles(ctx context.Context, nodeID string) ([]NodeRole, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, node_id, role, created_at FROM node_roles WHERE node_id = ? ORDER BY role ASC
+	`, nodeID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get node roles: %w", err)
+	}
+	defer rows.Close()
+
+	var roles []NodeRole
+	for rows.Next() {
+		var r NodeRole
+		if err := rows.Scan(&r.ID, &r.NodeID, &r.Role, &r.CreatedAt); err != nil {
+			return nil, fmt.Errorf("failed to scan node role: %w", err)
+		}
+		roles = append(roles, r)
+	}
+	return roles, rows.Err()
+}
+
+// getNodeRoleStrings returns just the role name strings for a node.
+func (s *SQLiteStore) getNodeRoleStrings(ctx context.Context, nodeID string) ([]string, error) {
+	rows, err := s.db.QueryContext(ctx,
+		"SELECT role FROM node_roles WHERE node_id = ? ORDER BY role ASC", nodeID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get node roles: %w", err)
+	}
+	defer rows.Close()
+
+	var roles []string
+	for rows.Next() {
+		var role string
+		if err := rows.Scan(&role); err != nil {
+			return nil, fmt.Errorf("failed to scan role: %w", err)
+		}
+		roles = append(roles, role)
+	}
+	return roles, rows.Err()
+}
+
+// LogOperation records an entry in the operations log.
+func (s *SQLiteStore) LogOperation(ctx context.Context, entry *OperationLog) error {
+	result, err := s.db.ExecContext(ctx, `
+		INSERT INTO operations_log (operation, node_id, detail, status, error, created_at)
+		VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+	`, entry.Operation, entry.NodeID, entry.Detail, entry.Status, entry.Error)
+	if err != nil {
+		return fmt.Errorf("failed to log operation: %w", err)
+	}
+	id, err := result.LastInsertId()
+	if err == nil {
+		entry.ID = int(id)
+	}
+	return nil
+}
+
+// GetOperationsLog retrieves paginated operations log entries.
+func (s *SQLiteStore) GetOperationsLog(ctx context.Context, limit, offset int) ([]OperationLog, int, error) {
+	var total int
+	err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM operations_log").Scan(&total)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to count operations: %w", err)
+	}
+
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, operation, COALESCE(node_id,''), COALESCE(detail,''), status, COALESCE(error,''), created_at
+		FROM operations_log
+		ORDER BY created_at DESC
+		LIMIT ? OFFSET ?
+	`, limit, offset)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to get operations log: %w", err)
+	}
+	defer rows.Close()
+
+	var entries []OperationLog
+	for rows.Next() {
+		var e OperationLog
+		if err := rows.Scan(&e.ID, &e.Operation, &e.NodeID, &e.Detail, &e.Status, &e.Error, &e.CreatedAt); err != nil {
+			return nil, 0, fmt.Errorf("failed to scan operation: %w", err)
+		}
+		entries = append(entries, e)
+	}
+	return entries, total, rows.Err()
+}
+
+// GetOperationsLogByNode retrieves paginated operations log entries filtered by node ID.
+func (s *SQLiteStore) GetOperationsLogByNode(ctx context.Context, nodeID string, limit, offset int) ([]OperationLog, int, error) {
+	var total int
+	err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM operations_log WHERE node_id = ?", nodeID).Scan(&total)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to count operations: %w", err)
+	}
+
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, operation, COALESCE(node_id,''), COALESCE(detail,''), status, COALESCE(error,''), created_at
+		FROM operations_log
+		WHERE node_id = ?
+		ORDER BY created_at DESC
+		LIMIT ? OFFSET ?
+	`, nodeID, limit, offset)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to get operations log: %w", err)
+	}
+	defer rows.Close()
+
+	var entries []OperationLog
+	for rows.Next() {
+		var e OperationLog
+		if err := rows.Scan(&e.ID, &e.Operation, &e.NodeID, &e.Detail, &e.Status, &e.Error, &e.CreatedAt); err != nil {
+			return nil, 0, fmt.Errorf("failed to scan operation: %w", err)
+		}
+		entries = append(entries, e)
+	}
+	return entries, total, rows.Err()
 }
 
 // GetSchemaVersion returns the current schema migration version.

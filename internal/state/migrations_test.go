@@ -278,7 +278,9 @@ func TestGetSchemaVersionViaStore(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetSchemaVersion failed: %v", err)
 	}
-	if version != 0 {
-		t.Errorf("expected version 0 for fresh db, got %d", version)
+	// Version should match the number of migrations defined
+	expected := len(migrations)
+	if version != expected {
+		t.Errorf("expected version %d for fresh db, got %d", expected, version)
 	}
 }

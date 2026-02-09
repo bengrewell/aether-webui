@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/bengrewell/aether-webui/internal/crypto"
 	"github.com/bengrewell/aether-webui/internal/executor"
 	"github.com/bengrewell/aether-webui/internal/frontend"
 	"github.com/bengrewell/aether-webui/internal/logging"
@@ -63,6 +64,7 @@ func main() {
 
 	storageOptions := u.AddGroup(4, "Storage Options", "Options that control persistent state storage")
 	flagDataDir := u.AddStringOption("", "data-dir", "/var/lib/aether-webd", "Directory for persistent state database", "", storageOptions)
+	flagEncryptionKey := u.AddStringOption("", "encryption-key", "", "32-byte encryption key for node passwords. Falls back to AETHER_ENCRYPTION_KEY env var. Auto-generated if neither is provided.", "", secOptions)
 
 	metricsOptions := u.AddGroup(5, "Metrics Options", "Options that control metrics collection")
 	flagMetricsInterval := u.AddStringOption("", "metrics-interval", "10s", "How often to collect system metrics (e.g., '10s', '30s', '1m')", "", metricsOptions)
@@ -124,6 +126,37 @@ func main() {
 	}
 	defer stateStore.Close()
 
+	// Resolve encryption key: flag > env var > auto-generate
+	encryptionKey := *flagEncryptionKey
+	if encryptionKey == "" {
+		encryptionKey = os.Getenv("AETHER_ENCRYPTION_KEY")
+	}
+	if encryptionKey == "" {
+		// Check if a key was previously auto-generated and stored
+		stored, stateErr := stateStore.GetState(context.Background(), "encryption_key")
+		if stateErr == nil && stored != "" {
+			encryptionKey = stored
+		} else {
+			generated, genErr := crypto.GenerateKey()
+			if genErr != nil {
+				slog.Error("failed to generate encryption key", "error", genErr)
+				os.Exit(1)
+			}
+			encryptionKey = generated
+			if setErr := stateStore.SetState(context.Background(), "encryption_key", encryptionKey); setErr != nil {
+				slog.Error("failed to store encryption key", "error", setErr)
+				os.Exit(1)
+			}
+			slog.Warn("auto-generated encryption key stored in database; production deployments should supply --encryption-key or AETHER_ENCRYPTION_KEY")
+		}
+	}
+
+	// Ensure the local node exists
+	if _, err := stateStore.EnsureLocalNode(context.Background()); err != nil {
+		slog.Error("failed to ensure local node", "error", err)
+		os.Exit(1)
+	}
+
 	// Create Chi router and Huma API
 	router := chi.NewMux()
 	router.Use(logging.RequestLogger())
@@ -159,6 +192,11 @@ func main() {
 	})
 	webuiapi.RegisterKubernetesRoutes(api, resolver)
 	webuiapi.RegisterAetherRoutes(api, resolver)
+	webuiapi.RegisterNodeRoutes(api, webuiapi.NodeRoutesDeps{
+		Store:         stateStore,
+		EncryptionKey: encryptionKey,
+	})
+	webuiapi.RegisterOperationsRoutes(api, stateStore)
 
 	// Serve frontend if enabled
 	if *flagServeFrontend {

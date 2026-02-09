@@ -29,6 +29,24 @@ type Store interface {
 	GetMetricsRange(ctx context.Context, metricType string, start, end time.Time) ([]MetricsSnapshot, error)
 	PruneOldMetrics(ctx context.Context, olderThan time.Duration) error
 
+	// Node management
+	CreateNode(ctx context.Context, node *Node) error
+	GetNode(ctx context.Context, id string) (*Node, error)
+	ListNodes(ctx context.Context) ([]Node, error)
+	UpdateNode(ctx context.Context, node *Node) error
+	DeleteNode(ctx context.Context, id string) error
+	EnsureLocalNode(ctx context.Context) (*Node, error)
+
+	// Node roles
+	AssignRole(ctx context.Context, nodeID string, role string) error
+	RemoveRole(ctx context.Context, nodeID string, role string) error
+	GetNodeRoles(ctx context.Context, nodeID string) ([]NodeRole, error)
+
+	// Operations log
+	LogOperation(ctx context.Context, entry *OperationLog) error
+	GetOperationsLog(ctx context.Context, limit, offset int) ([]OperationLog, int, error)
+	GetOperationsLogByNode(ctx context.Context, nodeID string, limit, offset int) ([]OperationLog, int, error)
+
 	// Schema
 	GetSchemaVersion() (int, error)
 

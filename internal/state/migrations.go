@@ -15,7 +15,52 @@ type Migration struct {
 // migrations is the ordered list of all schema migrations.
 // IMPORTANT: Always append new migrations at the end. Never reorder or remove.
 var migrations = []Migration{
-	// Future migrations go here
+	{
+		Version:     1,
+		Description: "add nodes, node_roles, and operations_log tables",
+		Up: func(tx *sql.Tx) error {
+			_, err := tx.Exec(`
+				CREATE TABLE IF NOT EXISTS nodes (
+					id TEXT PRIMARY KEY,
+					name TEXT NOT NULL,
+					node_type TEXT NOT NULL DEFAULT 'remote',
+					address TEXT,
+					ssh_port INTEGER DEFAULT 22,
+					username TEXT,
+					auth_method TEXT,
+					encrypted_password TEXT,
+					private_key_path TEXT,
+					created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+					updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+				);
+
+				CREATE TABLE IF NOT EXISTS node_roles (
+					id INTEGER PRIMARY KEY AUTOINCREMENT,
+					node_id TEXT NOT NULL,
+					role TEXT NOT NULL,
+					created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+					UNIQUE(node_id, role),
+					FOREIGN KEY (node_id) REFERENCES nodes(id) ON DELETE CASCADE
+				);
+
+				CREATE TABLE IF NOT EXISTS operations_log (
+					id INTEGER PRIMARY KEY AUTOINCREMENT,
+					operation TEXT NOT NULL,
+					node_id TEXT,
+					detail TEXT,
+					status TEXT NOT NULL,
+					error TEXT,
+					created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+				);
+
+				CREATE INDEX IF NOT EXISTS idx_operations_log_created_at
+					ON operations_log(created_at);
+				CREATE INDEX IF NOT EXISTS idx_operations_log_node_id
+					ON operations_log(node_id);
+			`)
+			return err
+		},
+	},
 }
 
 // runMigrations applies all pending migrations in order.

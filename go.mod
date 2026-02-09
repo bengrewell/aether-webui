@@ -3,16 +3,17 @@ module github.com/bengrewell/aether-webui
 go 1.25.4
 
 require (
+	github.com/bgrewell/go-execute v0.0.0-20251231174630-b3dc81e1654e
 	github.com/bgrewell/usage v0.0.0-20260202174102-7420635fba0e
 	github.com/danielgtaylor/huma/v2 v2.35.0
 	github.com/go-chi/chi/v5 v5.2.4
 	github.com/lmittmann/tint v1.1.2
 	github.com/shirou/gopsutil/v4 v4.26.1
+	golang.org/x/crypto v0.48.0
 	modernc.org/sqlite v1.44.3
 )
 
 require (
-	github.com/bgrewell/go-execute v0.0.0-20251231174630-b3dc81e1654e // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/ebitengine/purego v0.9.1 // indirect
 	github.com/fatih/color v1.18.0 // indirect
@@ -28,9 +29,9 @@ require (
 	github.com/tklauser/numcpus v0.11.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	golang.org/x/exp v0.0.0-20251023183803-a4bb9ffd2546 // indirect
-	golang.org/x/net v0.40.0 // indirect
-	golang.org/x/sys v0.40.0 // indirect
-	golang.org/x/text v0.25.0 // indirect
+	golang.org/x/net v0.49.0 // indirect
+	golang.org/x/sys v0.41.0 // indirect
+	golang.org/x/text v0.34.0 // indirect
 	modernc.org/libc v1.67.6 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect

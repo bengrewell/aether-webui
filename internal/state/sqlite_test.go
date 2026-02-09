@@ -452,6 +452,418 @@ func TestGetMetricsRangeEmpty(t *testing.T) {
 	}
 }
 
+// --- Node management ---
+
+func TestCreateAndGetNode(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	node := &Node{
+		ID:       "node-1",
+		Name:     "Test Node",
+		NodeType: NodeTypeRemote,
+		Address:  "192.168.1.100",
+		SSHPort:  22,
+		Username: "admin",
+	}
+	if err := store.CreateNode(ctx, node); err != nil {
+		t.Fatalf("CreateNode failed: %v", err)
+	}
+
+	got, err := store.GetNode(ctx, "node-1")
+	if err != nil {
+		t.Fatalf("GetNode failed: %v", err)
+	}
+	if got.Name != "Test Node" {
+		t.Errorf("expected name 'Test Node', got %q", got.Name)
+	}
+	if got.NodeType != NodeTypeRemote {
+		t.Errorf("expected node_type 'remote', got %q", got.NodeType)
+	}
+	if got.Address != "192.168.1.100" {
+		t.Errorf("expected address '192.168.1.100', got %q", got.Address)
+	}
+}
+
+func TestCreateNodeDuplicateID(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	node := &Node{ID: "dup", Name: "First", NodeType: NodeTypeRemote, Address: "1.2.3.4"}
+	if err := store.CreateNode(ctx, node); err != nil {
+		t.Fatalf("CreateNode failed: %v", err)
+	}
+	node2 := &Node{ID: "dup", Name: "Second", NodeType: NodeTypeRemote, Address: "5.6.7.8"}
+	if err := store.CreateNode(ctx, node2); err == nil {
+		t.Error("expected error for duplicate ID")
+	}
+}
+
+func TestGetNodeNotFound(t *testing.T) {
+	store := newTestStore(t)
+	_, err := store.GetNode(context.Background(), "nonexistent")
+	if !errors.Is(err, ErrNotFound) {
+		t.Errorf("expected ErrNotFound, got %v", err)
+	}
+}
+
+func TestListNodesOrdering(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	// Ensure local node
+	if _, err := store.EnsureLocalNode(ctx); err != nil {
+		t.Fatalf("EnsureLocalNode failed: %v", err)
+	}
+
+	// Create remote nodes in reverse alphabetical order
+	for _, name := range []string{"Zulu", "Alpha", "Mike"} {
+		n := &Node{ID: "node-" + name, Name: name, NodeType: NodeTypeRemote, Address: "1.2.3.4"}
+		if err := store.CreateNode(ctx, n); err != nil {
+			t.Fatalf("CreateNode(%s) failed: %v", name, err)
+		}
+	}
+
+	nodes, err := store.ListNodes(ctx)
+	if err != nil {
+		t.Fatalf("ListNodes failed: %v", err)
+	}
+	if len(nodes) != 4 {
+		t.Fatalf("expected 4 nodes, got %d", len(nodes))
+	}
+	// Local should be first
+	if nodes[0].NodeType != NodeTypeLocal {
+		t.Errorf("expected first node to be local, got %q", nodes[0].NodeType)
+	}
+	// Remote nodes should be alphabetical
+	if nodes[1].Name != "Alpha" {
+		t.Errorf("expected second node to be 'Alpha', got %q", nodes[1].Name)
+	}
+	if nodes[2].Name != "Mike" {
+		t.Errorf("expected third node to be 'Mike', got %q", nodes[2].Name)
+	}
+	if nodes[3].Name != "Zulu" {
+		t.Errorf("expected fourth node to be 'Zulu', got %q", nodes[3].Name)
+	}
+}
+
+func TestUpdateNode(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	node := &Node{ID: "upd", Name: "Before", NodeType: NodeTypeRemote, Address: "1.1.1.1", SSHPort: 22}
+	if err := store.CreateNode(ctx, node); err != nil {
+		t.Fatalf("CreateNode failed: %v", err)
+	}
+
+	node.Name = "After"
+	node.Address = "2.2.2.2"
+	if err := store.UpdateNode(ctx, node); err != nil {
+		t.Fatalf("UpdateNode failed: %v", err)
+	}
+
+	got, err := store.GetNode(ctx, "upd")
+	if err != nil {
+		t.Fatalf("GetNode failed: %v", err)
+	}
+	if got.Name != "After" {
+		t.Errorf("expected name 'After', got %q", got.Name)
+	}
+	if got.Address != "2.2.2.2" {
+		t.Errorf("expected address '2.2.2.2', got %q", got.Address)
+	}
+}
+
+func TestUpdateNodeNotFound(t *testing.T) {
+	store := newTestStore(t)
+	node := &Node{ID: "ghost", Name: "Ghost"}
+	err := store.UpdateNode(context.Background(), node)
+	if !errors.Is(err, ErrNotFound) {
+		t.Errorf("expected ErrNotFound, got %v", err)
+	}
+}
+
+func TestDeleteNode(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	node := &Node{ID: "del", Name: "ToDelete", NodeType: NodeTypeRemote, Address: "1.1.1.1"}
+	if err := store.CreateNode(ctx, node); err != nil {
+		t.Fatalf("CreateNode failed: %v", err)
+	}
+	if err := store.DeleteNode(ctx, "del"); err != nil {
+		t.Fatalf("DeleteNode failed: %v", err)
+	}
+	_, err := store.GetNode(ctx, "del")
+	if !errors.Is(err, ErrNotFound) {
+		t.Errorf("expected ErrNotFound after delete, got %v", err)
+	}
+}
+
+func TestDeleteNodeNotFound(t *testing.T) {
+	store := newTestStore(t)
+	err := store.DeleteNode(context.Background(), "nope")
+	if !errors.Is(err, ErrNotFound) {
+		t.Errorf("expected ErrNotFound, got %v", err)
+	}
+}
+
+func TestDeleteLocalNodeProtected(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	if _, err := store.EnsureLocalNode(ctx); err != nil {
+		t.Fatalf("EnsureLocalNode failed: %v", err)
+	}
+	err := store.DeleteNode(ctx, LocalNodeID)
+	if !errors.Is(err, ErrLocalNodeDelete) {
+		t.Errorf("expected ErrLocalNodeDelete, got %v", err)
+	}
+}
+
+func TestEnsureLocalNodeIdempotent(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	node1, err := store.EnsureLocalNode(ctx)
+	if err != nil {
+		t.Fatalf("EnsureLocalNode (first) failed: %v", err)
+	}
+	node2, err := store.EnsureLocalNode(ctx)
+	if err != nil {
+		t.Fatalf("EnsureLocalNode (second) failed: %v", err)
+	}
+	if node1.ID != node2.ID {
+		t.Errorf("expected same ID, got %q and %q", node1.ID, node2.ID)
+	}
+	if node1.NodeType != NodeTypeLocal {
+		t.Errorf("expected node_type 'local', got %q", node1.NodeType)
+	}
+}
+
+// --- Node roles ---
+
+func TestAssignAndGetRoles(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	if _, err := store.EnsureLocalNode(ctx); err != nil {
+		t.Fatalf("EnsureLocalNode failed: %v", err)
+	}
+
+	if err := store.AssignRole(ctx, LocalNodeID, "sd-core"); err != nil {
+		t.Fatalf("AssignRole failed: %v", err)
+	}
+	if err := store.AssignRole(ctx, LocalNodeID, "gnb"); err != nil {
+		t.Fatalf("AssignRole failed: %v", err)
+	}
+
+	roles, err := store.GetNodeRoles(ctx, LocalNodeID)
+	if err != nil {
+		t.Fatalf("GetNodeRoles failed: %v", err)
+	}
+	if len(roles) != 2 {
+		t.Fatalf("expected 2 roles, got %d", len(roles))
+	}
+}
+
+func TestAssignRoleDuplicate(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	if _, err := store.EnsureLocalNode(ctx); err != nil {
+		t.Fatalf("EnsureLocalNode failed: %v", err)
+	}
+
+	if err := store.AssignRole(ctx, LocalNodeID, "sd-core"); err != nil {
+		t.Fatalf("AssignRole (first) failed: %v", err)
+	}
+	// Second assignment should be a no-op
+	if err := store.AssignRole(ctx, LocalNodeID, "sd-core"); err != nil {
+		t.Fatalf("AssignRole (duplicate) failed: %v", err)
+	}
+
+	roles, err := store.GetNodeRoles(ctx, LocalNodeID)
+	if err != nil {
+		t.Fatalf("GetNodeRoles failed: %v", err)
+	}
+	if len(roles) != 1 {
+		t.Errorf("expected 1 role after duplicate assign, got %d", len(roles))
+	}
+}
+
+func TestRemoveRole(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	if _, err := store.EnsureLocalNode(ctx); err != nil {
+		t.Fatalf("EnsureLocalNode failed: %v", err)
+	}
+	if err := store.AssignRole(ctx, LocalNodeID, "sd-core"); err != nil {
+		t.Fatalf("AssignRole failed: %v", err)
+	}
+	if err := store.RemoveRole(ctx, LocalNodeID, "sd-core"); err != nil {
+		t.Fatalf("RemoveRole failed: %v", err)
+	}
+
+	roles, err := store.GetNodeRoles(ctx, LocalNodeID)
+	if err != nil {
+		t.Fatalf("GetNodeRoles failed: %v", err)
+	}
+	if len(roles) != 0 {
+		t.Errorf("expected 0 roles after remove, got %d", len(roles))
+	}
+}
+
+func TestRolesCascadeOnNodeDelete(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	node := &Node{ID: "cascade", Name: "Cascade", NodeType: NodeTypeRemote, Address: "1.1.1.1"}
+	if err := store.CreateNode(ctx, node); err != nil {
+		t.Fatalf("CreateNode failed: %v", err)
+	}
+	if err := store.AssignRole(ctx, "cascade", "sd-core"); err != nil {
+		t.Fatalf("AssignRole failed: %v", err)
+	}
+	if err := store.DeleteNode(ctx, "cascade"); err != nil {
+		t.Fatalf("DeleteNode failed: %v", err)
+	}
+
+	roles, err := store.GetNodeRoles(ctx, "cascade")
+	if err != nil {
+		t.Fatalf("GetNodeRoles failed: %v", err)
+	}
+	if len(roles) != 0 {
+		t.Errorf("expected 0 roles after cascade delete, got %d", len(roles))
+	}
+}
+
+func TestNodeIncludesRoles(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	if _, err := store.EnsureLocalNode(ctx); err != nil {
+		t.Fatalf("EnsureLocalNode failed: %v", err)
+	}
+	if err := store.AssignRole(ctx, LocalNodeID, "gnb"); err != nil {
+		t.Fatalf("AssignRole failed: %v", err)
+	}
+
+	node, err := store.GetNode(ctx, LocalNodeID)
+	if err != nil {
+		t.Fatalf("GetNode failed: %v", err)
+	}
+	if len(node.Roles) != 1 || node.Roles[0] != "gnb" {
+		t.Errorf("expected roles [gnb], got %v", node.Roles)
+	}
+}
+
+// --- Operations log ---
+
+func TestLogAndGetOperations(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	for i := 0; i < 5; i++ {
+		entry := &OperationLog{
+			Operation: OpCreateNode,
+			NodeID:    "node-1",
+			Detail:    "test detail",
+			Status:    OpStatusSuccess,
+		}
+		if err := store.LogOperation(ctx, entry); err != nil {
+			t.Fatalf("LogOperation[%d] failed: %v", i, err)
+		}
+	}
+
+	entries, total, err := store.GetOperationsLog(ctx, 10, 0)
+	if err != nil {
+		t.Fatalf("GetOperationsLog failed: %v", err)
+	}
+	if total != 5 {
+		t.Errorf("expected total=5, got %d", total)
+	}
+	if len(entries) != 5 {
+		t.Errorf("expected 5 entries, got %d", len(entries))
+	}
+}
+
+func TestOperationsLogPagination(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	for i := 0; i < 10; i++ {
+		entry := &OperationLog{
+			Operation: OpCreateNode,
+			Status:    OpStatusSuccess,
+		}
+		if err := store.LogOperation(ctx, entry); err != nil {
+			t.Fatalf("LogOperation[%d] failed: %v", i, err)
+		}
+	}
+
+	entries, total, err := store.GetOperationsLog(ctx, 3, 2)
+	if err != nil {
+		t.Fatalf("GetOperationsLog failed: %v", err)
+	}
+	if total != 10 {
+		t.Errorf("expected total=10, got %d", total)
+	}
+	if len(entries) != 3 {
+		t.Errorf("expected 3 entries with limit=3, got %d", len(entries))
+	}
+}
+
+func TestOperationsLogByNode(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	_ = store.LogOperation(ctx, &OperationLog{Operation: OpCreateNode, NodeID: "a", Status: OpStatusSuccess})
+	_ = store.LogOperation(ctx, &OperationLog{Operation: OpCreateNode, NodeID: "b", Status: OpStatusSuccess})
+	_ = store.LogOperation(ctx, &OperationLog{Operation: OpUpdateNode, NodeID: "a", Status: OpStatusSuccess})
+
+	entries, total, err := store.GetOperationsLogByNode(ctx, "a", 10, 0)
+	if err != nil {
+		t.Fatalf("GetOperationsLogByNode failed: %v", err)
+	}
+	if total != 2 {
+		t.Errorf("expected total=2 for node 'a', got %d", total)
+	}
+	if len(entries) != 2 {
+		t.Errorf("expected 2 entries for node 'a', got %d", len(entries))
+	}
+}
+
+func TestOperationsLogRecordsError(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	entry := &OperationLog{
+		Operation: OpDeleteNode,
+		NodeID:    "node-1",
+		Status:    OpStatusFailure,
+		Error:     "cannot delete local node",
+	}
+	if err := store.LogOperation(ctx, entry); err != nil {
+		t.Fatalf("LogOperation failed: %v", err)
+	}
+
+	entries, _, err := store.GetOperationsLog(ctx, 10, 0)
+	if err != nil {
+		t.Fatalf("GetOperationsLog failed: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(entries))
+	}
+	if entries[0].Status != OpStatusFailure {
+		t.Errorf("expected status 'failure', got %q", entries[0].Status)
+	}
+	if entries[0].Error != "cannot delete local node" {
+		t.Errorf("expected error message, got %q", entries[0].Error)
+	}
+}
+
 // --- Lifecycle ---
 
 func TestClose(t *testing.T) {
