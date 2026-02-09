@@ -1,0 +1,124 @@
+---
+########################################################################################################################
+## Test Suite Configuration                                                                                           ##
+########################################################################################################################
+# API smoke tests for aether-webd on a clean Ubuntu 24.04 LXD VM. Installs from the latest GitHub release via the
+# hosted install script, verifies the systemd service starts and responds to health/version API requests, then
+# uninstalls with --purge.
+suite: Aether Web User Interface API Test Suite
+
+########################################################################################################################
+## Node Infrastructure Configuration                                                                                  ##
+########################################################################################################################
+# LXD resources: an isolated bridge network, a VM profile with cloud-init that installs curl and jq, and two nodes
+# (the local host and a test VM).
+lxd:
+  # Dedicated bridge network for test-environment traffic
+  networks:
+    - name: webd-testing
+      type: bridge
+      subnet: 10.102.102.0/24
+      gateway: 10.102.102.1
+
+  # VM profile: 8 CPU / 8 GB RAM / 100 GB disk, cloud-init installs curl + jq
+  profiles:
+    - name: aether-primary
+      description: Profile for the primary test machine
+      devices:
+        root:
+          type: disk
+          path: /
+          pool: default
+          opts:
+            size: 100GB
+      config:
+        limits.cpu: "8"
+        limits.memory: "8GB"
+
+        user.user-data: |
+          #cloud-config
+          package_update: true
+          packages:
+            - curl
+            - jq
+          runcmd:
+            # Write a file to show cloud-init has finished running
+            - [ bash, -c, 'echo "complete" > /tmp/cloud-init.complete' ]
+
+
+# Nodes: local host (for orchestration) and a clean Ubuntu VM (test target)
+nodes:
+  - name: localhost
+    type: local
+    options:
+      exec_opts:
+        shell: /bin/bash
+
+  - name: test-vm
+    type: lxd-vm
+    options:
+      image: "ubuntu:24.04"
+      exec_opts:
+        shell: /bin/bash
+      networks:
+        - name: webd-testing
+          ip: 10.102.102.10
+      profiles:
+        - aether-primary
+
+########################################################################################################################
+## Setup — install aether-webd and wait for readiness                                                                 ##
+########################################################################################################################
+setup:
+  - name: "wait for cloud-init to complete"
+    node: test-vm
+    step:
+      type: execute
+      options:
+        command: while [ ! -f /tmp/cloud-init.complete ]; do sleep 1; done
+
+  - name: "install aether-webd from github release"
+    node: test-vm
+    step:
+      type: execute
+      options:
+        command: "curl -fsSL https://raw.githubusercontent.com/bengrewell/aether-webui/main/scripts/install.sh | sudo bash"
+
+  - name: "wait for aether-webd service readiness"
+    node: test-vm
+    step:
+      type: execute
+      options:
+        command: for i in $(seq 1 30); do curl -sf http://localhost:8680/healthz && exit 0; sleep 1; done; exit 1
+
+########################################################################################################################
+## Tests — health and version API endpoints                                                                           ##
+########################################################################################################################
+tests:
+  - name: "health check returns healthy"
+    node: test-vm
+    type: execute
+    options:
+      command: curl -sf http://localhost:8680/healthz
+      evaluate:
+        exit_code: 0
+        contains: "healthy"
+
+  - name: "version endpoint returns release build values"
+    node: test-vm
+    type: execute
+    options:
+      command: curl -sf http://localhost:8680/api/v1/version | jq -e '.version != "dev" and .build_date != "unknown" and .branch != "unknown" and .commit_hash != "unknown"'
+      evaluate:
+        exit_code: 0
+
+########################################################################################################################
+## Teardown — clean uninstall                                                                                         ##
+########################################################################################################################
+teardown:
+  - name: "uninstall aether-webd"
+    node: test-vm
+    step:
+      type: execute
+      options:
+        command: curl -fsSL https://raw.githubusercontent.com/bengrewell/aether-webui/main/scripts/uninstall.sh | sudo bash -s -- --purge

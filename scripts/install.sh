@@ -105,15 +105,9 @@ download_binary() {
     local tmp_dir
     local archive_name
 
-    # GoReleaser naming convention: aether-webd_Linux_x86_64.tar.gz or aether-webd_Linux_arm64.tar.gz
-    local arch_suffix
-    if [[ "$ARCH" == "amd64" ]]; then
-        arch_suffix="x86_64"
-    else
-        arch_suffix="arm64"
-    fi
-
-    archive_name="${BINARY_NAME}_Linux_${arch_suffix}.tar.gz"
+    # Strip leading 'v' from version tag for the archive filename
+    local version_number="${INSTALL_VERSION#v}"
+    archive_name="${BINARY_NAME}_${version_number}_linux_${ARCH}.tar.gz"
     download_url="https://github.com/${GITHUB_REPO}/releases/download/${INSTALL_VERSION}/${archive_name}"
 
     log_info "Downloading from: $download_url"
