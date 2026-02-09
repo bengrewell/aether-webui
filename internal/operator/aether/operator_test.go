@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/bengrewell/aether-webui/internal/executor"
 	"github.com/bengrewell/aether-webui/internal/operator"
 )
 
@@ -13,21 +14,21 @@ func TestOperatorImplementsAetherOperator(t *testing.T) {
 }
 
 func TestNew(t *testing.T) {
-	op := New()
+	op := New(executor.NewMockExecutor())
 	if op == nil {
 		t.Fatal("New() returned nil")
 	}
 }
 
 func TestDomain(t *testing.T) {
-	op := New()
+	op := New(executor.NewMockExecutor())
 	if got := op.Domain(); got != operator.DomainAether {
 		t.Errorf("Domain() = %q, want %q", got, operator.DomainAether)
 	}
 }
 
 func TestHealth(t *testing.T) {
-	op := New()
+	op := New(executor.NewMockExecutor())
 	health, err := op.Health(context.Background())
 
 	if err != nil {
@@ -45,7 +46,7 @@ func TestHealth(t *testing.T) {
 }
 
 func TestCoreMethodsReturnErrNotImplemented(t *testing.T) {
-	op := New()
+	op := New(executor.NewMockExecutor())
 	ctx := context.Background()
 
 	tests := []struct {
@@ -72,7 +73,7 @@ func TestCoreMethodsReturnErrNotImplemented(t *testing.T) {
 }
 
 func TestGNBMethodsReturnErrNotImplemented(t *testing.T) {
-	op := New()
+	op := New(executor.NewMockExecutor())
 	ctx := context.Background()
 
 	tests := []struct {
@@ -99,7 +100,7 @@ func TestGNBMethodsReturnErrNotImplemented(t *testing.T) {
 }
 
 func TestCoreMethodsReturnNilData(t *testing.T) {
-	op := New()
+	op := New(executor.NewMockExecutor())
 	ctx := context.Background()
 
 	t.Run("ListCores", func(t *testing.T) {
@@ -146,7 +147,7 @@ func TestCoreMethodsReturnNilData(t *testing.T) {
 }
 
 func TestGNBMethodsReturnNilData(t *testing.T) {
-	op := New()
+	op := New(executor.NewMockExecutor())
 	ctx := context.Background()
 
 	t.Run("ListGNBs", func(t *testing.T) {
@@ -193,7 +194,7 @@ func TestGNBMethodsReturnNilData(t *testing.T) {
 }
 
 func TestMethodsWithDifferentIDs(t *testing.T) {
-	op := New()
+	op := New(executor.NewMockExecutor())
 	ctx := context.Background()
 
 	ids := []string{"", "core-1", "gnb-1", "test-id-12345", "id-with-dashes"}

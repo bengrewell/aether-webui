@@ -286,9 +286,44 @@ func (s *SQLiteStore) GetMetricsHistory(ctx context.Context, metricType string, 
 	return snapshots, nil
 }
 
+// GetMetricsRange retrieves metrics snapshots within a time range.
+func (s *SQLiteStore) GetMetricsRange(ctx context.Context, metricType string, start, end time.Time) ([]MetricsSnapshot, error) {
+	// Format times to match SQLite's CURRENT_TIMESTAMP format (UTC)
+	startStr := start.UTC().Format("2006-01-02 15:04:05")
+	endStr := end.UTC().Format("2006-01-02 15:04:05")
+
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT metric_type, data, recorded_at
+		FROM metrics_history
+		WHERE metric_type = ? AND recorded_at >= ? AND recorded_at <= ?
+		ORDER BY recorded_at ASC
+	`, metricType, startStr, endStr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get metrics range: %w", err)
+	}
+	defer rows.Close()
+
+	var snapshots []MetricsSnapshot
+	for rows.Next() {
+		var snap MetricsSnapshot
+		var data string
+		if err := rows.Scan(&snap.MetricType, &data, &snap.RecordedAt); err != nil {
+			return nil, fmt.Errorf("failed to scan metrics row: %w", err)
+		}
+		snap.Data = []byte(data)
+		snapshots = append(snapshots, snap)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating metrics rows: %w", err)
+	}
+
+	return snapshots, nil
+}
+
 // PruneOldMetrics removes metrics older than the specified duration.
 func (s *SQLiteStore) PruneOldMetrics(ctx context.Context, olderThan time.Duration) error {
-	cutoff := time.Now().UTC().Add(-olderThan)
+	cutoff := time.Now().UTC().Add(-olderThan).Format("2006-01-02 15:04:05")
 	_, err := s.db.ExecContext(ctx,
 		"DELETE FROM metrics_history WHERE recorded_at < ?", cutoff)
 	if err != nil {

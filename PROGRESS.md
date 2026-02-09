@@ -5,6 +5,8 @@
 
 ## Recent Updates
 <!-- Rolling log of significant changes, most recent first -->
+- **Feb 4, 2026**: Refactored exec operator into execution shim (`internal/executor/`) - operators like Aether now receive Executor via dependency injection
+- **Feb 4, 2025**: Implemented Host Operator with gopsutil - all static info and dynamic metrics now functional, plus historical metrics with time-series aggregation
 - **Week of Feb 3, 2025**: Restructured progress tracking for stakeholder reporting
 
 
@@ -77,19 +79,24 @@ Tracks completion of stubbed code that currently returns `ErrNotImplemented`.
 ### Backend Operators
 
 #### Host Operator (`internal/operator/host`)
-System information and metrics collection.
+System information and metrics collection via gopsutil v4.
 
-- [ ] **Static Information**
-  - [ ] `GetCPUInfo` — CPU model, cores, cache
-  - [ ] `GetMemoryInfo` — Total RAM, type, speed
-  - [ ] `GetDiskInfo` — Drives, partitions, filesystem
-  - [ ] `GetNICInfo` — Network interfaces, MAC, speed
-  - [ ] `GetOSInfo` — Distro, kernel, hostname
-- [ ] **Dynamic Metrics**
-  - [ ] `GetCPUUsage` — Per-core utilization
-  - [ ] `GetMemoryUsage` — Used/free/cached
-  - [ ] `GetDiskUsage` — I/O stats, space used
-  - [ ] `GetNICUsage` — Bandwidth, packets, errors
+- [x] **Static Information** (5-minute in-memory cache)
+  - [x] `GetCPUInfo` — CPU model, cores, threads, frequency, cache
+  - [x] `GetMemoryInfo` — Total RAM
+  - [x] `GetDiskInfo` — Partitions, mount points, disk type detection
+  - [x] `GetNICInfo` — Network interfaces, MAC, MTU, IP addresses
+  - [x] `GetOSInfo` — Platform, kernel, hostname, uptime, architecture
+- [x] **Dynamic Metrics** (real-time)
+  - [x] `GetCPUUsage` — Per-core utilization, user/system/idle %, load averages
+  - [x] `GetMemoryUsage` — Used/free/available/cached, swap, usage %
+  - [x] `GetDiskUsage` — Per-mount usage stats, inodes
+  - [x] `GetNICUsage` — Bytes/packets in/out, errors, drops, rates
+- [x] **Historical Metrics** (time-series)
+  - [x] Background collector with configurable interval/retention
+  - [x] SQLite storage with automatic pruning
+  - [x] Time-series aggregation (window + granularity)
+  - [x] `/history` API endpoints for all metric types
 
 #### Kubernetes Operator (`internal/operator/kube`)
 Cluster monitoring and workload visibility.
@@ -122,23 +129,17 @@ Cluster monitoring and workload visibility.
   - [ ] `GetGNBStatus` — Single gNB health
   - [ ] `ListGNBStatuses` — All gNBs health
 
-#### Exec Operator (`internal/operator/exec`)
-Command execution and task management.
+#### Executor Shim (`internal/executor/`)
+Command execution infrastructure (not an operator). Operators use this via dependency injection.
 
-- [ ] **Core Execution**
-  - [ ] `Execute` — Synchronous command execution
-  - [ ] `ExecuteAsync` — Async execution with task ID
-  - [ ] `GetTaskStatus` — Poll async task status
-  - [ ] `CancelTask` — Abort running task
-- [ ] **Invocable Operations**
-  - [ ] `Shell` — Execute shell commands
-  - [ ] `Ansible` — Run Ansible playbooks
-  - [ ] `Script` — Execute script files
-  - [ ] `Helm` — Run Helm commands
-  - [ ] `Kubectl` — Run kubectl commands
-  - [ ] `Docker` — Run Docker commands
-  - [ ] `TaskStatusOp` — Query task status
-  - [ ] `ListTasks` — List all tasks
+- [x] **Core Interface** — Executor interface with domain-specific methods
+- [x] **File Operations** — ReadFile, WriteFile, RenderTemplate, FileExists, MkdirAll
+- [x] **Helm Operations** — RunHelmInstall, RunHelmUpgrade, RunHelmUninstall, RunHelmList, RunHelmStatus
+- [x] **Kubectl Operations** — RunKubectl, KubectlApply, KubectlDelete, KubectlGet
+- [x] **Docker Operations** — RunDockerCommand, DockerRun, DockerStop, DockerRemove
+- [x] **Ansible Operations** — RunAnsiblePlaybook
+- [x] **Shell/Script** — RunShell, RunScript (explicit opt-in)
+- [x] **MockExecutor** — Test double with call tracking for unit testing operators
 
 ### Frontend
 

@@ -26,6 +26,7 @@ type Store interface {
 	// Metrics history
 	RecordMetrics(ctx context.Context, metricType string, data []byte) error
 	GetMetricsHistory(ctx context.Context, metricType string, limit int) ([]MetricsSnapshot, error)
+	GetMetricsRange(ctx context.Context, metricType string, start, end time.Time) ([]MetricsSnapshot, error)
 	PruneOldMetrics(ctx context.Context, olderThan time.Duration) error
 
 	// Schema

@@ -12,7 +12,6 @@ const (
 	DomainHost   Domain = "host"
 	DomainKube   Domain = "kube"
 	DomainAether Domain = "aether"
-	DomainExec   Domain = "exec"
 )
 
 // Operator is the base interface for all domain-specific operators.

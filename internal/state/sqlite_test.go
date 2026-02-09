@@ -385,6 +385,73 @@ func TestPruneOldMetrics(t *testing.T) {
 	}
 }
 
+func TestGetMetricsRange(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	// Insert metrics at different times
+	// First, insert a metric and backdate it to 2 hours ago
+	if err := store.RecordMetrics(ctx, "cpu", []byte(`{"val":1}`)); err != nil {
+		t.Fatalf("RecordMetrics failed: %v", err)
+	}
+	_, err := store.db.ExecContext(ctx,
+		"UPDATE metrics_history SET recorded_at = datetime('now', '-2 hours') WHERE id = 1")
+	if err != nil {
+		t.Fatalf("backdate failed: %v", err)
+	}
+
+	// Insert another at 30 minutes ago
+	if err := store.RecordMetrics(ctx, "cpu", []byte(`{"val":2}`)); err != nil {
+		t.Fatalf("RecordMetrics failed: %v", err)
+	}
+	_, err = store.db.ExecContext(ctx,
+		"UPDATE metrics_history SET recorded_at = datetime('now', '-30 minutes') WHERE id = 2")
+	if err != nil {
+		t.Fatalf("backdate failed: %v", err)
+	}
+
+	// Insert a recent one
+	if err := store.RecordMetrics(ctx, "cpu", []byte(`{"val":3}`)); err != nil {
+		t.Fatalf("RecordMetrics failed: %v", err)
+	}
+
+	// Query for last hour - should get val:2 and val:3
+	end := time.Now().UTC()
+	start := end.Add(-time.Hour)
+
+	snapshots, err := store.GetMetricsRange(ctx, "cpu", start, end)
+	if err != nil {
+		t.Fatalf("GetMetricsRange failed: %v", err)
+	}
+	if len(snapshots) != 2 {
+		t.Fatalf("expected 2 snapshots in last hour, got %d", len(snapshots))
+	}
+	// Should be sorted ascending by time
+	if string(snapshots[0].Data) != `{"val":2}` {
+		t.Errorf("expected first snapshot to be val:2, got %s", snapshots[0].Data)
+	}
+	if string(snapshots[1].Data) != `{"val":3}` {
+		t.Errorf("expected second snapshot to be val:3, got %s", snapshots[1].Data)
+	}
+}
+
+func TestGetMetricsRangeEmpty(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	// Query for non-existent metric type
+	end := time.Now().UTC()
+	start := end.Add(-time.Hour)
+
+	snapshots, err := store.GetMetricsRange(ctx, "nonexistent", start, end)
+	if err != nil {
+		t.Fatalf("GetMetricsRange failed: %v", err)
+	}
+	if len(snapshots) != 0 {
+		t.Errorf("expected 0 snapshots, got %d", len(snapshots))
+	}
+}
+
 // --- Lifecycle ---
 
 func TestClose(t *testing.T) {
