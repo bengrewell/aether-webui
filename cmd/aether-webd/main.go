@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -46,6 +47,7 @@ func main() {
 		usage.WithApplicationDescription("Backend API service for the Aether WebUI. This service is responsible for executing deployment tasks, gathering system information, and monitoring the health and metrics of Aether 5G deployments. It manages SD-Core components, gNBs (such as srsRAN and OCUDU), Kubernetes clusters, and host systems."),
 	)
 
+	flagVersion := u.AddBooleanOption("v", "version", false, "Print version information and exit", "", nil)
 	flagDebug := u.AddBooleanOption("d", "debug", false, "Enable debug mode for verbose logging and diagnostic output", "", nil)
 	flagListen := u.AddStringOption("l", "listen", "127.0.0.1:8680", "Address and port the API server will listen on (e.g., 0.0.0.0:8680 for all interfaces)", "", nil)
 
@@ -76,6 +78,12 @@ func main() {
 
 	if !parsed {
 		u.PrintUsage()
+		return
+	}
+
+	if *flagVersion {
+		fmt.Printf("aether-webd %s (branch: %s, commit: %s, built: %s)\n",
+			version, branch, commitHash, buildDate)
 		return
 	}
 
@@ -194,6 +202,12 @@ func main() {
 	resolver := provider.NewDefaultResolver(localProvider)
 
 	// Register routes with single resolver
+	webuiapi.RegisterVersionRoutes(api, webuiapi.VersionInfo{
+		Version:    version,
+		BuildDate:  buildDate,
+		Branch:     branch,
+		CommitHash: commitHash,
+	})
 	webuiapi.RegisterHealthRoutes(api)
 	webuiapi.RegisterSetupRoutes(api, stateStore)
 	webuiapi.RegisterSystemRoutes(api, resolver)
