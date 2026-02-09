@@ -5,213 +5,180 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/bengrewell/aether-webui/internal/executor"
 	"github.com/bengrewell/aether-webui/internal/operator"
+	"github.com/bengrewell/aether-webui/internal/state"
 )
+
+// newTestStore creates a SQLiteStore backed by a temp directory for testing.
+func newTestStore(t *testing.T) *state.SQLiteStore {
+	t.Helper()
+	store, err := state.NewSQLiteStore(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewSQLiteStore failed: %v", err)
+	}
+	t.Cleanup(func() { store.Close() })
+	return store
+}
 
 func TestOperatorImplementsAetherOperator(t *testing.T) {
 	var _ AetherOperator = (*Operator)(nil)
 }
 
 func TestNew(t *testing.T) {
-	op := New(executor.NewMockExecutor())
+	op := New(nil, newTestStore(t))
 	if op == nil {
 		t.Fatal("New() returned nil")
 	}
 }
 
 func TestDomain(t *testing.T) {
-	op := New(executor.NewMockExecutor())
+	op := New(nil, newTestStore(t))
 	if got := op.Domain(); got != operator.DomainAether {
 		t.Errorf("Domain() = %q, want %q", got, operator.DomainAether)
 	}
 }
 
-func TestHealth(t *testing.T) {
-	op := New(executor.NewMockExecutor())
+func TestHealthWithNilTaskMgr(t *testing.T) {
+	op := New(nil, newTestStore(t))
 	health, err := op.Health(context.Background())
-
 	if err != nil {
 		t.Fatalf("Health() error = %v", err)
-	}
-	if health == nil {
-		t.Fatal("Health() returned nil")
 	}
 	if health.Status != "unavailable" {
 		t.Errorf("Status = %q, want %q", health.Status, "unavailable")
 	}
-	if health.Message != "not implemented" {
-		t.Errorf("Message = %q, want %q", health.Message, "not implemented")
+}
+
+func TestUpdateCoreReturnsNotImplemented(t *testing.T) {
+	op := New(nil, newTestStore(t))
+	err := op.UpdateCore(context.Background(), "5gc", &CoreConfig{})
+	if !errors.Is(err, operator.ErrNotImplemented) {
+		t.Errorf("UpdateCore() error = %v, want ErrNotImplemented", err)
 	}
 }
 
-func TestCoreMethodsReturnErrNotImplemented(t *testing.T) {
-	op := New(executor.NewMockExecutor())
-	ctx := context.Background()
-
-	tests := []struct {
-		name string
-		fn   func() error
-	}{
-		{"ListCores", func() error { _, err := op.ListCores(ctx); return err }},
-		{"GetCore", func() error { _, err := op.GetCore(ctx, "core-1"); return err }},
-		{"DeployCore", func() error { _, err := op.DeployCore(ctx, &CoreConfig{}); return err }},
-		{"UpdateCore", func() error { return op.UpdateCore(ctx, "core-1", &CoreConfig{}) }},
-		{"UndeployCore", func() error { _, err := op.UndeployCore(ctx, "core-1"); return err }},
-		{"GetCoreStatus", func() error { _, err := op.GetCoreStatus(ctx, "core-1"); return err }},
-		{"ListCoreStatuses", func() error { _, err := op.ListCoreStatuses(ctx); return err }},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			err := tc.fn()
-			if !errors.Is(err, operator.ErrNotImplemented) {
-				t.Errorf("%s() error = %v, want ErrNotImplemented", tc.name, err)
-			}
-		})
+func TestUpdateGNBReturnsNotImplemented(t *testing.T) {
+	op := New(nil, newTestStore(t))
+	err := op.UpdateGNB(context.Background(), "srsran-gnb", &GNBConfig{})
+	if !errors.Is(err, operator.ErrNotImplemented) {
+		t.Errorf("UpdateGNB() error = %v, want ErrNotImplemented", err)
 	}
 }
 
-func TestGNBMethodsReturnErrNotImplemented(t *testing.T) {
-	op := New(executor.NewMockExecutor())
-	ctx := context.Background()
-
-	tests := []struct {
-		name string
-		fn   func() error
-	}{
-		{"ListGNBs", func() error { _, err := op.ListGNBs(ctx); return err }},
-		{"GetGNB", func() error { _, err := op.GetGNB(ctx, "gnb-1"); return err }},
-		{"DeployGNB", func() error { _, err := op.DeployGNB(ctx, &GNBConfig{}); return err }},
-		{"UpdateGNB", func() error { return op.UpdateGNB(ctx, "gnb-1", &GNBConfig{}) }},
-		{"UndeployGNB", func() error { _, err := op.UndeployGNB(ctx, "gnb-1"); return err }},
-		{"GetGNBStatus", func() error { _, err := op.GetGNBStatus(ctx, "gnb-1"); return err }},
-		{"ListGNBStatuses", func() error { _, err := op.ListGNBStatuses(ctx); return err }},
+func TestGetCoreStatusNotDeployed(t *testing.T) {
+	store := newTestStore(t)
+	op := New(nil, store)
+	status, err := op.GetCoreStatus(context.Background(), "5gc")
+	if err != nil {
+		t.Fatalf("GetCoreStatus() error = %v", err)
 	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			err := tc.fn()
-			if !errors.Is(err, operator.ErrNotImplemented) {
-				t.Errorf("%s() error = %v, want ErrNotImplemented", tc.name, err)
-			}
-		})
+	if status.State != StateNotDeployed {
+		t.Errorf("State = %q, want %q", status.State, StateNotDeployed)
 	}
 }
 
-func TestCoreMethodsReturnNilData(t *testing.T) {
-	op := New(executor.NewMockExecutor())
+func TestGetCoreStatusWithState(t *testing.T) {
+	store := newTestStore(t)
 	ctx := context.Background()
-
-	t.Run("ListCores", func(t *testing.T) {
-		data, _ := op.ListCores(ctx)
-		if data != nil {
-			t.Error("ListCores() returned non-nil data")
-		}
-	})
-
-	t.Run("GetCore", func(t *testing.T) {
-		data, _ := op.GetCore(ctx, "core-1")
-		if data != nil {
-			t.Error("GetCore() returned non-nil data")
-		}
-	})
-
-	t.Run("DeployCore", func(t *testing.T) {
-		data, _ := op.DeployCore(ctx, nil)
-		if data != nil {
-			t.Error("DeployCore() returned non-nil data")
-		}
-	})
-
-	t.Run("UndeployCore", func(t *testing.T) {
-		data, _ := op.UndeployCore(ctx, "core-1")
-		if data != nil {
-			t.Error("UndeployCore() returned non-nil data")
-		}
-	})
-
-	t.Run("GetCoreStatus", func(t *testing.T) {
-		data, _ := op.GetCoreStatus(ctx, "core-1")
-		if data != nil {
-			t.Error("GetCoreStatus() returned non-nil data")
-		}
-	})
-
-	t.Run("ListCoreStatuses", func(t *testing.T) {
-		data, _ := op.ListCoreStatuses(ctx)
-		if data != nil {
-			t.Error("ListCoreStatuses() returned non-nil data")
-		}
-	})
+	if err := store.SetDeploymentState(ctx, "5gc", state.DeployStateDeployed, "task-1"); err != nil {
+		t.Fatal(err)
+	}
+	op := New(nil, store)
+	status, err := op.GetCoreStatus(ctx, "5gc")
+	if err != nil {
+		t.Fatalf("GetCoreStatus() error = %v", err)
+	}
+	if status.State != StateDeployed {
+		t.Errorf("State = %q, want %q", status.State, StateDeployed)
+	}
 }
 
-func TestGNBMethodsReturnNilData(t *testing.T) {
-	op := New(executor.NewMockExecutor())
-	ctx := context.Background()
-
-	t.Run("ListGNBs", func(t *testing.T) {
-		data, _ := op.ListGNBs(ctx)
-		if data != nil {
-			t.Error("ListGNBs() returned non-nil data")
-		}
-	})
-
-	t.Run("GetGNB", func(t *testing.T) {
-		data, _ := op.GetGNB(ctx, "gnb-1")
-		if data != nil {
-			t.Error("GetGNB() returned non-nil data")
-		}
-	})
-
-	t.Run("DeployGNB", func(t *testing.T) {
-		data, _ := op.DeployGNB(ctx, nil)
-		if data != nil {
-			t.Error("DeployGNB() returned non-nil data")
-		}
-	})
-
-	t.Run("UndeployGNB", func(t *testing.T) {
-		data, _ := op.UndeployGNB(ctx, "gnb-1")
-		if data != nil {
-			t.Error("UndeployGNB() returned non-nil data")
-		}
-	})
-
-	t.Run("GetGNBStatus", func(t *testing.T) {
-		data, _ := op.GetGNBStatus(ctx, "gnb-1")
-		if data != nil {
-			t.Error("GetGNBStatus() returned non-nil data")
-		}
-	})
-
-	t.Run("ListGNBStatuses", func(t *testing.T) {
-		data, _ := op.ListGNBStatuses(ctx)
-		if data != nil {
-			t.Error("ListGNBStatuses() returned non-nil data")
-		}
-	})
+func TestGetGNBStatusNotDeployed(t *testing.T) {
+	store := newTestStore(t)
+	op := New(nil, store)
+	status, err := op.GetGNBStatus(context.Background(), "srsran-gnb")
+	if err != nil {
+		t.Fatalf("GetGNBStatus() error = %v", err)
+	}
+	if status.State != StateNotDeployed {
+		t.Errorf("State = %q, want %q", status.State, StateNotDeployed)
+	}
 }
 
-func TestMethodsWithDifferentIDs(t *testing.T) {
-	op := New(executor.NewMockExecutor())
+func TestListCoresEmpty(t *testing.T) {
+	store := newTestStore(t)
+	op := New(nil, store)
+	list, err := op.ListCores(context.Background())
+	if err != nil {
+		t.Fatalf("ListCores() error = %v", err)
+	}
+	if len(list.Cores) != 0 {
+		t.Errorf("expected 0 cores, got %d", len(list.Cores))
+	}
+}
+
+func TestListCoresWithDeployed(t *testing.T) {
+	store := newTestStore(t)
 	ctx := context.Background()
+	if err := store.SetDeploymentState(ctx, "5gc", state.DeployStateDeployed, "task-1"); err != nil {
+		t.Fatal(err)
+	}
+	op := New(nil, store)
+	list, err := op.ListCores(ctx)
+	if err != nil {
+		t.Fatalf("ListCores() error = %v", err)
+	}
+	if len(list.Cores) != 1 {
+		t.Errorf("expected 1 core, got %d", len(list.Cores))
+	}
+}
 
-	ids := []string{"", "core-1", "gnb-1", "test-id-12345", "id-with-dashes"}
+func TestListGNBsEmpty(t *testing.T) {
+	store := newTestStore(t)
+	op := New(nil, store)
+	list, err := op.ListGNBs(context.Background())
+	if err != nil {
+		t.Fatalf("ListGNBs() error = %v", err)
+	}
+	if len(list.GNBs) != 0 {
+		t.Errorf("expected 0 gnbs, got %d", len(list.GNBs))
+	}
+}
 
-	for _, id := range ids {
-		t.Run("GetCore_"+id, func(t *testing.T) {
-			_, err := op.GetCore(ctx, id)
-			if !errors.Is(err, operator.ErrNotImplemented) {
-				t.Errorf("GetCore(%q) error = %v, want ErrNotImplemented", id, err)
-			}
-		})
+func TestGetCoreKnownID(t *testing.T) {
+	op := New(nil, newTestStore(t))
+	cfg, err := op.GetCore(context.Background(), "5gc")
+	if err != nil {
+		t.Fatalf("GetCore() error = %v", err)
+	}
+	if cfg.ID != "5gc" {
+		t.Errorf("ID = %q, want %q", cfg.ID, "5gc")
+	}
+}
 
-		t.Run("GetGNB_"+id, func(t *testing.T) {
-			_, err := op.GetGNB(ctx, id)
-			if !errors.Is(err, operator.ErrNotImplemented) {
-				t.Errorf("GetGNB(%q) error = %v, want ErrNotImplemented", id, err)
-			}
-		})
+func TestGetCoreUnknownID(t *testing.T) {
+	op := New(nil, newTestStore(t))
+	_, err := op.GetCore(context.Background(), "unknown")
+	if !errors.Is(err, operator.ErrNotImplemented) {
+		t.Errorf("GetCore(unknown) error = %v, want ErrNotImplemented", err)
+	}
+}
+
+func TestGetGNBKnownID(t *testing.T) {
+	op := New(nil, newTestStore(t))
+	cfg, err := op.GetGNB(context.Background(), "srsran-gnb")
+	if err != nil {
+		t.Fatalf("GetGNB() error = %v", err)
+	}
+	if cfg.ID != "srsran-gnb" {
+		t.Errorf("ID = %q, want %q", cfg.ID, "srsran-gnb")
+	}
+}
+
+func TestGetGNBUnknownID(t *testing.T) {
+	op := New(nil, newTestStore(t))
+	_, err := op.GetGNB(context.Background(), "unknown")
+	if !errors.Is(err, operator.ErrNotImplemented) {
+		t.Errorf("GetGNB(unknown) error = %v, want ErrNotImplemented", err)
 	}
 }

@@ -6,14 +6,15 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
 	"github.com/bengrewell/aether-webui/internal/crypto"
-	"github.com/bengrewell/aether-webui/internal/executor"
 	"github.com/bengrewell/aether-webui/internal/frontend"
 	"github.com/bengrewell/aether-webui/internal/logging"
 	"github.com/bengrewell/aether-webui/internal/metrics"
+	"github.com/bengrewell/aether-webui/internal/onramp"
 	"github.com/bengrewell/aether-webui/internal/operator/aether"
 	"github.com/bengrewell/aether-webui/internal/operator/host"
 	"github.com/bengrewell/aether-webui/internal/operator/kube"
@@ -64,6 +65,7 @@ func main() {
 
 	storageOptions := u.AddGroup(4, "Storage Options", "Options that control persistent state storage")
 	flagDataDir := u.AddStringOption("", "data-dir", "/var/lib/aether-webd", "Directory for persistent state database", "", storageOptions)
+	flagOnRampDir := u.AddStringOption("", "onramp-dir", "", "Directory for OnRamp repository checkout. Defaults to <data-dir>/onramp", "", storageOptions)
 	flagEncryptionKey := u.AddStringOption("", "encryption-key", "", "32-byte encryption key for node passwords. Falls back to AETHER_ENCRYPTION_KEY env var. Auto-generated if neither is provided.", "", secOptions)
 
 	metricsOptions := u.AddGroup(5, "Metrics Options", "Options that control metrics collection")
@@ -162,15 +164,24 @@ func main() {
 	router.Use(logging.RequestLogger())
 	api := humachi.New(router, huma.DefaultConfig("Aether WebUI API", version))
 
-	// Create executor for command execution
-	cmdExecutor := executor.New(executor.Config{
-		DefaultTimeout: 10 * time.Minute,
-	})
+	// Resolve OnRamp directory
+	onrampDir := *flagOnRampDir
+	if onrampDir == "" {
+		onrampDir = filepath.Join(*flagDataDir, "onramp")
+	}
+
+	// Create OnRamp manager, runner, and task manager
+	onrampMgr := onramp.NewManager(onramp.Config{
+		WorkDir:       onrampDir,
+		EncryptionKey: encryptionKey,
+	}, stateStore)
+	onrampRunner := onramp.NewRunner(onrampDir)
+	taskMgr := onramp.NewTaskManager(stateStore, onrampRunner, onrampMgr)
 
 	// Create operators
 	hostOp := host.New()
 	kubeOp := kube.New()
-	aetherOp := aether.New(cmdExecutor)
+	aetherOp := aether.New(taskMgr, stateStore)
 
 	// Create local provider with operators
 	localProvider := provider.NewLocalProvider(
@@ -197,6 +208,8 @@ func main() {
 		EncryptionKey: encryptionKey,
 	})
 	webuiapi.RegisterOperationsRoutes(api, stateStore)
+	webuiapi.RegisterTaskRoutes(api, taskMgr, stateStore)
+	webuiapi.RegisterOnRampRoutes(api, onrampMgr, taskMgr)
 
 	// Serve frontend if enabled
 	if *flagServeFrontend {

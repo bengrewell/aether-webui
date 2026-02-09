@@ -90,6 +90,45 @@ const (
 // Local node ID is always "local".
 const LocalNodeID = "local"
 
+// DeploymentTask represents an async playbook execution task.
+type DeploymentTask struct {
+	ID          string     `json:"id"`
+	Operation   string     `json:"operation"`
+	Status      string     `json:"status"`
+	Output      string     `json:"output,omitempty"`
+	Error       string     `json:"error,omitempty"`
+	CreatedAt   time.Time  `json:"created_at"`
+	StartedAt   *time.Time `json:"started_at,omitempty"`
+	CompletedAt *time.Time `json:"completed_at,omitempty"`
+}
+
+// ComponentDeploymentState tracks what's currently deployed for a component.
+type ComponentDeploymentState struct {
+	Component  string     `json:"component"`
+	Status     string     `json:"status"`
+	TaskID     string     `json:"task_id,omitempty"`
+	DeployedAt *time.Time `json:"deployed_at,omitempty"`
+	UpdatedAt  time.Time  `json:"updated_at"`
+}
+
+// Task status constants.
+const (
+	TaskStatusPending   = "pending"
+	TaskStatusRunning   = "running"
+	TaskStatusCompleted = "completed"
+	TaskStatusFailed    = "failed"
+	TaskStatusCancelled = "cancelled"
+)
+
+// Deployment state constants.
+const (
+	DeployStateNotDeployed = "not_deployed"
+	DeployStateDeploying   = "deploying"
+	DeployStateDeployed    = "deployed"
+	DeployStateFailed      = "failed"
+	DeployStateUndeploying = "undeploying"
+)
+
 // Common state keys used in the app_state table.
 const (
 	KeyWizardCompleted   = "wizard_completed"

@@ -864,6 +864,265 @@ func TestOperationsLogRecordsError(t *testing.T) {
 	}
 }
 
+// --- Deployment tasks ---
+
+func TestCreateAndGetTask(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	task := &DeploymentTask{
+		ID:        "task-1",
+		Operation: "deploy_core",
+		Status:    TaskStatusPending,
+	}
+	if err := store.CreateTask(ctx, task); err != nil {
+		t.Fatalf("CreateTask failed: %v", err)
+	}
+
+	got, err := store.GetTask(ctx, "task-1")
+	if err != nil {
+		t.Fatalf("GetTask failed: %v", err)
+	}
+	if got.Operation != "deploy_core" {
+		t.Errorf("Operation = %q, want %q", got.Operation, "deploy_core")
+	}
+	if got.Status != TaskStatusPending {
+		t.Errorf("Status = %q, want %q", got.Status, TaskStatusPending)
+	}
+}
+
+func TestGetTaskNotFound(t *testing.T) {
+	store := newTestStore(t)
+	_, err := store.GetTask(context.Background(), "nonexistent")
+	if !errors.Is(err, ErrNotFound) {
+		t.Errorf("expected ErrNotFound, got %v", err)
+	}
+}
+
+func TestListTasks(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	for i := 0; i < 5; i++ {
+		task := &DeploymentTask{
+			ID:        "task-" + string(rune('a'+i)),
+			Operation: "op",
+			Status:    TaskStatusPending,
+		}
+		if err := store.CreateTask(ctx, task); err != nil {
+			t.Fatalf("CreateTask[%d] failed: %v", i, err)
+		}
+	}
+
+	tasks, total, err := store.ListTasks(ctx, 3, 0)
+	if err != nil {
+		t.Fatalf("ListTasks failed: %v", err)
+	}
+	if total != 5 {
+		t.Errorf("total = %d, want 5", total)
+	}
+	if len(tasks) != 3 {
+		t.Errorf("len(tasks) = %d, want 3", len(tasks))
+	}
+}
+
+func TestUpdateTaskStatusToRunning(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	task := &DeploymentTask{
+		ID:        "task-run",
+		Operation: "deploy",
+		Status:    TaskStatusPending,
+	}
+	store.CreateTask(ctx, task)
+
+	if err := store.UpdateTaskStatus(ctx, "task-run", TaskStatusRunning); err != nil {
+		t.Fatalf("UpdateTaskStatus failed: %v", err)
+	}
+
+	got, _ := store.GetTask(ctx, "task-run")
+	if got.Status != TaskStatusRunning {
+		t.Errorf("Status = %q, want %q", got.Status, TaskStatusRunning)
+	}
+	if got.StartedAt == nil {
+		t.Error("StartedAt should be set when status is running")
+	}
+}
+
+func TestUpdateTaskStatusNotFound(t *testing.T) {
+	store := newTestStore(t)
+	err := store.UpdateTaskStatus(context.Background(), "ghost", TaskStatusRunning)
+	if !errors.Is(err, ErrNotFound) {
+		t.Errorf("expected ErrNotFound, got %v", err)
+	}
+}
+
+func TestAppendTaskOutput(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	task := &DeploymentTask{
+		ID:        "task-out",
+		Operation: "deploy",
+		Status:    TaskStatusRunning,
+	}
+	store.CreateTask(ctx, task)
+
+	store.AppendTaskOutput(ctx, "task-out", "line 1\n")
+	store.AppendTaskOutput(ctx, "task-out", "line 2\n")
+
+	got, _ := store.GetTask(ctx, "task-out")
+	if got.Output != "line 1\nline 2\n" {
+		t.Errorf("Output = %q, want %q", got.Output, "line 1\nline 2\n")
+	}
+}
+
+func TestAppendTaskOutputNotFound(t *testing.T) {
+	store := newTestStore(t)
+	err := store.AppendTaskOutput(context.Background(), "ghost", "output")
+	if !errors.Is(err, ErrNotFound) {
+		t.Errorf("expected ErrNotFound, got %v", err)
+	}
+}
+
+func TestCompleteTask(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	task := &DeploymentTask{
+		ID:        "task-done",
+		Operation: "deploy",
+		Status:    TaskStatusRunning,
+	}
+	store.CreateTask(ctx, task)
+
+	if err := store.CompleteTask(ctx, "task-done", TaskStatusCompleted, ""); err != nil {
+		t.Fatalf("CompleteTask failed: %v", err)
+	}
+
+	got, _ := store.GetTask(ctx, "task-done")
+	if got.Status != TaskStatusCompleted {
+		t.Errorf("Status = %q, want %q", got.Status, TaskStatusCompleted)
+	}
+	if got.CompletedAt == nil {
+		t.Error("CompletedAt should be set")
+	}
+}
+
+func TestCompleteTaskWithError(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	task := &DeploymentTask{
+		ID:        "task-fail",
+		Operation: "deploy",
+		Status:    TaskStatusRunning,
+	}
+	store.CreateTask(ctx, task)
+
+	store.CompleteTask(ctx, "task-fail", TaskStatusFailed, "playbook failed")
+
+	got, _ := store.GetTask(ctx, "task-fail")
+	if got.Status != TaskStatusFailed {
+		t.Errorf("Status = %q, want %q", got.Status, TaskStatusFailed)
+	}
+	if got.Error != "playbook failed" {
+		t.Errorf("Error = %q, want %q", got.Error, "playbook failed")
+	}
+}
+
+func TestCompleteTaskNotFound(t *testing.T) {
+	store := newTestStore(t)
+	err := store.CompleteTask(context.Background(), "ghost", TaskStatusCompleted, "")
+	if !errors.Is(err, ErrNotFound) {
+		t.Errorf("expected ErrNotFound, got %v", err)
+	}
+}
+
+// --- Deployment state ---
+
+func TestSetAndGetDeploymentState(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	if err := store.SetDeploymentState(ctx, "5gc", DeployStateDeploying, "task-1"); err != nil {
+		t.Fatalf("SetDeploymentState failed: %v", err)
+	}
+
+	ds, err := store.GetDeploymentState(ctx, "5gc")
+	if err != nil {
+		t.Fatalf("GetDeploymentState failed: %v", err)
+	}
+	if ds.Component != "5gc" {
+		t.Errorf("Component = %q, want %q", ds.Component, "5gc")
+	}
+	if ds.Status != DeployStateDeploying {
+		t.Errorf("Status = %q, want %q", ds.Status, DeployStateDeploying)
+	}
+	if ds.TaskID != "task-1" {
+		t.Errorf("TaskID = %q, want %q", ds.TaskID, "task-1")
+	}
+}
+
+func TestGetDeploymentStateNotFound(t *testing.T) {
+	store := newTestStore(t)
+	_, err := store.GetDeploymentState(context.Background(), "nonexistent")
+	if !errors.Is(err, ErrNotFound) {
+		t.Errorf("expected ErrNotFound, got %v", err)
+	}
+}
+
+func TestSetDeploymentStateUpsert(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	store.SetDeploymentState(ctx, "5gc", DeployStateDeploying, "task-1")
+	store.SetDeploymentState(ctx, "5gc", DeployStateDeployed, "task-1")
+
+	ds, _ := store.GetDeploymentState(ctx, "5gc")
+	if ds.Status != DeployStateDeployed {
+		t.Errorf("Status = %q, want %q", ds.Status, DeployStateDeployed)
+	}
+	if ds.DeployedAt == nil {
+		t.Error("DeployedAt should be set when status is deployed")
+	}
+}
+
+func TestListDeploymentStates(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	store.SetDeploymentState(ctx, "5gc", DeployStateDeployed, "t1")
+	store.SetDeploymentState(ctx, "srsran-gnb", DeployStateDeploying, "t2")
+
+	states, err := store.ListDeploymentStates(ctx)
+	if err != nil {
+		t.Fatalf("ListDeploymentStates failed: %v", err)
+	}
+	if len(states) != 2 {
+		t.Fatalf("expected 2 states, got %d", len(states))
+	}
+	// Should be ordered alphabetically
+	if states[0].Component != "5gc" {
+		t.Errorf("first component = %q, want %q", states[0].Component, "5gc")
+	}
+	if states[1].Component != "srsran-gnb" {
+		t.Errorf("second component = %q, want %q", states[1].Component, "srsran-gnb")
+	}
+}
+
+func TestListDeploymentStatesEmpty(t *testing.T) {
+	store := newTestStore(t)
+	states, err := store.ListDeploymentStates(context.Background())
+	if err != nil {
+		t.Fatalf("ListDeploymentStates failed: %v", err)
+	}
+	if len(states) != 0 {
+		t.Errorf("expected 0 states, got %d", len(states))
+	}
+}
+
 // --- Lifecycle ---
 
 func TestClose(t *testing.T) {

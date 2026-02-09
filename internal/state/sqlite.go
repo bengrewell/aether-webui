@@ -607,6 +607,220 @@ func (s *SQLiteStore) GetOperationsLogByNode(ctx context.Context, nodeID string,
 	return entries, total, rows.Err()
 }
 
+// CreateTask inserts a new deployment task.
+func (s *SQLiteStore) CreateTask(ctx context.Context, task *DeploymentTask) error {
+	now := time.Now().UTC()
+	_, err := s.db.ExecContext(ctx, `
+		INSERT INTO deployment_tasks (id, operation, status, output, error, created_at)
+		VALUES (?, ?, ?, '', '', ?)
+	`, task.ID, task.Operation, task.Status, now)
+	if err != nil {
+		return fmt.Errorf("failed to create task: %w", err)
+	}
+	task.CreatedAt = now
+	return nil
+}
+
+// GetTask retrieves a deployment task by ID.
+func (s *SQLiteStore) GetTask(ctx context.Context, id string) (*DeploymentTask, error) {
+	task := &DeploymentTask{}
+	var startedAt, completedAt sql.NullTime
+	err := s.db.QueryRowContext(ctx, `
+		SELECT id, operation, status, COALESCE(output,''), COALESCE(error,''),
+		       created_at, started_at, completed_at
+		FROM deployment_tasks WHERE id = ?
+	`, id).Scan(&task.ID, &task.Operation, &task.Status, &task.Output, &task.Error,
+		&task.CreatedAt, &startedAt, &completedAt)
+	if err == sql.ErrNoRows {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get task: %w", err)
+	}
+	if startedAt.Valid {
+		task.StartedAt = &startedAt.Time
+	}
+	if completedAt.Valid {
+		task.CompletedAt = &completedAt.Time
+	}
+	return task, nil
+}
+
+// ListTasks retrieves paginated deployment tasks ordered by creation time (newest first).
+func (s *SQLiteStore) ListTasks(ctx context.Context, limit, offset int) ([]DeploymentTask, int, error) {
+	var total int
+	err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM deployment_tasks").Scan(&total)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to count tasks: %w", err)
+	}
+
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, operation, status, COALESCE(output,''), COALESCE(error,''),
+		       created_at, started_at, completed_at
+		FROM deployment_tasks
+		ORDER BY created_at DESC
+		LIMIT ? OFFSET ?
+	`, limit, offset)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to list tasks: %w", err)
+	}
+	defer rows.Close()
+
+	var tasks []DeploymentTask
+	for rows.Next() {
+		var t DeploymentTask
+		var startedAt, completedAt sql.NullTime
+		if err := rows.Scan(&t.ID, &t.Operation, &t.Status, &t.Output, &t.Error,
+			&t.CreatedAt, &startedAt, &completedAt); err != nil {
+			return nil, 0, fmt.Errorf("failed to scan task: %w", err)
+		}
+		if startedAt.Valid {
+			t.StartedAt = &startedAt.Time
+		}
+		if completedAt.Valid {
+			t.CompletedAt = &completedAt.Time
+		}
+		tasks = append(tasks, t)
+	}
+	return tasks, total, rows.Err()
+}
+
+// UpdateTaskStatus updates a task's status and sets started_at when transitioning to running.
+func (s *SQLiteStore) UpdateTaskStatus(ctx context.Context, id, status string) error {
+	var result sql.Result
+	var err error
+	if status == TaskStatusRunning {
+		result, err = s.db.ExecContext(ctx, `
+			UPDATE deployment_tasks SET status = ?, started_at = CURRENT_TIMESTAMP
+			WHERE id = ?
+		`, status, id)
+	} else {
+		result, err = s.db.ExecContext(ctx, `
+			UPDATE deployment_tasks SET status = ? WHERE id = ?
+		`, status, id)
+	}
+	if err != nil {
+		return fmt.Errorf("failed to update task status: %w", err)
+	}
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// AppendTaskOutput appends output text to a task's output field.
+func (s *SQLiteStore) AppendTaskOutput(ctx context.Context, id, output string) error {
+	result, err := s.db.ExecContext(ctx, `
+		UPDATE deployment_tasks SET output = output || ? WHERE id = ?
+	`, output, id)
+	if err != nil {
+		return fmt.Errorf("failed to append task output: %w", err)
+	}
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// CompleteTask marks a task as completed or failed with timestamps.
+func (s *SQLiteStore) CompleteTask(ctx context.Context, id, status, errorMsg string) error {
+	result, err := s.db.ExecContext(ctx, `
+		UPDATE deployment_tasks SET status = ?, error = ?, completed_at = CURRENT_TIMESTAMP
+		WHERE id = ?
+	`, status, errorMsg, id)
+	if err != nil {
+		return fmt.Errorf("failed to complete task: %w", err)
+	}
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// GetDeploymentState retrieves the deployment state for a component.
+func (s *SQLiteStore) GetDeploymentState(ctx context.Context, component string) (*ComponentDeploymentState, error) {
+	ds := &ComponentDeploymentState{}
+	var taskID sql.NullString
+	var deployedAt sql.NullTime
+	err := s.db.QueryRowContext(ctx, `
+		SELECT component, status, task_id, deployed_at, updated_at
+		FROM deployment_state WHERE component = ?
+	`, component).Scan(&ds.Component, &ds.Status, &taskID, &deployedAt, &ds.UpdatedAt)
+	if err == sql.ErrNoRows {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get deployment state: %w", err)
+	}
+	if taskID.Valid {
+		ds.TaskID = taskID.String
+	}
+	if deployedAt.Valid {
+		ds.DeployedAt = &deployedAt.Time
+	}
+	return ds, nil
+}
+
+// ListDeploymentStates retrieves all component deployment states.
+func (s *SQLiteStore) ListDeploymentStates(ctx context.Context) ([]ComponentDeploymentState, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT component, status, task_id, deployed_at, updated_at
+		FROM deployment_state ORDER BY component ASC
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list deployment states: %w", err)
+	}
+	defer rows.Close()
+
+	var states []ComponentDeploymentState
+	for rows.Next() {
+		var ds ComponentDeploymentState
+		var taskID sql.NullString
+		var deployedAt sql.NullTime
+		if err := rows.Scan(&ds.Component, &ds.Status, &taskID, &deployedAt, &ds.UpdatedAt); err != nil {
+			return nil, fmt.Errorf("failed to scan deployment state: %w", err)
+		}
+		if taskID.Valid {
+			ds.TaskID = taskID.String
+		}
+		if deployedAt.Valid {
+			ds.DeployedAt = &deployedAt.Time
+		}
+		states = append(states, ds)
+	}
+	return states, rows.Err()
+}
+
+// SetDeploymentState creates or updates the deployment state for a component.
+// When status is "deployed", deployed_at is set to the current time.
+func (s *SQLiteStore) SetDeploymentState(ctx context.Context, component, status, taskID string) error {
+	var deployedExpr string
+	if status == DeployStateDeployed {
+		deployedExpr = "CURRENT_TIMESTAMP"
+	} else {
+		deployedExpr = "deployed_at"
+	}
+
+	query := fmt.Sprintf(`
+		INSERT INTO deployment_state (component, status, task_id, deployed_at, updated_at)
+		VALUES (?, ?, ?, NULL, CURRENT_TIMESTAMP)
+		ON CONFLICT(component) DO UPDATE SET
+			status = excluded.status,
+			task_id = excluded.task_id,
+			deployed_at = %s,
+			updated_at = CURRENT_TIMESTAMP
+	`, deployedExpr)
+
+	_, err := s.db.ExecContext(ctx, query, component, status, taskID)
+	if err != nil {
+		return fmt.Errorf("failed to set deployment state: %w", err)
+	}
+	return nil
+}
+
 // GetSchemaVersion returns the current schema migration version.
 func (s *SQLiteStore) GetSchemaVersion() (int, error) {
 	return getCurrentVersion(s.db)

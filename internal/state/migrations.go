@@ -61,6 +61,38 @@ var migrations = []Migration{
 			return err
 		},
 	},
+	{
+		Version:     2,
+		Description: "add deployment_tasks and deployment_state tables",
+		Up: func(tx *sql.Tx) error {
+			_, err := tx.Exec(`
+				CREATE TABLE IF NOT EXISTS deployment_tasks (
+					id TEXT PRIMARY KEY,
+					operation TEXT NOT NULL,
+					status TEXT NOT NULL DEFAULT 'pending',
+					output TEXT DEFAULT '',
+					error TEXT DEFAULT '',
+					created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+					started_at DATETIME,
+					completed_at DATETIME
+				);
+
+				CREATE INDEX IF NOT EXISTS idx_deployment_tasks_status
+					ON deployment_tasks(status);
+				CREATE INDEX IF NOT EXISTS idx_deployment_tasks_created_at
+					ON deployment_tasks(created_at);
+
+				CREATE TABLE IF NOT EXISTS deployment_state (
+					component TEXT PRIMARY KEY,
+					status TEXT NOT NULL DEFAULT 'not_deployed',
+					task_id TEXT,
+					deployed_at DATETIME,
+					updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+				);
+			`)
+			return err
+		},
+	},
 }
 
 // runMigrations applies all pending migrations in order.

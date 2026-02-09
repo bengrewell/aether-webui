@@ -47,6 +47,19 @@ type Store interface {
 	GetOperationsLog(ctx context.Context, limit, offset int) ([]OperationLog, int, error)
 	GetOperationsLogByNode(ctx context.Context, nodeID string, limit, offset int) ([]OperationLog, int, error)
 
+	// Deployment tasks
+	CreateTask(ctx context.Context, task *DeploymentTask) error
+	GetTask(ctx context.Context, id string) (*DeploymentTask, error)
+	ListTasks(ctx context.Context, limit, offset int) ([]DeploymentTask, int, error)
+	UpdateTaskStatus(ctx context.Context, id, status string) error
+	AppendTaskOutput(ctx context.Context, id, output string) error
+	CompleteTask(ctx context.Context, id, status, errorMsg string) error
+
+	// Deployment state
+	GetDeploymentState(ctx context.Context, component string) (*ComponentDeploymentState, error)
+	ListDeploymentStates(ctx context.Context) ([]ComponentDeploymentState, error)
+	SetDeploymentState(ctx context.Context, component, status, taskID string) error
+
 	// Schema
 	GetSchemaVersion() (int, error)
 
