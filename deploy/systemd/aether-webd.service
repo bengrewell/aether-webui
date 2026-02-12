@@ -9,6 +9,9 @@ Type=simple
 User=aether-webd
 Group=aether-webd
 
+# State directory for persistent data (database)
+StateDirectory=aether-webd
+
 # Binary location
 ExecStart=/usr/local/bin/aether-webd --listen 0.0.0.0:8680
 

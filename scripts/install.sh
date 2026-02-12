@@ -17,6 +17,7 @@ SERVICE_NAME="aether-webd"
 SERVICE_USER="aether-webd"
 INSTALL_DIR="/usr/local/bin"
 CONFIG_DIR="/etc/aether-webd"
+DATA_DIR="/var/lib/aether-webd"
 SYSTEMD_DIR="/etc/systemd/system"
 
 # Colors for output
@@ -188,6 +189,18 @@ EOF
     chown -R "$SERVICE_USER:$SERVICE_USER" "$CONFIG_DIR" 2>/dev/null || true
 }
 
+# Create data directory for persistent state
+create_data_dir() {
+    if [[ -d "$DATA_DIR" ]]; then
+        log_info "Data directory already exists: $DATA_DIR"
+    else
+        log_info "Creating data directory: $DATA_DIR"
+        mkdir -p "$DATA_DIR"
+    fi
+    chown -R "$SERVICE_USER:$SERVICE_USER" "$DATA_DIR"
+    chmod 750 "$DATA_DIR"
+}
+
 # Enable and start the service
 enable_service() {
     log_info "Reloading systemd daemon..."
@@ -219,6 +232,7 @@ print_summary() {
     echo "Binary:     ${INSTALL_DIR}/${BINARY_NAME}"
     echo "Service:    ${SYSTEMD_DIR}/${SERVICE_NAME}.service"
     echo "Config:     ${CONFIG_DIR}/"
+    echo "Data:       ${DATA_DIR}/"
     echo "User:       ${SERVICE_USER}"
     echo ""
     echo "Useful commands:"
@@ -247,6 +261,7 @@ main() {
     create_user
     install_service
     create_config_dir
+    create_data_dir
     enable_service
     print_summary
 }
