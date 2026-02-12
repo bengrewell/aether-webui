@@ -17,8 +17,10 @@ type Collector struct {
 	store  state.Store
 	config Config
 
-	stopCh chan struct{}
-	wg     sync.WaitGroup
+	mu      sync.Mutex
+	stopped bool
+	stopCh  chan struct{}
+	wg      sync.WaitGroup
 }
 
 // NewCollector creates a new metrics collector.
@@ -41,6 +43,14 @@ func NewCollector(hostOp host.HostOperator, store state.Store, cfg Config) *Coll
 // Start begins the metrics collection loop. It blocks until Stop is called
 // or the context is cancelled.
 func (c *Collector) Start(ctx context.Context) error {
+	c.mu.Lock()
+	if c.stopped {
+		c.mu.Unlock()
+		return nil
+	}
+	c.wg.Add(1)
+	c.mu.Unlock()
+
 	slog.Info("metrics collector starting",
 		"interval", c.config.Interval,
 		"retention", c.config.Retention,
@@ -50,7 +60,6 @@ func (c *Collector) Start(ctx context.Context) error {
 	defer ticker.Stop()
 
 	// Start pruning goroutine
-	c.wg.Add(1)
 	go c.pruneLoop(ctx)
 
 	// Collect immediately on start
@@ -72,7 +81,15 @@ func (c *Collector) Start(ctx context.Context) error {
 
 // Stop signals the collector to stop.
 func (c *Collector) Stop() {
+	c.mu.Lock()
+	if c.stopped {
+		c.mu.Unlock()
+		return
+	}
+	c.stopped = true
 	close(c.stopCh)
+	c.mu.Unlock()
+
 	c.wg.Wait()
 }
 
