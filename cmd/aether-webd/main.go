@@ -3,25 +3,18 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/bengrewell/aether-webui/internal/provider"
+	"github.com/bengrewell/aether-webui/internal/provider/meta"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 	"time"
 
-	"github.com/bengrewell/aether-webui/internal/crypto"
-	"github.com/bengrewell/aether-webui/internal/frontend"
-	"github.com/bengrewell/aether-webui/internal/logging"
-	"github.com/bengrewell/aether-webui/internal/metrics"
-	"github.com/bengrewell/aether-webui/internal/onramp"
-	"github.com/bengrewell/aether-webui/internal/operator/aether"
-	"github.com/bengrewell/aether-webui/internal/operator/host"
-	"github.com/bengrewell/aether-webui/internal/operator/kube"
-	"github.com/bengrewell/aether-webui/internal/provider"
-	"github.com/bengrewell/aether-webui/internal/state"
-	"github.com/bengrewell/aether-webui/internal/webuiapi"
+	"github.com/bengrewell/aether-webui/internal/_crypto"
+	"github.com/bengrewell/aether-webui/internal/_logging"
+	"github.com/bengrewell/aether-webui/internal/_state"
 	"github.com/bgrewell/usage"
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
@@ -92,7 +85,7 @@ func main() {
 	if *flagDebug {
 		logLevel = slog.LevelDebug
 	}
-	logging.Setup(logging.Options{
+	_logging.Setup(_logging.Options{
 		Level:     logLevel,
 		AddSource: *flagDebug,
 	})
@@ -129,7 +122,7 @@ func main() {
 	}
 
 	// Initialize persistent state store
-	stateStore, err := state.NewSQLiteStore(*flagDataDir)
+	stateStore, err := _state.NewSQLiteStore(*flagDataDir)
 	if err != nil {
 		slog.Error("failed to initialize state store", "error", err)
 		os.Exit(1)
@@ -169,77 +162,132 @@ func main() {
 
 	// Create Chi router and Huma API
 	router := chi.NewMux()
-	router.Use(logging.RequestLogger())
+	router.Use(_logging.RequestLogger())
 	api := humachi.New(router, huma.DefaultConfig("Aether WebUI API", version))
 
-	// Resolve OnRamp directory
-	onrampDir := *flagOnRampDir
-	if onrampDir == "" {
-		onrampDir = filepath.Join(*flagDataDir, "onramp")
+	// Build meta provider config from flags (no secrets exposed)
+	appConfig := meta.AppConfig{
+		ListenAddress:    *flagListen,
+		DataDir:          *flagDataDir,
+		TLSEnabled:       *flagTLSCert != "" && *flagTLSKey != "",
+		MTLSEnabled:      *flagMTLSCACert != "",
+		RBACEnabled:      *flagEnableRBAC,
+		DebugEnabled:     *flagDebug,
+		FrontendServing:  *flagServeFrontend,
+		FrontendDir:      *flagFrontendDir,
+		OnRampDir:        *flagOnRampDir,
+		MetricsInterval:  metricsInterval.String(),
+		MetricsRetention: metricsRetention.String(),
 	}
 
-	// Create OnRamp manager, runner, and task manager
-	onrampMgr := onramp.NewManager(onramp.Config{
-		WorkDir:       onrampDir,
-		EncryptionKey: encryptionKey,
-	}, stateStore)
-	onrampRunner := onramp.NewRunner(onrampDir)
-	taskMgr := onramp.NewTaskManager(stateStore, onrampRunner, onrampMgr)
+	schemaVerFn := func() (int, error) {
+		return stateStore.GetSchemaVersion()
+	}
 
-	// Create operators
-	hostOp := host.New()
-	kubeOp := kube.New()
-	aetherOp := aether.New(taskMgr, stateStore)
+	// Populated after all providers are constructed; closure is only called at
+	// request time so the slice is fully built by then.
+	var allProviders []provider.Provider
 
-	// Create local provider with operators
-	localProvider := provider.NewLocalProvider(
-		provider.WithOperator(hostOp),
-		provider.WithOperator(kubeOp),
-		provider.WithOperator(aetherOp),
+	providersFn := func() []meta.ProviderStatus {
+		type statusInfoer interface {
+			StatusInfo() provider.StatusInfo
+		}
+		out := make([]meta.ProviderStatus, len(allProviders))
+		for i, p := range allProviders {
+			si := p.(statusInfoer).StatusInfo()
+			out[i] = meta.ProviderStatus{
+				Name:          p.Name(),
+				Enabled:       si.Enabled,
+				Running:       si.Running,
+				EndpointCount: si.EndpointCount,
+			}
+		}
+		return out
+	}
+
+	metaProvider := meta.NewProvider(
+		meta.VersionInfo{
+			Version:    version,
+			BuildDate:  buildDate,
+			Branch:     branch,
+			CommitHash: commitHash,
+		},
+		appConfig,
+		schemaVerFn,
+		providersFn,
+		provider.WithHuma(api),
 	)
 
-	// Create unified resolver
-	resolver := provider.NewDefaultResolver(localProvider)
+	allProviders = append(allProviders, metaProvider)
 
-	// Register routes with single resolver
-	webuiapi.RegisterVersionRoutes(api, webuiapi.VersionInfo{
-		Version:    version,
-		BuildDate:  buildDate,
-		Branch:     branch,
-		CommitHash: commitHash,
-	})
-	webuiapi.RegisterHealthRoutes(api)
-	webuiapi.RegisterSetupRoutes(api, stateStore)
-	webuiapi.RegisterSystemRoutes(api, resolver)
-	webuiapi.RegisterMetricsRoutesWithStore(api, webuiapi.MetricsRoutesDeps{
-		Resolver: resolver,
-		Store:    stateStore,
-	})
-	webuiapi.RegisterKubernetesRoutes(api, resolver)
-	webuiapi.RegisterAetherRoutes(api, resolver)
-	webuiapi.RegisterNodeRoutes(api, webuiapi.NodeRoutesDeps{
-		Store:         stateStore,
-		EncryptionKey: encryptionKey,
-	})
-	webuiapi.RegisterOperationsRoutes(api, stateStore)
-	webuiapi.RegisterTaskRoutes(api, taskMgr, stateStore)
-	webuiapi.RegisterOnRampRoutes(api, onrampMgr, taskMgr)
-
-	// Serve frontend if enabled
-	if *flagServeFrontend {
-		var frontendHandler http.Handler
-		if *flagFrontendDir != "" {
-			// Serve from custom directory
-			slog.Info("serving frontend from directory", "path", *flagFrontendDir)
-			frontendHandler = frontend.NewHandler(os.DirFS(*flagFrontendDir), "")
-		} else {
-			// Serve from embedded files
-			slog.Info("serving frontend from embedded files")
-			frontendHandler = frontend.NewHandler(frontend.DistFS, "dist")
-		}
-		// Mount frontend handler as catch-all (after API routes)
-		router.Handle("/*", frontendHandler)
-	}
+	//// Resolve OnRamp directory
+	//onrampDir := *flagOnRampDir
+	//if onrampDir == "" {
+	//	onrampDir = filepath.Join(*flagDataDir, "onramp")
+	//}
+	//
+	//// Create OnRamp manager, runner, and task manager
+	//onrampMgr := _onramp.NewManager(_onramp.Config{
+	//	WorkDir:       onrampDir,
+	//	EncryptionKey: encryptionKey,
+	//}, stateStore)
+	//onrampRunner := _onramp.NewRunner(onrampDir)
+	//taskMgr := _onramp.NewTaskManager(stateStore, onrampRunner, onrampMgr)
+	//
+	//// Create operators
+	//hostOp := host.New()
+	//kubeOp := kube.New()
+	//aetherOp := aether.New(taskMgr, stateStore)
+	//
+	//// Create local provider with operators
+	//localProvider := _provider.NewLocalProvider(
+	//	_provider.WithOperator(hostOp),
+	//	_provider.WithOperator(kubeOp),
+	//	_provider.WithOperator(aetherOp),
+	//)
+	//
+	//// Create unified resolver
+	//resolver := _provider.NewDefaultResolver(localProvider)
+	//
+	//// Register routes with single resolver
+	//_webuiapi.RegisterVersionRoutes(api, _webuiapi.VersionInfo{
+	//	Version:    version,
+	//	BuildDate:  buildDate,
+	//	Branch:     branch,
+	//	CommitHash: commitHash,
+	//})
+	//_webuiapi.RegisterHealthRoutes(api)
+	//_webuiapi.RegisterSetupRoutes(api, stateStore)
+	//_webuiapi.RegisterSystemRoutes(api, resolver)
+	//_webuiapi.RegisterMetricsRoutesWithStore(api, _webuiapi.MetricsRoutesDeps{
+	//	Resolver: resolver,
+	//	Store:    stateStore,
+	//})
+	//_webuiapi.RegisterKubernetesRoutes(api, resolver)
+	//_webuiapi.RegisterAetherRoutes(api, resolver)
+	//_webuiapi.RegisterNodeRoutes(api, _webuiapi.NodeRoutesDeps{
+	//	Store:         stateStore,
+	//	EncryptionKey: encryptionKey,
+	//})
+	//_webuiapi.RegisterOperationsRoutes(api, stateStore)
+	//_webuiapi.RegisterTaskRoutes(api, taskMgr, stateStore)
+	//_webuiapi.RegisterOnRampRoutes(api, onrampMgr, taskMgr)
+	//
+	//// Serve frontend if enabled
+	//if *flagServeFrontend {
+	//	var frontendHandler http.Handler
+	//	if *flagFrontendDir != "" {
+	//		// Serve from custom directory
+	//		slog.Info("serving frontend from directory", "path", *flagFrontendDir)
+	//		frontendHandler = _frontend.NewHandler(os.DirFS(*flagFrontendDir), "")
+	//	} else {
+	//		// Serve from embedded files
+	//		slog.Info("serving frontend from embedded files")
+	//		frontendHandler = _frontend.NewHandler(_frontend.DistFS, "dist")
+	//	}
+	//	// Mount frontend handler as catch-all (after API routes)
+	//	router.Handle("/*", frontendHandler)
+	//}
 
 	// Create server with explicit configuration
 	server := &http.Server{
@@ -247,20 +295,20 @@ func main() {
 		Handler: router,
 	}
 
-	// Create context for graceful shutdown
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	// Start metrics collector
-	collector := metrics.NewCollector(hostOp, stateStore, metrics.Config{
-		Interval:  metricsInterval,
-		Retention: metricsRetention,
-	})
-	go func() {
-		if err := collector.Start(ctx); err != nil && err != context.Canceled {
-			slog.Error("metrics collector error", "error", err)
-		}
-	}()
+	//// Create context for graceful shutdown
+	//ctx, cancel := context.WithCancel(context.Background())
+	//defer cancel()
+	//
+	//// Start metrics collector
+	//collector := _metrics.NewCollector(hostOp, stateStore, _metrics.Config{
+	//	Interval:  metricsInterval,
+	//	Retention: metricsRetention,
+	//})
+	//go func() {
+	//	if err := collector.Start(ctx); err != nil && err != context.Canceled {
+	//		slog.Error("metrics collector error", "error", err)
+	//	}
+	//}()
 
 	// Start server in goroutine
 	go func() {
@@ -285,9 +333,9 @@ func main() {
 			// Second press within window - shutdown
 			slog.Info("shutting down server...")
 
-			// Cancel context to stop metrics collector
-			cancel()
-			collector.Stop()
+			//// Cancel context to stop metrics collector
+			//cancel()
+			//collector.Stop()
 
 			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer shutdownCancel()
