@@ -1,4 +1,4 @@
-package frontend
+package _frontend
 
 import (
 	"net/http"
@@ -181,9 +181,9 @@ func TestHandlerWithFsPrefix(t *testing.T) {
 func TestServeDirectoryWithIndex(t *testing.T) {
 	// Filesystem with a subdirectory that has its own index.html.
 	fs := fstest.MapFS{
-		"index.html":          {Data: []byte("<html>root</html>")},
-		"sub/index.html":      {Data: []byte("<html>sub</html>")},
-		"sub/other.js":        {Data: []byte("other")},
+		"index.html":     {Data: []byte("<html>root</html>")},
+		"sub/index.html": {Data: []byte("<html>sub</html>")},
+		"sub/other.js":   {Data: []byte("other")},
 	}
 	handler := NewHandler(fs, "")
 
@@ -224,7 +224,7 @@ func TestServeDirectoryWithoutIndex(t *testing.T) {
 func TestServeFileWithNoExtension(t *testing.T) {
 	fs := fstest.MapFS{
 		"index.html": {Data: []byte("<html>root</html>")},
-		"LICENSE":     {Data: []byte("MIT License")},
+		"LICENSE":    {Data: []byte("MIT License")},
 	}
 	handler := NewHandler(fs, "")
 
