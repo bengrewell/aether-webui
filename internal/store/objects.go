@@ -54,9 +54,6 @@ func (d *db) Save(ctx context.Context, key Key, payload []byte, opts ...SaveOpti
 			return Meta{}, ErrConflict
 		}
 		// Insert
-		if cfg.CreateOnly == false || cfg.CreateOnly == true {
-			// CreateOnly just means "fail if exists" which we already know is false.
-		}
 
 		var exp any = nil
 		if expiresAt != nil {
