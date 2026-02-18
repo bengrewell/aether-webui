@@ -1,6 +1,6 @@
 # Aether WebUI Documentation
 
-Backend API service for managing Aether 5G deployments. Handles SD-Core components, gNBs (srsRAN, OCUDU), Kubernetes clusters, and host system monitoring.
+Backend API service for the Aether WebUI. Provides a provider-based plugin framework, persistent state, embedded frontend serving, and OpenAPI-documented REST endpoints.
 
 ## Documents
 

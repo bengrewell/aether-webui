@@ -18,7 +18,7 @@ func newTestProvider(opts ...func(*Meta)) *Meta {
 			CommitHash: "abc1234",
 		},
 		AppConfig{
-			ListenAddress: "127.0.0.1:8680",
+			ListenAddress: "127.0.0.1:8186",
 			DebugEnabled:  false,
 			Security: SecurityConfig{
 				TLSEnabled:       true,
@@ -115,8 +115,8 @@ func TestHandleConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if out.Body.ListenAddress != "127.0.0.1:8680" {
-		t.Errorf("ListenAddress = %q, want %q", out.Body.ListenAddress, "127.0.0.1:8680")
+	if out.Body.ListenAddress != "127.0.0.1:8186" {
+		t.Errorf("ListenAddress = %q, want %q", out.Body.ListenAddress, "127.0.0.1:8186")
 	}
 	if !out.Body.Security.TLSEnabled {
 		t.Error("Security.TLSEnabled = false, want true")

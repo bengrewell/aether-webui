@@ -89,7 +89,7 @@ setup:
     step:
       type: execute
       options:
-        command: for i in $(seq 1 30); do curl -sf http://localhost:8680/healthz && exit 0; sleep 1; done; exit 1
+        command: for i in $(seq 1 30); do curl -sf http://localhost:8186/healthz && exit 0; sleep 1; done; exit 1
 
 ########################################################################################################################
 ## Tests — health and version API endpoints                                                                           ##
@@ -99,7 +99,7 @@ tests:
     node: test-vm
     type: execute
     options:
-      command: curl -sf http://localhost:8680/healthz
+      command: curl -sf http://localhost:8186/healthz
       evaluate:
         exit_code: 0
         contains: "healthy"
@@ -108,7 +108,7 @@ tests:
     node: test-vm
     type: execute
     options:
-      command: curl -sf http://localhost:8680/api/v1/version | jq -e '.version != "dev" and .build_date != "unknown" and .branch != "unknown" and .commit_hash != "unknown"'
+      command: curl -sf http://localhost:8186/api/v1/version | jq -e '.version != "dev" and .build_date != "unknown" and .branch != "unknown" and .commit_hash != "unknown"'
       evaluate:
         exit_code: 0
 

@@ -34,8 +34,8 @@ COPY --from=builder /build/aether-webd /usr/local/bin/aether-webd
 USER nonroot:nonroot
 
 # Expose API port
-EXPOSE 8680
+EXPOSE 8186
 
 # Default command - listen on all interfaces for container networking
 ENTRYPOINT ["/usr/local/bin/aether-webd"]
-CMD ["--listen", "0.0.0.0:8680"]
+CMD ["--listen", "0.0.0.0:8186"]

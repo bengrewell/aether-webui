@@ -29,10 +29,19 @@ curl -fsSL https://raw.githubusercontent.com/bengrewell/aether-webui/main/script
 
 ## Features
 
-- **System Monitoring**: Query hardware and OS information (CPU, memory, disk, NICs) and collect real-time metrics
-- **Kubernetes Integration**: Monitor cluster health, nodes, pods, deployments, services, and events
-- **Aether 5G Management**: Full lifecycle management of SD-Core and gNB deployments (install, start, stop, restart, uninstall)
-- **Multi-host Support**: Manage distributed deployments across multiple hosts
+- **Provider Framework**: Extensible plugin system for registering API endpoint groups at runtime
+- **API Introspection**: Built-in meta provider exposes version, build, runtime, config, provider, and store diagnostics
+- **Security**: TLS, mTLS (mutual TLS), and bearer-token authentication out of the box
+- **Persistent State**: SQLite-backed store with versioned schema migrations and AES-256-GCM encryption for secrets
+- **Embedded Frontend**: React SPA embedded in the Go binary; serve from disk during development
+- **OpenAPI Documentation**: Auto-generated OpenAPI 3.1 spec with interactive Swagger UI at `/docs`
+
+### Roadmap
+
+- System monitoring (CPU, memory, disk, NIC metrics)
+- Kubernetes cluster management
+- Aether 5G lifecycle management (SD-Core, gNB)
+- Multi-host distributed deployments
 
 ## Building
 
@@ -85,16 +94,20 @@ aether-webd [options]
 
 | Flag | Description | Default |
 |------|-------------|---------|
+| `-v, --version` | Print version information and exit | `false` |
 | `-d, --debug` | Enable debug mode for verbose logging | `false` |
-| `-l, --listen` | Address and port to listen on | `127.0.0.1:8680` |
+| `-l, --listen` | Address and port to listen on | `127.0.0.1:8186` |
 
 ### Security Options
 
 | Flag | Description | Default |
 |------|-------------|---------|
+| `--tls` | Enable TLS (auto-generates a self-signed cert if `--tls-cert`/`--tls-key` are not provided) | `false` |
 | `-t, --tls-cert` | TLS certificate file for HTTPS | - |
 | `-k, --tls-key` | TLS private key file for HTTPS | - |
 | `-m, --mtls-ca-cert` | CA certificate for client verification (mTLS) | - |
+| `--api-token` | Bearer token for API authentication (falls back to `AETHER_API_TOKEN` env var) | - |
+| `--encryption-key` | 32-byte encryption key for node passwords (falls back to `AETHER_ENCRYPTION_KEY` env var; auto-generated if neither is provided) | - |
 | `-r, --enable-rbac` | Enable RBAC authentication/authorization | `false` |
 
 ### Execution Options
@@ -117,17 +130,32 @@ aether-webd [options]
 |------|-------------|---------|
 | `--data-dir` | Directory for persistent state database | `/var/lib/aether-webd` |
 
+### Metrics Options
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--metrics-interval` | How often to collect system metrics (e.g., `10s`, `30s`, `1m`) | `10s` |
+| `--metrics-retention` | How long to retain historical metrics data (e.g., `24h`, `7d`) | `24h` |
+
 ### Examples
 
 ```bash
 # Run on all interfaces
-aether-webd --listen 0.0.0.0:8680
+aether-webd --listen 0.0.0.0:8186
 
-# Run with HTTPS
+# Quick TLS with auto-generated self-signed certificate
+aether-webd --tls
+
+# Run with HTTPS using your own certificate
 aether-webd --tls-cert /path/to/cert.pem --tls-key /path/to/key.pem
 
 # Run with mTLS (client certificate required)
 aether-webd --tls-cert cert.pem --tls-key key.pem --mtls-ca-cert ca.pem
+
+# Require a bearer token for all API requests
+aether-webd --api-token my-secret-token
+# Or via environment variable:
+AETHER_API_TOKEN=my-secret-token aether-webd
 
 # Run API only (no frontend)
 aether-webd --serve-frontend=false
@@ -140,50 +168,59 @@ aether-webd --frontend-dir ./web/frontend/dist
 
 The service provides a REST API built with [Huma](https://huma.rocks/), which auto-generates OpenAPI documentation.
 
-- **Interactive docs**: `http://localhost:8680/docs` - Swagger UI for exploring and testing endpoints
-- **OpenAPI spec**: `http://localhost:8680/openapi.json` - Machine-readable OpenAPI 3.1 specification
+- **Interactive docs**: `http://localhost:8186/docs` — Swagger UI for exploring and testing endpoints
+- **OpenAPI spec**: `http://localhost:8186/openapi.json` — Machine-readable OpenAPI 3.1 specification
 
-### API Endpoints
+### Providers
 
-The API provides 36 endpoints across 6 categories:
+Endpoints are grouped into providers. Additional providers will be added as the roadmap progresses.
 
-| Category | Endpoints | Description |
+| Provider | Endpoints | Description |
 |----------|-----------|-------------|
-| Health | 1 | Service health check |
-| Setup | 3 | Setup wizard status and completion |
-| System Info | 5 | CPU, memory, disk, NIC, and OS information |
-| Metrics | 4 | Real-time CPU, memory, disk, and network usage |
-| Kubernetes | 7 | Cluster health, nodes, pods, deployments, services, events |
-| Aether 5G | 16 | Host management, SD-Core and gNB lifecycle operations |
+| meta | 6 | Version, build, runtime, config, provider list, store diagnostics |
+
+### Meta Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/v1/meta/version` | Application version, branch, and commit |
+| `GET` | `/api/v1/meta/build` | Go version, OS, architecture, compiler |
+| `GET` | `/api/v1/meta/runtime` | PID, uptime, start time, running user |
+| `GET` | `/api/v1/meta/config` | Active configuration (listen address, security, frontend, storage, metrics) |
+| `GET` | `/api/v1/meta/providers` | Registered providers with enabled/running status and endpoint counts |
+| `GET` | `/api/v1/meta/store` | Store engine, schema version, file size, and diagnostic checks |
+
+### Built-in Routes
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/healthz` | Health check (returns `{"status":"healthy"}`) |
+| `GET` | `/docs` | Interactive Swagger UI |
+| `GET` | `/openapi.json` | OpenAPI 3.1 specification |
 
 ### Example Requests
 
 ```bash
 # Health check
-curl http://localhost:8680/healthz
+curl http://localhost:8186/healthz
 
-# Setup wizard status
-curl http://localhost:8680/api/v1/setup/status
-curl -X POST http://localhost:8680/api/v1/setup/complete
-curl -X DELETE http://localhost:8680/api/v1/setup/status
+# Version info
+curl http://localhost:8186/api/v1/meta/version
 
-# Get system information
-curl http://localhost:8680/api/v1/system/cpu
-curl http://localhost:8680/api/v1/system/memory
-curl http://localhost:8680/api/v1/system/os
+# Build info
+curl http://localhost:8186/api/v1/meta/build
 
-# Get real-time metrics
-curl http://localhost:8680/api/v1/metrics/cpu
-curl http://localhost:8680/api/v1/metrics/memory
+# Running configuration
+curl http://localhost:8186/api/v1/meta/config
 
-# Kubernetes status (requires cluster access)
-curl http://localhost:8680/api/v1/kubernetes/health
-curl http://localhost:8680/api/v1/kubernetes/pods
+# Registered providers
+curl http://localhost:8186/api/v1/meta/providers
 
-# Aether 5G management
-curl http://localhost:8680/api/v1/aether/hosts
-curl http://localhost:8680/api/v1/aether/sdcore/status
-curl -X POST http://localhost:8680/api/v1/aether/sdcore/install
+# Store diagnostics
+curl http://localhost:8186/api/v1/meta/store
+
+# With bearer token authentication
+curl -H "Authorization: Bearer my-secret-token" http://localhost:8186/api/v1/meta/version
 ```
 
 ## Development
@@ -272,7 +309,7 @@ sudo cp deploy/systemd/aether-webd.service /etc/systemd/system/
 
 # Create config directory (optional)
 sudo mkdir -p /etc/aether-webd
-echo 'AETHER_WEBD_OPTS="--listen 0.0.0.0:8680"' | sudo tee /etc/aether-webd/env
+echo 'AETHER_WEBD_OPTS="--listen 0.0.0.0:8186"' | sudo tee /etc/aether-webd/env
 
 # Enable and start
 sudo systemctl daemon-reload
@@ -291,16 +328,16 @@ make docker-build
 # Run container
 docker run -d \
   --name aether-webd \
-  -p 8680:8680 \
+  -p 8186:8186 \
   ghcr.io/bengrewell/aether-webd:latest
 
 # Run with TLS
 docker run -d \
   --name aether-webd \
-  -p 8680:8680 \
+  -p 8186:8186 \
   -v /path/to/certs:/certs:ro \
   ghcr.io/bengrewell/aether-webd:latest \
-  --listen 0.0.0.0:8680 \
+  --listen 0.0.0.0:8186 \
   --tls-cert /certs/cert.pem \
   --tls-key /certs/key.pem
 ```
@@ -362,4 +399,4 @@ make coverage-html
 
 ## License
 
-[License information here]
+See the [LICENSE](LICENSE) file for details.

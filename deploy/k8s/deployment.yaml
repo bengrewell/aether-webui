@@ -29,10 +29,10 @@ spec:
           imagePullPolicy: IfNotPresent
           args:
             - --listen
-            - "0.0.0.0:8680"
+            - "0.0.0.0:8186"
           ports:
             - name: http
-              containerPort: 8680
+              containerPort: 8186
               protocol: TCP
           resources:
             requests:

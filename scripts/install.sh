@@ -182,7 +182,7 @@ create_config_dir() {
         cat > "${CONFIG_DIR}/env" << 'EOF'
 # Aether WebUI daemon configuration
 # Add command-line options here
-# AETHER_WEBD_OPTS="--listen 0.0.0.0:8680"
+# AETHER_WEBD_OPTS="--listen 0.0.0.0:8186"
 EOF
     fi
 
@@ -241,7 +241,7 @@ print_summary() {
     echo "  journalctl -u $SERVICE_NAME -f   - View logs"
     echo ""
     echo "Health check:"
-    echo "  curl http://localhost:8680/healthz"
+    echo "  curl http://localhost:8186/healthz"
     echo ""
 }
 

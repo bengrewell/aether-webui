@@ -15,7 +15,7 @@ spec:
     app: aether-webd
   ports:
     - name: http
-      port: 8680
+      port: 8186
       targetPort: http
       protocol: TCP
       # Uncomment for NodePort:
