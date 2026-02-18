@@ -18,19 +18,25 @@ func newTestProvider(opts ...func(*Meta)) *Meta {
 		},
 		AppConfig{
 			ListenAddress: "127.0.0.1:8680",
-			DataDir:       "/tmp/test",
-			TLSEnabled:    true,
-			MTLSEnabled:   false,
-			RBACEnabled:   true,
 			DebugEnabled:  false,
+			Security: SecurityConfig{
+				TLSEnabled:  true,
+				MTLSEnabled: false,
+				RBACEnabled: true,
+			},
 			Frontend: FrontendConfig{
 				Enabled: true,
 				Source:  "directory",
 				Dir:     "/tmp/frontend",
 			},
-			OnRampDir:        "/tmp/onramp",
-			MetricsInterval:  "10s",
-			MetricsRetention: "24h0m0s",
+			Storage: StorageConfig{
+				DataDir:   "/tmp/test",
+				OnRampDir: "/tmp/onramp",
+			},
+			Metrics: MetricsConfig{
+				Interval:  "10s",
+				Retention: "24h0m0s",
+			},
 		},
 		nil, // schemaVer
 		nil, // providersFn
@@ -109,17 +115,14 @@ func TestHandleConfig(t *testing.T) {
 	if out.Body.ListenAddress != "127.0.0.1:8680" {
 		t.Errorf("ListenAddress = %q, want %q", out.Body.ListenAddress, "127.0.0.1:8680")
 	}
-	if out.Body.DataDir != "/tmp/test" {
-		t.Errorf("DataDir = %q, want %q", out.Body.DataDir, "/tmp/test")
+	if !out.Body.Security.TLSEnabled {
+		t.Error("Security.TLSEnabled = false, want true")
 	}
-	if !out.Body.TLSEnabled {
-		t.Error("TLSEnabled = false, want true")
+	if out.Body.Security.MTLSEnabled {
+		t.Error("Security.MTLSEnabled = true, want false")
 	}
-	if out.Body.MTLSEnabled {
-		t.Error("MTLSEnabled = true, want false")
-	}
-	if !out.Body.RBACEnabled {
-		t.Error("RBACEnabled = false, want true")
+	if !out.Body.Security.RBACEnabled {
+		t.Error("Security.RBACEnabled = false, want true")
 	}
 	if out.Body.DebugEnabled {
 		t.Error("DebugEnabled = true, want false")
@@ -133,14 +136,17 @@ func TestHandleConfig(t *testing.T) {
 	if out.Body.Frontend.Dir != "/tmp/frontend" {
 		t.Errorf("Frontend.Dir = %q, want %q", out.Body.Frontend.Dir, "/tmp/frontend")
 	}
-	if out.Body.OnRampDir != "/tmp/onramp" {
-		t.Errorf("OnRampDir = %q, want %q", out.Body.OnRampDir, "/tmp/onramp")
+	if out.Body.Storage.DataDir != "/tmp/test" {
+		t.Errorf("Storage.DataDir = %q, want %q", out.Body.Storage.DataDir, "/tmp/test")
 	}
-	if out.Body.MetricsInterval != "10s" {
-		t.Errorf("MetricsInterval = %q, want %q", out.Body.MetricsInterval, "10s")
+	if out.Body.Storage.OnRampDir != "/tmp/onramp" {
+		t.Errorf("Storage.OnRampDir = %q, want %q", out.Body.Storage.OnRampDir, "/tmp/onramp")
 	}
-	if out.Body.MetricsRetention != "24h0m0s" {
-		t.Errorf("MetricsRetention = %q, want %q", out.Body.MetricsRetention, "24h0m0s")
+	if out.Body.Metrics.Interval != "10s" {
+		t.Errorf("Metrics.Interval = %q, want %q", out.Body.Metrics.Interval, "10s")
+	}
+	if out.Body.Metrics.Retention != "24h0m0s" {
+		t.Errorf("Metrics.Retention = %q, want %q", out.Body.Metrics.Retention, "24h0m0s")
 	}
 	if out.Body.SchemaVersion != 5 {
 		t.Errorf("SchemaVersion = %d, want %d", out.Body.SchemaVersion, 5)

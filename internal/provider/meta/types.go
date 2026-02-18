@@ -59,18 +59,33 @@ type FrontendConfig struct {
 	Dir     string `json:"dir"`
 }
 
+// SecurityConfig holds security-related configuration.
+type SecurityConfig struct {
+	TLSEnabled  bool `json:"tlsEnabled"`
+	MTLSEnabled bool `json:"mtlsEnabled"`
+	RBACEnabled bool `json:"rbacEnabled"`
+}
+
+// StorageConfig holds persistent storage configuration.
+type StorageConfig struct {
+	DataDir   string `json:"dataDir"`
+	OnRampDir string `json:"onrampDir"`
+}
+
+// MetricsConfig holds metrics collection configuration.
+type MetricsConfig struct {
+	Interval  string `json:"interval"`
+	Retention string `json:"retention"`
+}
+
 // AppConfig holds non-secret application configuration values for introspection.
 type AppConfig struct {
-	ListenAddress    string         `json:"listenAddress"`
-	DataDir          string         `json:"dataDir"`
-	TLSEnabled       bool           `json:"tlsEnabled"`
-	MTLSEnabled      bool           `json:"mtlsEnabled"`
-	RBACEnabled      bool           `json:"rbacEnabled"`
-	DebugEnabled     bool           `json:"debugEnabled"`
-	Frontend         FrontendConfig `json:"frontend"`
-	OnRampDir        string         `json:"onrampDir"`
-	MetricsInterval  string         `json:"metricsInterval"`
-	MetricsRetention string         `json:"metricsRetention"`
+	ListenAddress string         `json:"listenAddress"`
+	DebugEnabled  bool           `json:"debugEnabled"`
+	Security      SecurityConfig `json:"security"`
+	Frontend      FrontendConfig `json:"frontend"`
+	Storage       StorageConfig  `json:"storage"`
+	Metrics       MetricsConfig  `json:"metrics"`
 }
 
 // ConfigInfo holds the active application configuration plus schema version.

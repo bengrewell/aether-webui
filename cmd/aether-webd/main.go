@@ -70,8 +70,6 @@ func main() {
 	parsed := u.Parse()
 
 	_ = flagEncryptionKey
-	_ = flagMetricsInterval
-	_ = flagMetricsRetention
 
 	if !parsed {
 		u.PrintUsage()
@@ -160,17 +158,25 @@ func main() {
 	// Build meta provider config from flags (no secrets exposed)
 	appConfig := meta.AppConfig{
 		ListenAddress: *flagListen,
-		DataDir:       *flagDataDir,
-		TLSEnabled:    *flagTLSCert != "" && *flagTLSKey != "",
-		MTLSEnabled:   *flagMTLSCACert != "",
-		RBACEnabled:   *flagEnableRBAC,
 		DebugEnabled:  *flagDebug,
+		Security: meta.SecurityConfig{
+			TLSEnabled:  *flagTLSCert != "" && *flagTLSKey != "",
+			MTLSEnabled: *flagMTLSCACert != "",
+			RBACEnabled: *flagEnableRBAC,
+		},
 		Frontend: meta.FrontendConfig{
 			Enabled: *flagServeFrontend,
 			Source:  frontendSource,
 			Dir:     *flagFrontendDir,
 		},
-		OnRampDir: *flagOnRampDir,
+		Storage: meta.StorageConfig{
+			DataDir:   *flagDataDir,
+			OnRampDir: *flagOnRampDir,
+		},
+		Metrics: meta.MetricsConfig{
+			Interval:  *flagMetricsInterval,
+			Retention: *flagMetricsRetention,
+		},
 	}
 
 	schemaVerFn := func() (int, error) {
