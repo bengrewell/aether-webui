@@ -16,7 +16,6 @@ import (
 	"github.com/bengrewell/aether-webui/internal/logging"
 	"github.com/bengrewell/aether-webui/internal/provider"
 	"github.com/bengrewell/aether-webui/internal/provider/meta"
-	"github.com/bengrewell/aether-webui/internal/sqlite"
 	"github.com/bengrewell/aether-webui/internal/store"
 	"github.com/bgrewell/usage"
 )
@@ -60,7 +59,6 @@ func main() {
 
 	storageOptions := u.AddGroup(4, "Storage Options", "Options that control persistent state storage")
 	flagDataDir := u.AddStringOption("", "data-dir", "/var/lib/aether-webd", "Directory for persistent state database", "", storageOptions)
-	flagOnRampDir := u.AddStringOption("", "onramp-dir", "", "Directory for OnRamp repository checkout. Defaults to <data-dir>/onramp", "", storageOptions)
 	flagEncryptionKey := u.AddStringOption("", "encryption-key", "", "32-byte encryption key for node passwords. Falls back to AETHER_ENCRYPTION_KEY env var. Auto-generated if neither is provided.", "", secOptions)
 
 	metricsOptions := u.AddGroup(5, "Metrics Options", "Options that control metrics collection")
@@ -114,28 +112,11 @@ func main() {
 	)
 
 	// Open database using --data-dir flag
-	dbPath := filepath.Join(*flagDataDir, "app.db")
-	if err := os.MkdirAll(*flagDataDir, 0o750); err != nil {
-		log.Error("failed to create database directory", "path", *flagDataDir, "err", err)
-		os.Exit(1)
-	}
-
-	st, err := sqlite.Open(context.Background(), sqlite.Config{
-		Path:          dbPath,
-		BusyTimeout:   5 * time.Second,
-		Crypter:       sqlite.NoopCrypter{},
-		MetricsMaxAge: 7 * 24 * time.Hour,
-	})
+	dbcli, err := store.New(context.Background(), filepath.Join(*flagDataDir, "app.db"))
 	if err != nil {
-		log.Error("sqlite open failed", "path", dbPath, "err", err)
+		log.Error("store open failed", "path", *flagDataDir, "err", err)
 		os.Exit(1)
 	}
-
-	if err := st.Migrate(context.Background()); err != nil {
-		log.Error("sqlite migrate failed", "err", err)
-	}
-
-	dbcli := store.Client{S: st, C: store.JSONCodec{}}
 
 	// Create REST transport (Chi router + Huma API + shared deps)
 	transport := rest.NewTransport(rest.Config{
@@ -170,8 +151,7 @@ func main() {
 			Dir:     *flagFrontendDir,
 		},
 		Storage: meta.StorageConfig{
-			DataDir:   *flagDataDir,
-			OnRampDir: *flagOnRampDir,
+			DataDir: *flagDataDir,
 		},
 		Metrics: meta.MetricsConfig{
 			Interval:  *flagMetricsInterval,
@@ -180,7 +160,7 @@ func main() {
 	}
 
 	schemaVerFn := func() (int, error) {
-		return dbcli.S.GetSchemaVersion()
+		return dbcli.GetSchemaVersion()
 	}
 
 	// Populated after all providers are constructed; closure is only called at

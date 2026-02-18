@@ -42,9 +42,9 @@ type RuntimeInfo struct {
 	PID        int       `json:"pid"`
 	User       UserInfo  `json:"user"`
 	Group      GroupInfo `json:"group"`
-	BinaryPath string   `json:"binaryPath"`
-	StartTime  string   `json:"startTime"`
-	Uptime     string   `json:"uptime"`
+	BinaryPath string    `json:"binaryPath"`
+	StartTime  string    `json:"startTime"`
+	Uptime     string    `json:"uptime"`
 }
 
 // RuntimeOutput is the Huma response wrapper for RuntimeInfo.
@@ -68,8 +68,7 @@ type SecurityConfig struct {
 
 // StorageConfig holds persistent storage configuration.
 type StorageConfig struct {
-	DataDir   string `json:"dataDir"`
-	OnRampDir string `json:"onrampDir"`
+	DataDir string `json:"dataDir"`
 }
 
 // MetricsConfig holds metrics collection configuration.

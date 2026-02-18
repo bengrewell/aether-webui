@@ -2,29 +2,64 @@ package store
 
 import (
 	"context"
+	"fmt"
+	"os"
+	"path/filepath"
 )
 
+// Client wraps a Store and Codec for typed object persistence.
 type Client struct {
-	S Store
-	C Codec
+	s Store
+	c Codec
+}
+
+// New opens (or creates) a SQLite-backed store at path and returns a
+// ready-to-use Client. The parent directory is created automatically.
+func New(ctx context.Context, path string, opts ...Option) (Client, error) {
+	cfg := defaults()
+	for _, o := range opts {
+		o(&cfg)
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+		return Client{}, fmt.Errorf("store: create directory: %w", err)
+	}
+	d, err := openDB(ctx, dbConfig{
+		Path:          path,
+		BusyTimeout:   cfg.busyTimeout,
+		Crypter:       cfg.crypter,
+		MetricsMaxAge: cfg.metricsMaxAge,
+	})
+	if err != nil {
+		return Client{}, err
+	}
+	if err := d.Migrate(ctx); err != nil {
+		d.Close()
+		return Client{}, fmt.Errorf("store: migrate: %w", err)
+	}
+	return Client{s: d, c: JSONCodec{}}, nil
+}
+
+// Close closes the underlying database connection.
+func (c Client) Close() error {
+	return c.s.Close()
 }
 
 func Save[T any](c Client, ctx context.Context, key Key, v T, opts ...SaveOption) (Meta, error) {
-	b, err := c.C.Marshal(v)
+	b, err := c.c.Marshal(v)
 	if err != nil {
 		return Meta{}, err
 	}
-	return c.S.Save(ctx, key, b, opts...)
+	return c.s.Save(ctx, key, b, opts...)
 }
 
 func Load[T any](c Client, ctx context.Context, key Key, opts ...LoadOption) (Item[T], bool, error) {
-	raw, ok, err := c.S.Load(ctx, key, opts...)
+	raw, ok, err := c.s.Load(ctx, key, opts...)
 	if err != nil || !ok {
 		return Item[T]{}, ok, err
 	}
 
 	var out T
-	if err := c.C.Unmarshal(raw.Data, &out); err != nil {
+	if err := c.c.Unmarshal(raw.Data, &out); err != nil {
 		return Item[T]{}, false, err
 	}
 
@@ -36,5 +71,5 @@ func Load[T any](c Client, ctx context.Context, key Key, opts ...LoadOption) (It
 }
 
 func (c Client) GetSchemaVersion() (int, error) {
-	return c.S.GetSchemaVersion()
+	return c.s.GetSchemaVersion()
 }

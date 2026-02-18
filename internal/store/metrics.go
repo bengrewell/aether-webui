@@ -1,4 +1,4 @@
-package sqlite
+package store
 
 import (
 	"context"
@@ -6,20 +6,18 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
-
-	"github.com/bengrewell/aether-webui/internal/store"
 )
 
-func (s *Store) AppendSample(ctx context.Context, sample store.Sample) error {
-	return s.AppendSamples(ctx, []store.Sample{sample})
+func (d *db) AppendSample(ctx context.Context, sample Sample) error {
+	return d.AppendSamples(ctx, []Sample{sample})
 }
 
-func (s *Store) AppendSamples(ctx context.Context, samples []store.Sample) error {
+func (d *db) AppendSamples(ctx context.Context, samples []Sample) error {
 	if len(samples) == 0 {
 		return nil
 	}
 
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := d.conn.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -36,9 +34,9 @@ func (s *Store) AppendSamples(ctx context.Context, samples []store.Sample) error
 
 	for _, sm := range samples {
 		if sm.Metric == "" || sm.TS.IsZero() {
-			return store.ErrInvalidArgument
+			return ErrInvalidArgument
 		}
-		labelsNorm, labelsHash := store.NormalizeLabels(sm.Labels)
+		labelsNorm, labelsHash := NormalizeLabels(sm.Labels)
 		labelsJSON, _ := json.Marshal(sm.Labels)
 
 		if _, err := stmt.ExecContext(ctx,
@@ -57,32 +55,32 @@ func (s *Store) AppendSamples(ctx context.Context, samples []store.Sample) error
 	return tx.Commit()
 }
 
-func bucketSeconds(a store.Agg) (int64, error) {
+func bucketSeconds(a Agg) (int64, error) {
 	switch a {
-	case store.AggRaw:
+	case AggRaw:
 		return 0, nil
-	case store.Agg10s:
+	case Agg10s:
 		return 10, nil
-	case store.Agg1m:
+	case Agg1m:
 		return 60, nil
-	case store.Agg5m:
+	case Agg5m:
 		return 300, nil
-	case store.Agg1h:
+	case Agg1h:
 		return 3600, nil
 	default:
 		return 0, fmt.Errorf("unknown aggregation")
 	}
 }
 
-func (s *Store) QueryRange(ctx context.Context, q store.RangeQuery) ([]store.Series, error) {
+func (d *db) QueryRange(ctx context.Context, q RangeQuery) ([]Series, error) {
 	if q.Metric == "" {
-		return nil, store.ErrInvalidArgument
+		return nil, ErrInvalidArgument
 	}
 	if q.Range.To.Before(q.Range.From) {
-		return nil, store.ErrInvalidArgument
+		return nil, ErrInvalidArgument
 	}
 
-	labelsNorm, labelsHash := store.NormalizeLabels(q.LabelsExact)
+	labelsNorm, labelsHash := NormalizeLabels(q.LabelsExact)
 
 	// Current minimal behavior:
 	// - If LabelsExact is provided, match exact labels_hash+labels_norm.
@@ -103,9 +101,9 @@ func (s *Store) QueryRange(ctx context.Context, q store.RangeQuery) ([]store.Ser
 
 	var rows *sql.Rows
 
-	if q.Agg == store.AggRaw {
+	if q.Agg == AggRaw {
 		if len(q.LabelsExact) > 0 {
-			rows, err = s.db.QueryContext(ctx, `
+			rows, err = d.conn.QueryContext(ctx, `
 				SELECT ts, value
 				FROM metrics_samples
 				WHERE metric = ? AND ts >= ? AND ts <= ?
@@ -114,7 +112,7 @@ func (s *Store) QueryRange(ctx context.Context, q store.RangeQuery) ([]store.Ser
 				LIMIT ?
 			`, q.Metric, from, to, labelsHash, labelsNorm, limit)
 		} else {
-			rows, err = s.db.QueryContext(ctx, `
+			rows, err = d.conn.QueryContext(ctx, `
 				SELECT ts, value
 				FROM metrics_samples
 				WHERE metric = ? AND ts >= ? AND ts <= ?
@@ -127,20 +125,20 @@ func (s *Store) QueryRange(ctx context.Context, q store.RangeQuery) ([]store.Ser
 		}
 		defer rows.Close()
 
-		points := make([]store.Point, 0, 256)
+		points := make([]Point, 0, 256)
 		for rows.Next() {
 			var ts int64
 			var v float64
 			if err := rows.Scan(&ts, &v); err != nil {
 				return nil, err
 			}
-			points = append(points, store.Point{TS: time.Unix(ts, 0), Value: v})
+			points = append(points, Point{TS: time.Unix(ts, 0), Value: v})
 		}
 		if err := rows.Err(); err != nil {
 			return nil, err
 		}
 
-		return []store.Series{
+		return []Series{
 			{Metric: q.Metric, Labels: q.LabelsExact, Points: points},
 		}, nil
 	}
@@ -148,7 +146,7 @@ func (s *Store) QueryRange(ctx context.Context, q store.RangeQuery) ([]store.Ser
 	// Aggregated by time bucket: avg(value) per bucket
 	// bucket_ts = (ts / sec) * sec
 	if len(q.LabelsExact) > 0 {
-		rows, err = s.db.QueryContext(ctx, `
+		rows, err = d.conn.QueryContext(ctx, `
 			SELECT (ts / ?) * ? AS bucket_ts, AVG(value) AS avg_value
 			FROM metrics_samples
 			WHERE metric = ? AND ts >= ? AND ts <= ?
@@ -158,7 +156,7 @@ func (s *Store) QueryRange(ctx context.Context, q store.RangeQuery) ([]store.Ser
 			LIMIT ?
 		`, sec, sec, q.Metric, from, to, labelsHash, labelsNorm, limit)
 	} else {
-		rows, err = s.db.QueryContext(ctx, `
+		rows, err = d.conn.QueryContext(ctx, `
 			SELECT (ts / ?) * ? AS bucket_ts, AVG(value) AS avg_value
 			FROM metrics_samples
 			WHERE metric = ? AND ts >= ? AND ts <= ?
@@ -172,20 +170,20 @@ func (s *Store) QueryRange(ctx context.Context, q store.RangeQuery) ([]store.Ser
 	}
 	defer rows.Close()
 
-	points := make([]store.Point, 0, 256)
+	points := make([]Point, 0, 256)
 	for rows.Next() {
 		var ts int64
 		var v float64
 		if err := rows.Scan(&ts, &v); err != nil {
 			return nil, err
 		}
-		points = append(points, store.Point{TS: time.Unix(ts, 0), Value: v})
+		points = append(points, Point{TS: time.Unix(ts, 0), Value: v})
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 
-	return []store.Series{
+	return []Series{
 		{Metric: q.Metric, Labels: q.LabelsExact, Points: points},
 	}, nil
 }

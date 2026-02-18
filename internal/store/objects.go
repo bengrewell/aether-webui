@@ -1,26 +1,24 @@
-package sqlite
+package store
 
 import (
 	"context"
 	"database/sql"
 	"time"
-
-	"github.com/bengrewell/aether-webui/internal/store"
 )
 
-func (s *Store) Save(ctx context.Context, key store.Key, payload []byte, opts ...store.SaveOption) (store.Meta, error) {
+func (d *db) Save(ctx context.Context, key Key, payload []byte, opts ...SaveOption) (Meta, error) {
 	if key.Namespace == "" || key.ID == "" {
-		return store.Meta{}, store.ErrInvalidArgument
+		return Meta{}, ErrInvalidArgument
 	}
 
-	cfg := store.SaveOptions{}
+	cfg := SaveOptions{}
 	for _, opt := range opts {
 		if opt != nil {
 			opt(&cfg)
 		}
 	}
 
-	now := s.now()
+	now := d.now()
 	var expiresAt *time.Time
 	if cfg.TTL > 0 {
 		t := now.Add(cfg.TTL)
@@ -29,9 +27,9 @@ func (s *Store) Save(ctx context.Context, key store.Key, payload []byte, opts ..
 
 	// We implement optimistic concurrency via version.
 	// Save increments version on update, sets version=1 on insert.
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := d.conn.BeginTx(ctx, nil)
 	if err != nil {
-		return store.Meta{}, err
+		return Meta{}, err
 	}
 	defer func() { _ = tx.Rollback() }()
 
@@ -48,12 +46,12 @@ func (s *Store) Save(ctx context.Context, key store.Key, payload []byte, opts ..
 	`, key.Namespace, key.ID).Scan(&curVersion, &createdAtUnix, &updatedAtUnix, &expiresUnix)
 
 	if err != nil && err != sql.ErrNoRows {
-		return store.Meta{}, err
+		return Meta{}, err
 	}
 
 	if err == sql.ErrNoRows {
 		if cfg.ExpectedVersion != 0 {
-			return store.Meta{}, store.ErrConflict
+			return Meta{}, ErrConflict
 		}
 		// Insert
 		if cfg.CreateOnly == false || cfg.CreateOnly == true {
@@ -70,14 +68,14 @@ func (s *Store) Save(ctx context.Context, key store.Key, payload []byte, opts ..
 			VALUES(?, ?, 1, ?, ?, ?, ?)
 		`, key.Namespace, key.ID, payload, now.Unix(), now.Unix(), exp)
 		if err != nil {
-			return store.Meta{}, err
+			return Meta{}, err
 		}
 
 		if err := tx.Commit(); err != nil {
-			return store.Meta{}, err
+			return Meta{}, err
 		}
 
-		return store.Meta{
+		return Meta{
 			CreatedAt: now,
 			UpdatedAt: now,
 			Version:   1,
@@ -87,10 +85,10 @@ func (s *Store) Save(ctx context.Context, key store.Key, payload []byte, opts ..
 
 	// Exists
 	if cfg.CreateOnly {
-		return store.Meta{}, store.ErrConflict
+		return Meta{}, ErrConflict
 	}
 	if cfg.ExpectedVersion != 0 && cfg.ExpectedVersion != curVersion {
-		return store.Meta{}, store.ErrConflict
+		return Meta{}, ErrConflict
 	}
 
 	newVersion := curVersion + 1
@@ -109,11 +107,11 @@ func (s *Store) Save(ctx context.Context, key store.Key, payload []byte, opts ..
 		WHERE namespace = ? AND id = ?
 	`, newVersion, payload, now.Unix(), exp, key.Namespace, key.ID)
 	if err != nil {
-		return store.Meta{}, err
+		return Meta{}, err
 	}
 
 	if err := tx.Commit(); err != nil {
-		return store.Meta{}, err
+		return Meta{}, err
 	}
 
 	var existingExpires *time.Time
@@ -122,7 +120,7 @@ func (s *Store) Save(ctx context.Context, key store.Key, payload []byte, opts ..
 		existingExpires = &t
 	}
 
-	return store.Meta{
+	return Meta{
 		CreatedAt: time.Unix(createdAtUnix, 0),
 		UpdatedAt: now,
 		Version:   newVersion,
@@ -130,12 +128,12 @@ func (s *Store) Save(ctx context.Context, key store.Key, payload []byte, opts ..
 	}, nil
 }
 
-func (s *Store) Load(ctx context.Context, key store.Key, opts ...store.LoadOption) (store.ItemBytes, bool, error) {
+func (d *db) Load(ctx context.Context, key Key, opts ...LoadOption) (ItemBytes, bool, error) {
 	if key.Namespace == "" || key.ID == "" {
-		return store.ItemBytes{}, false, store.ErrInvalidArgument
+		return ItemBytes{}, false, ErrInvalidArgument
 	}
 
-	cfg := store.LoadOptions{}
+	cfg := LoadOptions{}
 	for _, opt := range opts {
 		if opt != nil {
 			opt(&cfg)
@@ -148,31 +146,31 @@ func (s *Store) Load(ctx context.Context, key store.Key, opts ...store.LoadOptio
 	var updatedAtUnix int64
 	var expiresUnix sql.NullInt64
 
-	err := s.db.QueryRowContext(ctx, `
+	err := d.conn.QueryRowContext(ctx, `
 		SELECT payload, version, created_at, updated_at, expires_at
 		FROM objects
 		WHERE namespace = ? AND id = ?
 	`, key.Namespace, key.ID).Scan(&payload, &version, &createdAtUnix, &updatedAtUnix, &expiresUnix)
 
 	if err == sql.ErrNoRows {
-		return store.ItemBytes{}, false, nil
+		return ItemBytes{}, false, nil
 	}
 	if err != nil {
-		return store.ItemBytes{}, false, err
+		return ItemBytes{}, false, err
 	}
 
 	var expiresAt *time.Time
 	if expiresUnix.Valid {
 		t := time.Unix(expiresUnix.Int64, 0)
 		expiresAt = &t
-		if cfg.RequireFresh && s.now().After(t) {
-			return store.ItemBytes{}, false, store.ErrExpired
+		if cfg.RequireFresh && d.now().After(t) {
+			return ItemBytes{}, false, ErrExpired
 		}
 	}
 
-	return store.ItemBytes{
+	return ItemBytes{
 		Key: key,
-		Meta: store.Meta{
+		Meta: Meta{
 			CreatedAt: time.Unix(createdAtUnix, 0),
 			UpdatedAt: time.Unix(updatedAtUnix, 0),
 			Version:   version,
@@ -182,22 +180,22 @@ func (s *Store) Load(ctx context.Context, key store.Key, opts ...store.LoadOptio
 	}, true, nil
 }
 
-func (s *Store) Delete(ctx context.Context, key store.Key) error {
+func (d *db) Delete(ctx context.Context, key Key) error {
 	if key.Namespace == "" || key.ID == "" {
-		return store.ErrInvalidArgument
+		return ErrInvalidArgument
 	}
-	_, err := s.db.ExecContext(ctx, `
+	_, err := d.conn.ExecContext(ctx, `
 		DELETE FROM objects WHERE namespace = ? AND id = ?
 	`, key.Namespace, key.ID)
 	return err
 }
 
-func (s *Store) List(ctx context.Context, namespace string, opts ...store.ListOption) ([]store.Key, error) {
+func (d *db) List(ctx context.Context, namespace string, opts ...ListOption) ([]Key, error) {
 	if namespace == "" {
-		return nil, store.ErrInvalidArgument
+		return nil, ErrInvalidArgument
 	}
 
-	cfg := store.ListOptions{Limit: 1000}
+	cfg := ListOptions{Limit: 1000}
 	for _, opt := range opts {
 		if opt != nil {
 			opt(&cfg)
@@ -211,14 +209,14 @@ func (s *Store) List(ctx context.Context, namespace string, opts ...store.ListOp
 	var err error
 
 	if cfg.Prefix != "" {
-		rows, err = s.db.QueryContext(ctx, `
+		rows, err = d.conn.QueryContext(ctx, `
 			SELECT id FROM objects
 			WHERE namespace = ? AND id LIKE ?
 			ORDER BY id
 			LIMIT ?
 		`, namespace, cfg.Prefix+"%", cfg.Limit)
 	} else {
-		rows, err = s.db.QueryContext(ctx, `
+		rows, err = d.conn.QueryContext(ctx, `
 			SELECT id FROM objects
 			WHERE namespace = ?
 			ORDER BY id
@@ -230,13 +228,13 @@ func (s *Store) List(ctx context.Context, namespace string, opts ...store.ListOp
 	}
 	defer rows.Close()
 
-	out := make([]store.Key, 0, 64)
+	out := make([]Key, 0, 64)
 	for rows.Next() {
 		var id string
 		if err := rows.Scan(&id); err != nil {
 			return nil, err
 		}
-		out = append(out, store.Key{Namespace: namespace, ID: id})
+		out = append(out, Key{Namespace: namespace, ID: id})
 	}
 	return out, rows.Err()
 }

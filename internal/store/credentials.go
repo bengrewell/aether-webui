@@ -1,20 +1,18 @@
-package sqlite
+package store
 
 import (
 	"context"
 	"database/sql"
 	"encoding/json"
 	"time"
-
-	"github.com/bengrewell/aether-webui/internal/store"
 )
 
-func (s *Store) UpsertCredential(ctx context.Context, cred store.Credential) error {
+func (d *db) UpsertCredential(ctx context.Context, cred Credential) error {
 	if cred.ID == "" || cred.Provider == "" {
-		return store.ErrInvalidArgument
+		return ErrInvalidArgument
 	}
 	if cred.UpdatedAt.IsZero() {
-		cred.UpdatedAt = s.now()
+		cred.UpdatedAt = d.now()
 	}
 
 	labelsJSON, err := json.Marshal(cred.Labels)
@@ -22,12 +20,12 @@ func (s *Store) UpsertCredential(ctx context.Context, cred store.Credential) err
 		return err
 	}
 
-	ct, err := s.crypter.Encrypt(cred.Secret)
+	ct, err := d.crypter.Encrypt(cred.Secret)
 	if err != nil {
 		return err
 	}
 
-	_, err = s.db.ExecContext(ctx, `
+	_, err = d.conn.ExecContext(ctx, `
 		INSERT INTO credentials(id, provider, labels_json, secret_ciphertext, updated_at)
 		VALUES(?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
@@ -40,9 +38,9 @@ func (s *Store) UpsertCredential(ctx context.Context, cred store.Credential) err
 	return err
 }
 
-func (s *Store) GetCredential(ctx context.Context, id string) (store.Credential, bool, error) {
+func (d *db) GetCredential(ctx context.Context, id string) (Credential, bool, error) {
 	if id == "" {
-		return store.Credential{}, false, store.ErrInvalidArgument
+		return Credential{}, false, ErrInvalidArgument
 	}
 
 	var provider string
@@ -50,17 +48,17 @@ func (s *Store) GetCredential(ctx context.Context, id string) (store.Credential,
 	var ct []byte
 	var updatedAtUnix int64
 
-	err := s.db.QueryRowContext(ctx, `
+	err := d.conn.QueryRowContext(ctx, `
 		SELECT provider, labels_json, secret_ciphertext, updated_at
 		FROM credentials
 		WHERE id = ?
 	`, id).Scan(&provider, &labelsJSON, &ct, &updatedAtUnix)
 
 	if err == sql.ErrNoRows {
-		return store.Credential{}, false, nil
+		return Credential{}, false, nil
 	}
 	if err != nil {
-		return store.Credential{}, false, err
+		return Credential{}, false, err
 	}
 
 	var labels map[string]string
@@ -68,12 +66,12 @@ func (s *Store) GetCredential(ctx context.Context, id string) (store.Credential,
 		_ = json.Unmarshal([]byte(labelsJSON.String), &labels)
 	}
 
-	pt, err := s.crypter.Decrypt(ct)
+	pt, err := d.crypter.Decrypt(ct)
 	if err != nil {
-		return store.Credential{}, false, err
+		return Credential{}, false, err
 	}
 
-	return store.Credential{
+	return Credential{
 		ID:        id,
 		Provider:  provider,
 		Labels:    labels,
@@ -82,16 +80,16 @@ func (s *Store) GetCredential(ctx context.Context, id string) (store.Credential,
 	}, true, nil
 }
 
-func (s *Store) DeleteCredential(ctx context.Context, id string) error {
+func (d *db) DeleteCredential(ctx context.Context, id string) error {
 	if id == "" {
-		return store.ErrInvalidArgument
+		return ErrInvalidArgument
 	}
-	_, err := s.db.ExecContext(ctx, `DELETE FROM credentials WHERE id = ?`, id)
+	_, err := d.conn.ExecContext(ctx, `DELETE FROM credentials WHERE id = ?`, id)
 	return err
 }
 
-func (s *Store) ListCredentials(ctx context.Context) ([]store.CredentialInfo, error) {
-	rows, err := s.db.QueryContext(ctx, `
+func (d *db) ListCredentials(ctx context.Context) ([]CredentialInfo, error) {
+	rows, err := d.conn.QueryContext(ctx, `
 		SELECT id, provider, labels_json, updated_at
 		FROM credentials
 		ORDER BY id
@@ -101,7 +99,7 @@ func (s *Store) ListCredentials(ctx context.Context) ([]store.CredentialInfo, er
 	}
 	defer rows.Close()
 
-	out := make([]store.CredentialInfo, 0, 64)
+	out := make([]CredentialInfo, 0, 64)
 	for rows.Next() {
 		var id, provider string
 		var labelsJSON sql.NullString
@@ -116,7 +114,7 @@ func (s *Store) ListCredentials(ctx context.Context) ([]store.CredentialInfo, er
 			_ = json.Unmarshal([]byte(labelsJSON.String), &labels)
 		}
 
-		out = append(out, store.CredentialInfo{
+		out = append(out, CredentialInfo{
 			ID:        id,
 			Provider:  provider,
 			Labels:    labels,

@@ -30,8 +30,7 @@ func newTestProvider(opts ...func(*Meta)) *Meta {
 				Dir:     "/tmp/frontend",
 			},
 			Storage: StorageConfig{
-				DataDir:   "/tmp/test",
-				OnRampDir: "/tmp/onramp",
+				DataDir: "/tmp/test",
 			},
 			Metrics: MetricsConfig{
 				Interval:  "10s",
@@ -138,9 +137,6 @@ func TestHandleConfig(t *testing.T) {
 	}
 	if out.Body.Storage.DataDir != "/tmp/test" {
 		t.Errorf("Storage.DataDir = %q, want %q", out.Body.Storage.DataDir, "/tmp/test")
-	}
-	if out.Body.Storage.OnRampDir != "/tmp/onramp" {
-		t.Errorf("Storage.OnRampDir = %q, want %q", out.Body.Storage.OnRampDir, "/tmp/onramp")
 	}
 	if out.Body.Metrics.Interval != "10s" {
 		t.Errorf("Metrics.Interval = %q, want %q", out.Body.Metrics.Interval, "10s")
