@@ -1,4 +1,4 @@
-package _logging
+package logging
 
 import (
 	"io"

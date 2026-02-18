@@ -1,4 +1,4 @@
-package _frontend
+package frontend
 
 import (
 	"net/http"
