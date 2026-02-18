@@ -12,6 +12,35 @@ import (
 	"github.com/bengrewell/aether-webui/internal/store"
 )
 
+const apiOverview = `Backend API service for the **Aether WebUI**. This service manages Aether 5G deployments including SD-Core components, gNBs (srsRAN, OCUDU), Kubernetes clusters, and host systems.
+
+## Base URL
+
+All API endpoints are served under ` + "`/api/v1/`" + `.
+
+## Authentication
+
+When token authentication is enabled (` + "`--api-token`" + ` flag or ` + "`AETHER_API_TOKEN`" + ` env var), all ` + "`/api/*`" + ` endpoints require a bearer token:
+
+` + "```" + `
+Authorization: Bearer <token>
+` + "```" + `
+
+The following paths are always public: ` + "`/healthz`" + `, ` + "`/openapi.json`" + `, ` + "`/docs`" + `, and frontend static files.
+
+## Providers
+
+The API is organized into **providers** — modular units that each register a set of endpoints:
+
+| Provider | Prefix | Description |
+|----------|--------|-------------|
+| meta | ` + "`/api/v1/meta/`" + ` | Server introspection — version, build info, runtime, config, provider status, store health |
+
+## Response Format
+
+All endpoints return JSON. Error responses follow the [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457) Problem Details format.
+`
+
 // Config holds the parameters needed to construct a REST transport.
 type Config struct {
 	APITitle   string
@@ -41,7 +70,9 @@ func NewTransport(cfg Config, middleware ...func(http.Handler) http.Handler) *Tr
 	if log == nil {
 		log = slog.Default()
 	}
-	api := humachi.New(r, huma.DefaultConfig(cfg.APITitle, cfg.APIVersion))
+	humaConfig := huma.DefaultConfig(cfg.APITitle, cfg.APIVersion)
+	humaConfig.Info.Description = apiOverview
+	api := humachi.New(r, humaConfig)
 	return &Transport{router: r, api: api, log: log, store: cfg.Store}
 }
 
