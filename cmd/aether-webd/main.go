@@ -159,10 +159,11 @@ func main() {
 
 	// Create REST transport (Chi router + Huma API + shared deps)
 	transport := rest.NewTransport(rest.Config{
-		APITitle:   "Aether WebUI API",
-		APIVersion: version,
-		Log:        log,
-		Store:      dbcli,
+		APITitle:         "Aether WebUI API",
+		APIVersion:       version,
+		Log:              log,
+		Store:            dbcli,
+		TokenAuthEnabled: apiToken != "",
 	}, middlewares...)
 
 	// Compute frontend source label.

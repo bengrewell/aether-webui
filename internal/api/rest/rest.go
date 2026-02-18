@@ -43,10 +43,11 @@ All endpoints return JSON. Error responses follow the [RFC 9457](https://www.rfc
 
 // Config holds the parameters needed to construct a REST transport.
 type Config struct {
-	APITitle   string
-	APIVersion string
-	Log        *slog.Logger // scoped logger for transport-level events
-	Store      store.Client // shared store for providers
+	APITitle         string
+	APIVersion       string
+	Log              *slog.Logger // scoped logger for transport-level events
+	Store            store.Client // shared store for providers
+	TokenAuthEnabled bool         // when true, adds Bearer security scheme to the OpenAPI spec
 }
 
 // Transport owns the Chi router, Huma API, and shared dependencies that
@@ -72,6 +73,25 @@ func NewTransport(cfg Config, middleware ...func(http.Handler) http.Handler) *Tr
 	}
 	humaConfig := huma.DefaultConfig(cfg.APITitle, cfg.APIVersion)
 	humaConfig.Info.Description = apiOverview
+
+	if cfg.TokenAuthEnabled {
+		if humaConfig.Components == nil {
+			humaConfig.Components = &huma.Components{}
+		}
+		if humaConfig.Components.SecuritySchemes == nil {
+			humaConfig.Components.SecuritySchemes = make(map[string]*huma.SecurityScheme)
+		}
+		humaConfig.Components.SecuritySchemes["bearerAuth"] = &huma.SecurityScheme{
+			Type:         "http",
+			Scheme:       "bearer",
+			Description:  "Bearer token authentication. Pass the token configured via --api-token or AETHER_API_TOKEN.",
+			BearerFormat: "token",
+		}
+		humaConfig.Security = []map[string][]string{
+			{"bearerAuth": {}},
+		}
+	}
+
 	api := humachi.New(r, humaConfig)
 	return &Transport{router: r, api: api, log: log, store: cfg.Store}
 }
