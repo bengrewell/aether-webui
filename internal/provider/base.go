@@ -46,6 +46,9 @@ func (b *Base) Name() string { return b.name }
 func (b *Base) Enable()  { b.mu.Lock(); b.enabled = true; b.mu.Unlock() }
 func (b *Base) Disable() { b.mu.Lock(); b.enabled = false; b.mu.Unlock() }
 
+// SetRunning updates the running flag exposed by Status() and StatusInfo().
+func (b *Base) SetRunning(v bool) { b.mu.Lock(); b.running = v; b.mu.Unlock() }
+
 func (b *Base) Start() error { return nil }
 func (b *Base) Stop() error  { return nil }
 

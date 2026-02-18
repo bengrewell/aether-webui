@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/shirou/gopsutil/v4/cpu"
@@ -167,7 +168,7 @@ func (s *System) handleListeningPorts(ctx context.Context, _ *struct{}) (*Listen
 			continue
 		}
 		protocol := "tcp"
-		if c.Type == 2 { // syscall.SOCK_DGRAM
+		if c.Type == syscall.SOCK_DGRAM {
 			protocol = "udp"
 		}
 		lp := ListeningPort{
@@ -194,6 +195,11 @@ func (s *System) handleMetricsQuery(ctx context.Context, in *MetricsQueryInput) 
 		return &MetricsQueryOutput{Body: MetricsResult{Series: []SeriesResult{}}}, nil
 	}
 
+	st := s.Store()
+	if st == (store.Client{}) {
+		return nil, fmt.Errorf("metrics store not configured")
+	}
+
 	now := time.Now()
 	from := now.Add(-1 * time.Hour)
 	to := now
@@ -201,11 +207,15 @@ func (s *System) handleMetricsQuery(ctx context.Context, in *MetricsQueryInput) 
 	if in.From != "" {
 		if t, err := time.Parse(time.RFC3339, in.From); err == nil {
 			from = t
+		} else {
+			s.Base.Log().Warn("invalid 'from' timestamp, using default", "from", in.From, "error", err)
 		}
 	}
 	if in.To != "" {
 		if t, err := time.Parse(time.RFC3339, in.To); err == nil {
 			to = t
+		} else {
+			s.Base.Log().Warn("invalid 'to' timestamp, using default", "to", in.To, "error", err)
 		}
 	}
 
@@ -219,7 +229,7 @@ func (s *System) handleMetricsQuery(ctx context.Context, in *MetricsQueryInput) 
 		Agg:         agg,
 	}
 
-	series, err := s.Store().QueryRange(ctx, q)
+	series, err := st.QueryRange(ctx, q)
 	if err != nil {
 		return nil, fmt.Errorf("query metrics: %w", err)
 	}

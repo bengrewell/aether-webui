@@ -9,7 +9,7 @@ import (
 )
 
 func TestNewProvider_EndpointCount(t *testing.T) {
-	p := NewProvider(Config{CollectInterval: 10 * time.Second, Retention: 24 * time.Hour})
+	p := NewProvider(Config{CollectInterval: 10 * time.Second})
 
 	descs := p.Base.Descriptors()
 	if len(descs) != 8 {
@@ -18,7 +18,7 @@ func TestNewProvider_EndpointCount(t *testing.T) {
 }
 
 func TestNewProvider_EndpointPaths(t *testing.T) {
-	p := NewProvider(Config{CollectInterval: 10 * time.Second, Retention: 24 * time.Hour})
+	p := NewProvider(Config{CollectInterval: 10 * time.Second})
 
 	wantOps := map[string]string{
 		"system-cpu":                "/api/v1/system/cpu",
@@ -125,6 +125,26 @@ func TestHandleNetworkConfig(t *testing.T) {
 	}
 }
 
+func TestHandleListeningPorts(t *testing.T) {
+	p := NewProvider(Config{CollectInterval: 10 * time.Second})
+	out, err := p.handleListeningPorts(t.Context(), nil)
+	if err != nil {
+		t.Fatalf("handleListeningPorts: %v", err)
+	}
+	// Verify the result is a non-nil slice (may be empty if no LISTEN ports).
+	if out.Body == nil {
+		t.Error("expected non-nil ports slice")
+	}
+}
+
+func TestHandleMetricsQuery_NoStore(t *testing.T) {
+	p := NewProvider(Config{CollectInterval: 10 * time.Second})
+	_, err := p.handleMetricsQuery(t.Context(), &MetricsQueryInput{Metric: "test"})
+	if err == nil {
+		t.Error("expected error when store is not configured")
+	}
+}
+
 func TestHandleMetricsQuery_EmptyMetric(t *testing.T) {
 	p := NewProvider(Config{CollectInterval: 10 * time.Second})
 	out, err := p.handleMetricsQuery(t.Context(), &MetricsQueryInput{})
@@ -184,7 +204,6 @@ func TestCollector_StartStop(t *testing.T) {
 
 	p := NewProvider(Config{
 		CollectInterval: 50 * time.Millisecond,
-		Retention:       24 * time.Hour,
 	}, provider.WithStore(st))
 
 	if err := p.Start(); err != nil {

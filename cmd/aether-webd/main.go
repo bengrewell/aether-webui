@@ -79,11 +79,6 @@ func main() {
 		fmt.Fprintf(os.Stderr, "invalid --metrics-interval: %v\n", err)
 		os.Exit(1)
 	}
-	retentionDur, err := time.ParseDuration(*flagMetricsRetention)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "invalid --metrics-retention: %v\n", err)
-		os.Exit(1)
-	}
 
 	ctrl, err := controller.New(
 		controller.WithVersion(meta.VersionInfo{
@@ -104,7 +99,6 @@ func main() {
 		controller.WithProvider("system", true, func(_ context.Context, _ store.Client, opts []provider.Option) (provider.Provider, error) {
 			return system.NewProvider(system.Config{
 				CollectInterval: collectInterval,
-				Retention:       retentionDur,
 			}, opts...), nil
 		}),
 	)

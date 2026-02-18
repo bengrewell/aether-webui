@@ -20,15 +20,20 @@ func (s *System) Start() error {
 	s.done = make(chan struct{})
 
 	go s.run(ctx)
+	s.Base.SetRunning(true)
 	return nil
 }
 
 // Stop overrides Base.Stop to cancel the collector and wait for it to exit.
+// Safe to call multiple times; only the first call performs cleanup.
 func (s *System) Stop() error {
-	if s.cancel != nil {
-		s.cancel()
-		<-s.done
-	}
+	s.stopOnce.Do(func() {
+		if s.cancel != nil {
+			s.cancel()
+			<-s.done
+		}
+		s.Base.SetRunning(false)
+	})
 	return nil
 }
 
@@ -38,7 +43,9 @@ func (s *System) run(ctx context.Context) {
 	ticker := time.NewTicker(s.config.CollectInterval)
 	defer ticker.Stop()
 
-	// Collect immediately on start.
+	// Collect immediately on start. Note: the first cpu.Percent(0, ...) call
+	// may return inaccurate or zero values because there is no prior measurement
+	// to compare against. Subsequent ticks will produce accurate readings.
 	s.collect(ctx)
 
 	for {
@@ -52,6 +59,12 @@ func (s *System) run(ctx context.Context) {
 }
 
 func (s *System) collect(ctx context.Context) {
+	st := s.Store()
+	if st == (store.Client{}) {
+		s.Base.Log().Warn("skipping metrics collection: store not configured")
+		return
+	}
+
 	now := time.Now()
 	var samples []store.Sample
 
@@ -140,7 +153,7 @@ func (s *System) collect(ctx context.Context) {
 	}
 
 	if len(samples) > 0 {
-		if err := s.Store().AppendSamples(ctx, samples); err != nil {
+		if err := st.AppendSamples(ctx, samples); err != nil {
 			s.Base.Log().Error("failed to store metrics samples", "error", err, "count", len(samples))
 		}
 	}

@@ -2,6 +2,7 @@ package system
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/bengrewell/aether-webui/internal/endpoint"
@@ -9,9 +10,10 @@ import (
 )
 
 // Config holds collection parameters for the system provider.
+// Note: Metrics retention is configured at the store level (store.WithMetricsMaxAge),
+// not here; only the collection interval is provider-scoped.
 type Config struct {
 	CollectInterval time.Duration
-	Retention       time.Duration
 }
 
 // System is the provider that exposes host system info and metrics endpoints.
@@ -21,6 +23,7 @@ type System struct {
 	endpoints []endpoint.AnyEndpoint
 	cancel    context.CancelFunc
 	done      chan struct{} // closed when collector goroutine exits
+	stopOnce  sync.Once
 }
 
 var _ provider.Provider = (*System)(nil)
