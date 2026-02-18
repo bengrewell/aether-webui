@@ -3,22 +3,22 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/bengrewell/aether-webui/internal/provider"
-	"github.com/bengrewell/aether-webui/internal/provider/meta"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
-	"github.com/bengrewell/aether-webui/internal/_crypto"
-	"github.com/bengrewell/aether-webui/internal/_logging"
-	"github.com/bengrewell/aether-webui/internal/_state"
+	"github.com/bengrewell/aether-webui/internal/api/rest"
+	"github.com/bengrewell/aether-webui/internal/frontend"
+	"github.com/bengrewell/aether-webui/internal/logging"
+	"github.com/bengrewell/aether-webui/internal/provider"
+	"github.com/bengrewell/aether-webui/internal/provider/meta"
+	"github.com/bengrewell/aether-webui/internal/sqlite"
+	"github.com/bengrewell/aether-webui/internal/store"
 	"github.com/bgrewell/usage"
-	"github.com/danielgtaylor/huma/v2"
-	"github.com/danielgtaylor/huma/v2/adapters/humachi"
-	"github.com/go-chi/chi/v5"
 )
 
 var (
@@ -42,7 +42,7 @@ func main() {
 
 	flagVersion := u.AddBooleanOption("v", "version", false, "Print version information and exit", "", nil)
 	flagDebug := u.AddBooleanOption("d", "debug", false, "Enable debug mode for verbose logging and diagnostic output", "", nil)
-	flagListen := u.AddStringOption("l", "listen", "127.0.0.1:8680", "Address and port the API server will listen on (e.g., 0.0.0.0:8680 for all interfaces)", "", nil)
+	flagListen := u.AddStringOption("l", "listen", "127.0.0.1:8186", "Address and port the API server will listen on (e.g., 0.0.0.0:8186 for all interfaces)", "", nil)
 
 	secOptions := u.AddGroup(2, "Security Options", "Options that control security settings")
 	flagTLSCert := u.AddStringOption("t", "tls-cert", "", "Path to the TLS certificate file for HTTPS. When provided with --tls-key, the server will use HTTPS instead of HTTP.", "", secOptions)
@@ -69,6 +69,10 @@ func main() {
 
 	parsed := u.Parse()
 
+	_ = flagEncryptionKey
+	_ = flagMetricsInterval
+	_ = flagMetricsRetention
+
 	if !parsed {
 		u.PrintUsage()
 		return
@@ -85,11 +89,13 @@ func main() {
 	if *flagDebug {
 		logLevel = slog.LevelDebug
 	}
-	_logging.Setup(_logging.Options{
+	logging.Setup(logging.Options{
 		Level:     logLevel,
 		AddSource: *flagDebug,
 	})
-	slog.Info("aether-webd starting",
+	log := slog.Default()
+
+	log.Info("aether-webd starting",
 		"version", version,
 		"build_date", buildDate,
 		"branch", branch,
@@ -98,90 +104,64 @@ func main() {
 	)
 
 	// Log unimplemented flag values at debug level
-	slog.Debug("unimplemented security options",
+	log.Debug("unimplemented security options",
 		"tls_cert", *flagTLSCert,
 		"tls_key", *flagTLSKey,
 		"mtls_ca_cert", *flagMTLSCACert,
 		"enable_rbac", *flagEnableRBAC,
 	)
-	slog.Debug("unimplemented execution options",
+	log.Debug("unimplemented execution options",
 		"exec_user", *flagExecUser,
 		"exec_env", *flagExecEnv,
 	)
 
-	// Parse metrics configuration
-	metricsInterval, err := time.ParseDuration(*flagMetricsInterval)
+	// Open database using --data-dir flag
+	dbPath := filepath.Join(*flagDataDir, "app.db")
+	if err := os.MkdirAll(*flagDataDir, 0o750); err != nil {
+		log.Error("failed to create database directory", "path", *flagDataDir, "err", err)
+		os.Exit(1)
+	}
+
+	st, err := sqlite.Open(context.Background(), sqlite.Config{
+		Path:          dbPath,
+		BusyTimeout:   5 * time.Second,
+		Crypter:       sqlite.NoopCrypter{},
+		MetricsMaxAge: 7 * 24 * time.Hour,
+	})
 	if err != nil {
-		slog.Error("invalid metrics-interval", "value", *flagMetricsInterval, "error", err)
-		os.Exit(1)
-	}
-	metricsRetention, err := time.ParseDuration(*flagMetricsRetention)
-	if err != nil {
-		slog.Error("invalid metrics-retention", "value", *flagMetricsRetention, "error", err)
+		log.Error("sqlite open failed", "path", dbPath, "err", err)
 		os.Exit(1)
 	}
 
-	// Initialize persistent state store
-	stateStore, err := _state.NewSQLiteStore(*flagDataDir)
-	if err != nil {
-		slog.Error("failed to initialize state store", "error", err)
-		os.Exit(1)
-	}
-	defer stateStore.Close()
-
-	// Resolve encryption key: flag > env var > auto-generate
-	encryptionKey := *flagEncryptionKey
-	if encryptionKey == "" {
-		encryptionKey = os.Getenv("AETHER_ENCRYPTION_KEY")
-	}
-	if encryptionKey == "" {
-		// Check if a key was previously auto-generated and stored
-		stored, stateErr := stateStore.GetState(context.Background(), "encryption_key")
-		if stateErr == nil && stored != "" {
-			encryptionKey = stored
-		} else {
-			generated, genErr := crypto.GenerateKey()
-			if genErr != nil {
-				slog.Error("failed to generate encryption key", "error", genErr)
-				os.Exit(1)
-			}
-			encryptionKey = generated
-			if setErr := stateStore.SetState(context.Background(), "encryption_key", encryptionKey); setErr != nil {
-				slog.Error("failed to store encryption key", "error", setErr)
-				os.Exit(1)
-			}
-			slog.Warn("auto-generated encryption key stored in database; production deployments should supply --encryption-key or AETHER_ENCRYPTION_KEY")
-		}
+	if err := st.Migrate(context.Background()); err != nil {
+		log.Error("sqlite migrate failed", "err", err)
 	}
 
-	// Ensure the local node exists
-	if _, err := stateStore.EnsureLocalNode(context.Background()); err != nil {
-		slog.Error("failed to ensure local node", "error", err)
-		os.Exit(1)
-	}
+	dbcli := store.Client{S: st, C: store.JSONCodec{}}
 
-	// Create Chi router and Huma API
-	router := chi.NewMux()
-	router.Use(_logging.RequestLogger())
-	api := humachi.New(router, huma.DefaultConfig("Aether WebUI API", version))
+	// Create REST transport (Chi router + Huma API + shared deps)
+	transport := rest.NewTransport(rest.Config{
+		APITitle:   "Aether WebUI API",
+		APIVersion: version,
+		Log:        log,
+		Store:      dbcli,
+	}, logging.RequestLogger())
 
 	// Build meta provider config from flags (no secrets exposed)
 	appConfig := meta.AppConfig{
-		ListenAddress:    *flagListen,
-		DataDir:          *flagDataDir,
-		TLSEnabled:       *flagTLSCert != "" && *flagTLSKey != "",
-		MTLSEnabled:      *flagMTLSCACert != "",
-		RBACEnabled:      *flagEnableRBAC,
-		DebugEnabled:     *flagDebug,
-		FrontendServing:  *flagServeFrontend,
-		FrontendDir:      *flagFrontendDir,
-		OnRampDir:        *flagOnRampDir,
-		MetricsInterval:  metricsInterval.String(),
-		MetricsRetention: metricsRetention.String(),
+		ListenAddress:   *flagListen,
+		DataDir:         *flagDataDir,
+		TLSEnabled:      *flagTLSCert != "" && *flagTLSKey != "",
+		MTLSEnabled:     *flagMTLSCACert != "",
+		RBACEnabled:     *flagEnableRBAC,
+		DebugEnabled:    *flagDebug,
+		FrontendServing: *flagServeFrontend,
+		FrontendDir:     *flagFrontendDir,
+		OnRampDir:       *flagOnRampDir,
 	}
 
 	schemaVerFn := func() (int, error) {
-		return stateStore.GetSchemaVersion()
+		return dbcli.S.GetSchemaVersion()
 	}
 
 	// Populated after all providers are constructed; closure is only called at
@@ -215,84 +195,28 @@ func main() {
 		appConfig,
 		schemaVerFn,
 		providersFn,
-		provider.WithHuma(api),
+		transport.ProviderOpts("meta")...,
 	)
 
 	allProviders = append(allProviders, metaProvider)
 
-	//// Resolve OnRamp directory
-	//onrampDir := *flagOnRampDir
-	//if onrampDir == "" {
-	//	onrampDir = filepath.Join(*flagDataDir, "onramp")
-	//}
-	//
-	//// Create OnRamp manager, runner, and task manager
-	//onrampMgr := _onramp.NewManager(_onramp.Config{
-	//	WorkDir:       onrampDir,
-	//	EncryptionKey: encryptionKey,
-	//}, stateStore)
-	//onrampRunner := _onramp.NewRunner(onrampDir)
-	//taskMgr := _onramp.NewTaskManager(stateStore, onrampRunner, onrampMgr)
-	//
-	//// Create operators
-	//hostOp := host.New()
-	//kubeOp := kube.New()
-	//aetherOp := aether.New(taskMgr, stateStore)
-	//
-	//// Create local provider with operators
-	//localProvider := _provider.NewLocalProvider(
-	//	_provider.WithOperator(hostOp),
-	//	_provider.WithOperator(kubeOp),
-	//	_provider.WithOperator(aetherOp),
-	//)
-	//
-	//// Create unified resolver
-	//resolver := _provider.NewDefaultResolver(localProvider)
-	//
-	//// Register routes with single resolver
-	//_webuiapi.RegisterVersionRoutes(api, _webuiapi.VersionInfo{
-	//	Version:    version,
-	//	BuildDate:  buildDate,
-	//	Branch:     branch,
-	//	CommitHash: commitHash,
-	//})
-	//_webuiapi.RegisterHealthRoutes(api)
-	//_webuiapi.RegisterSetupRoutes(api, stateStore)
-	//_webuiapi.RegisterSystemRoutes(api, resolver)
-	//_webuiapi.RegisterMetricsRoutesWithStore(api, _webuiapi.MetricsRoutesDeps{
-	//	Resolver: resolver,
-	//	Store:    stateStore,
-	//})
-	//_webuiapi.RegisterKubernetesRoutes(api, resolver)
-	//_webuiapi.RegisterAetherRoutes(api, resolver)
-	//_webuiapi.RegisterNodeRoutes(api, _webuiapi.NodeRoutesDeps{
-	//	Store:         stateStore,
-	//	EncryptionKey: encryptionKey,
-	//})
-	//_webuiapi.RegisterOperationsRoutes(api, stateStore)
-	//_webuiapi.RegisterTaskRoutes(api, taskMgr, stateStore)
-	//_webuiapi.RegisterOnRampRoutes(api, onrampMgr, taskMgr)
-	//
-	//// Serve frontend if enabled
-	//if *flagServeFrontend {
-	//	var frontendHandler http.Handler
-	//	if *flagFrontendDir != "" {
-	//		// Serve from custom directory
-	//		slog.Info("serving frontend from directory", "path", *flagFrontendDir)
-	//		frontendHandler = _frontend.NewHandler(os.DirFS(*flagFrontendDir), "")
-	//	} else {
-	//		// Serve from embedded files
-	//		slog.Info("serving frontend from embedded files")
-	//		frontendHandler = _frontend.NewHandler(_frontend.DistFS, "dist")
-	//	}
-	//	// Mount frontend handler as catch-all (after API routes)
-	//	router.Handle("/*", frontendHandler)
-	//}
+	// Serve frontend if enabled
+	if *flagServeFrontend {
+		var frontendHandler http.Handler
+		if *flagFrontendDir != "" {
+			log.Info("serving frontend from directory", "path", *flagFrontendDir)
+			frontendHandler = frontend.NewHandler(os.DirFS(*flagFrontendDir), "")
+		} else {
+			log.Info("serving frontend from embedded files")
+			frontendHandler = frontend.NewHandler(frontend.DistFS, "dist")
+		}
+		transport.Mount("/*", frontendHandler)
+	}
 
 	// Create server with explicit configuration
 	server := &http.Server{
 		Addr:    *flagListen,
-		Handler: router,
+		Handler: transport.Handler(),
 	}
 
 	//// Create context for graceful shutdown
@@ -312,9 +236,9 @@ func main() {
 
 	// Start server in goroutine
 	go func() {
-		slog.Info("starting HTTP server", "addr", *flagListen)
+		log.Info("starting HTTP server", "addr", *flagListen)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			slog.Error("HTTP server error", "error", err)
+			log.Error("HTTP server error", "error", err)
 			os.Exit(1)
 		}
 	}()
@@ -331,7 +255,7 @@ func main() {
 		now := time.Now()
 		if now.Sub(lastSignal) <= confirmWindow {
 			// Second press within window - shutdown
-			slog.Info("shutting down server...")
+			log.Info("shutting down server...")
 
 			//// Cancel context to stop metrics collector
 			//cancel()
@@ -340,12 +264,12 @@ func main() {
 			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer shutdownCancel()
 			if err := server.Shutdown(shutdownCtx); err != nil {
-				slog.Error("server shutdown error", "error", err)
+				log.Error("server shutdown error", "error", err)
 			}
 			return
 		}
 		// First press - warn user
 		lastSignal = now
-		slog.Warn("interrupt received, press Ctrl+C again within 3 seconds to quit")
+		log.Warn("interrupt received, press Ctrl+C again within 3 seconds to quit")
 	}
 }

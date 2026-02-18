@@ -1,9 +1,11 @@
 package provider
 
 import (
+	"log/slog"
 	"sync"
 
 	"github.com/bengrewell/aether-webui/internal/endpoint"
+	"github.com/bengrewell/aether-webui/internal/store"
 )
 
 type Option func(*Base)
@@ -16,6 +18,8 @@ type Base struct {
 	running bool
 	descs   []endpoint.Descriptor // for status/introspection
 	huma    humaHook              // nil if not enabled
+	log     *slog.Logger
+	store   store.Client
 	// later: grpcHook, wsHook, etc.
 }
 
@@ -30,6 +34,9 @@ func New(name string, opts ...Option) *Base {
 		if opt != nil {
 			opt(b)
 		}
+	}
+	if b.log == nil {
+		b.log = slog.Default()
 	}
 	return b
 }
