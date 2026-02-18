@@ -219,21 +219,6 @@ func main() {
 		Handler: transport.Handler(),
 	}
 
-	//// Create context for graceful shutdown
-	//ctx, cancel := context.WithCancel(context.Background())
-	//defer cancel()
-	//
-	//// Start metrics collector
-	//collector := _metrics.NewCollector(hostOp, stateStore, _metrics.Config{
-	//	Interval:  metricsInterval,
-	//	Retention: metricsRetention,
-	//})
-	//go func() {
-	//	if err := collector.Start(ctx); err != nil && err != context.Canceled {
-	//		slog.Error("metrics collector error", "error", err)
-	//	}
-	//}()
-
 	// Start server in goroutine
 	go func() {
 		log.Info("starting HTTP server", "addr", *flagListen)
@@ -256,10 +241,6 @@ func main() {
 		if now.Sub(lastSignal) <= confirmWindow {
 			// Second press within window - shutdown
 			log.Info("shutting down server...")
-
-			//// Cancel context to stop metrics collector
-			//cancel()
-			//collector.Stop()
 
 			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer shutdownCancel()
