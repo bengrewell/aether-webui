@@ -52,19 +52,25 @@ type RuntimeOutput struct {
 	Body RuntimeInfo
 }
 
+// FrontendConfig describes how the frontend is being served.
+type FrontendConfig struct {
+	Enabled bool   `json:"enabled"`
+	Source  string `json:"source"`
+	Dir     string `json:"dir"`
+}
+
 // AppConfig holds non-secret application configuration values for introspection.
 type AppConfig struct {
-	ListenAddress    string `json:"listenAddress"`
-	DataDir          string `json:"dataDir"`
-	TLSEnabled       bool   `json:"tlsEnabled"`
-	MTLSEnabled      bool   `json:"mtlsEnabled"`
-	RBACEnabled      bool   `json:"rbacEnabled"`
-	DebugEnabled     bool   `json:"debugEnabled"`
-	FrontendServing  bool   `json:"frontendServing"`
-	FrontendDir      string `json:"frontendDir"`
-	OnRampDir        string `json:"onrampDir"`
-	MetricsInterval  string `json:"metricsInterval"`
-	MetricsRetention string `json:"metricsRetention"`
+	ListenAddress    string         `json:"listenAddress"`
+	DataDir          string         `json:"dataDir"`
+	TLSEnabled       bool           `json:"tlsEnabled"`
+	MTLSEnabled      bool           `json:"mtlsEnabled"`
+	RBACEnabled      bool           `json:"rbacEnabled"`
+	DebugEnabled     bool           `json:"debugEnabled"`
+	Frontend         FrontendConfig `json:"frontend"`
+	OnRampDir        string         `json:"onrampDir"`
+	MetricsInterval  string         `json:"metricsInterval"`
+	MetricsRetention string         `json:"metricsRetention"`
 }
 
 // ConfigInfo holds the active application configuration plus schema version.

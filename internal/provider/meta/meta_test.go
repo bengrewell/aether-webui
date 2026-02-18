@@ -17,14 +17,17 @@ func newTestProvider(opts ...func(*Meta)) *Meta {
 			CommitHash: "abc1234",
 		},
 		AppConfig{
-			ListenAddress:    "127.0.0.1:8680",
-			DataDir:          "/tmp/test",
-			TLSEnabled:       true,
-			MTLSEnabled:      false,
-			RBACEnabled:      true,
-			DebugEnabled:     false,
-			FrontendServing:  true,
-			FrontendDir:      "/tmp/frontend",
+			ListenAddress: "127.0.0.1:8680",
+			DataDir:       "/tmp/test",
+			TLSEnabled:    true,
+			MTLSEnabled:   false,
+			RBACEnabled:   true,
+			DebugEnabled:  false,
+			Frontend: FrontendConfig{
+				Enabled: true,
+				Source:  "directory",
+				Dir:     "/tmp/frontend",
+			},
 			OnRampDir:        "/tmp/onramp",
 			MetricsInterval:  "10s",
 			MetricsRetention: "24h0m0s",
@@ -121,11 +124,14 @@ func TestHandleConfig(t *testing.T) {
 	if out.Body.DebugEnabled {
 		t.Error("DebugEnabled = true, want false")
 	}
-	if !out.Body.FrontendServing {
-		t.Error("FrontendServing = false, want true")
+	if !out.Body.Frontend.Enabled {
+		t.Error("Frontend.Enabled = false, want true")
 	}
-	if out.Body.FrontendDir != "/tmp/frontend" {
-		t.Errorf("FrontendDir = %q, want %q", out.Body.FrontendDir, "/tmp/frontend")
+	if out.Body.Frontend.Source != "directory" {
+		t.Errorf("Frontend.Source = %q, want %q", out.Body.Frontend.Source, "directory")
+	}
+	if out.Body.Frontend.Dir != "/tmp/frontend" {
+		t.Errorf("Frontend.Dir = %q, want %q", out.Body.Frontend.Dir, "/tmp/frontend")
 	}
 	if out.Body.OnRampDir != "/tmp/onramp" {
 		t.Errorf("OnRampDir = %q, want %q", out.Body.OnRampDir, "/tmp/onramp")

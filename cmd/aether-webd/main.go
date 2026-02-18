@@ -147,17 +147,30 @@ func main() {
 		Store:      dbcli,
 	}, logging.RequestLogger())
 
+	// Compute frontend source label.
+	var frontendSource string
+	if *flagServeFrontend {
+		if *flagFrontendDir != "" {
+			frontendSource = "directory"
+		} else {
+			frontendSource = "embedded"
+		}
+	}
+
 	// Build meta provider config from flags (no secrets exposed)
 	appConfig := meta.AppConfig{
-		ListenAddress:   *flagListen,
-		DataDir:         *flagDataDir,
-		TLSEnabled:      *flagTLSCert != "" && *flagTLSKey != "",
-		MTLSEnabled:     *flagMTLSCACert != "",
-		RBACEnabled:     *flagEnableRBAC,
-		DebugEnabled:    *flagDebug,
-		FrontendServing: *flagServeFrontend,
-		FrontendDir:     *flagFrontendDir,
-		OnRampDir:       *flagOnRampDir,
+		ListenAddress: *flagListen,
+		DataDir:       *flagDataDir,
+		TLSEnabled:    *flagTLSCert != "" && *flagTLSKey != "",
+		MTLSEnabled:   *flagMTLSCACert != "",
+		RBACEnabled:   *flagEnableRBAC,
+		DebugEnabled:  *flagDebug,
+		Frontend: meta.FrontendConfig{
+			Enabled: *flagServeFrontend,
+			Source:  frontendSource,
+			Dir:     *flagFrontendDir,
+		},
+		OnRampDir: *flagOnRampDir,
 	}
 
 	schemaVerFn := func() (int, error) {
