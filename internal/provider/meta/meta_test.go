@@ -1,6 +1,7 @@
 package meta
 
 import (
+	"context"
 	"errors"
 	"os"
 	"runtime"
@@ -39,6 +40,7 @@ func newTestProvider(opts ...func(*Meta)) *Meta {
 		},
 		nil, // schemaVer
 		nil, // providersFn
+		nil, // storeInfoFn
 	)
 	for _, fn := range opts {
 		fn(m)
@@ -216,8 +218,8 @@ func TestHandleProvidersNilCallback(t *testing.T) {
 func TestNewProviderEndpointCount(t *testing.T) {
 	m := newTestProvider()
 	descs := m.Base.Descriptors()
-	if len(descs) != 5 {
-		t.Errorf("registered %d descriptors, want 5", len(descs))
+	if len(descs) != 6 {
+		t.Errorf("registered %d descriptors, want 6", len(descs))
 	}
 }
 
@@ -231,6 +233,7 @@ func TestNewProviderEndpointPaths(t *testing.T) {
 		"meta-runtime":   "/api/v1/meta/runtime",
 		"meta-config":    "/api/v1/meta/config",
 		"meta-providers": "/api/v1/meta/providers",
+		"meta-store":     "/api/v1/meta/store",
 	}
 
 	got := make(map[string]string, len(descs))
@@ -244,5 +247,68 @@ func TestNewProviderEndpointPaths(t *testing.T) {
 		} else if gotPath != wantPath {
 			t.Errorf("endpoint %q path = %q, want %q", opID, gotPath, wantPath)
 		}
+	}
+}
+
+func TestHandleStoreNilCallback(t *testing.T) {
+	m := newTestProvider() // storeInfoFn is nil
+
+	out, err := m.handleStore(t.Context(), nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if out.Body.Status != "unhealthy" {
+		t.Errorf("Status = %q, want %q", out.Body.Status, "unhealthy")
+	}
+	if out.Body.Diagnostics == nil {
+		t.Fatal("Diagnostics is nil, want empty slice")
+	}
+	if len(out.Body.Diagnostics) != 0 {
+		t.Errorf("len(Diagnostics) = %d, want 0", len(out.Body.Diagnostics))
+	}
+}
+
+func TestHandleStoreWithCallback(t *testing.T) {
+	storeInfoFn := func(_ context.Context) StoreInfo {
+		return StoreInfo{
+			Engine:        "sqlite",
+			Path:          "/tmp/test.db",
+			FileSizeBytes: 4096,
+			SchemaVersion: 3,
+			Status:        "healthy",
+			Diagnostics: []DiagnosticCheck{
+				{Name: "ping", Passed: true, Latency: "50µs"},
+			},
+		}
+	}
+	m := newTestProvider(func(m *Meta) { m.storeInfoFn = storeInfoFn })
+
+	out, err := m.handleStore(t.Context(), nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if out.Body.Engine != "sqlite" {
+		t.Errorf("Engine = %q, want %q", out.Body.Engine, "sqlite")
+	}
+	if out.Body.Path != "/tmp/test.db" {
+		t.Errorf("Path = %q, want %q", out.Body.Path, "/tmp/test.db")
+	}
+	if out.Body.FileSizeBytes != 4096 {
+		t.Errorf("FileSizeBytes = %d, want 4096", out.Body.FileSizeBytes)
+	}
+	if out.Body.SchemaVersion != 3 {
+		t.Errorf("SchemaVersion = %d, want 3", out.Body.SchemaVersion)
+	}
+	if out.Body.Status != "healthy" {
+		t.Errorf("Status = %q, want %q", out.Body.Status, "healthy")
+	}
+	if len(out.Body.Diagnostics) != 1 {
+		t.Fatalf("len(Diagnostics) = %d, want 1", len(out.Body.Diagnostics))
+	}
+	if out.Body.Diagnostics[0].Name != "ping" {
+		t.Errorf("Diagnostics[0].Name = %q, want %q", out.Body.Diagnostics[0].Name, "ping")
+	}
+	if !out.Body.Diagnostics[0].Passed {
+		t.Error("Diagnostics[0].Passed = false, want true")
 	}
 }

@@ -9,8 +9,9 @@ import (
 
 // Client wraps a Store and Codec for typed object persistence.
 type Client struct {
-	s Store
-	c Codec
+	s    Store
+	c    Codec
+	path string
 }
 
 // New opens (or creates) a SQLite-backed store at path and returns a
@@ -36,12 +37,25 @@ func New(ctx context.Context, path string, opts ...Option) (Client, error) {
 		d.Close()
 		return Client{}, fmt.Errorf("store: migrate: %w", err)
 	}
-	return Client{s: d, c: JSONCodec{}}, nil
+	return Client{s: d, c: JSONCodec{}, path: path}, nil
 }
+
+// Path returns the filesystem path of the backing database.
+func (c Client) Path() string { return c.path }
 
 // Close closes the underlying database connection.
 func (c Client) Close() error {
 	return c.s.Close()
+}
+
+// Health runs a lightweight liveness check against the store.
+func (c Client) Health(ctx context.Context) error {
+	return c.s.Health(ctx)
+}
+
+// Delete removes the object stored under key.
+func (c Client) Delete(ctx context.Context, key Key) error {
+	return c.s.Delete(ctx, key)
 }
 
 func Save[T any](c Client, ctx context.Context, key Key, v T, opts ...SaveOption) (Meta, error) {

@@ -1,5 +1,7 @@
 package meta
 
+import "context"
+
 // VersionInfo holds build-time version metadata.
 type VersionInfo struct {
 	Version    string `json:"version"`
@@ -115,6 +117,32 @@ type ProvidersInfo struct {
 type ProvidersOutput struct {
 	Body ProvidersInfo
 }
+
+// DiagnosticCheck holds the result of a single store health diagnostic.
+type DiagnosticCheck struct {
+	Name    string `json:"name"`
+	Passed  bool   `json:"passed"`
+	Latency string `json:"latency"`
+	Error   string `json:"error,omitempty"`
+}
+
+// StoreInfo holds store metadata and live diagnostic results.
+type StoreInfo struct {
+	Engine        string            `json:"engine"`
+	Path          string            `json:"path"`
+	FileSizeBytes int64             `json:"fileSizeBytes"`
+	SchemaVersion int               `json:"schemaVersion"`
+	Status        string            `json:"status"`
+	Diagnostics   []DiagnosticCheck `json:"diagnostics"`
+}
+
+// StoreOutput is the Huma response wrapper for StoreInfo.
+type StoreOutput struct {
+	Body StoreInfo
+}
+
+// StoreInfoFunc returns live store metadata and diagnostics.
+type StoreInfoFunc func(ctx context.Context) StoreInfo
 
 // SchemaVersionFunc returns the current database schema version.
 type SchemaVersionFunc func() (int, error)

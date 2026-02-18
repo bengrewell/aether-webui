@@ -20,20 +20,22 @@ type Meta struct {
 	appConfig   AppConfig
 	schemaVer   SchemaVersionFunc
 	providersFn ProviderStatusFunc
+	storeInfoFn StoreInfoFunc
 	startTime   time.Time
 }
 
 var _ provider.Provider = (*Meta)(nil)
 
 // NewProvider creates a Meta provider with all introspection endpoints registered.
-func NewProvider(version VersionInfo, config AppConfig, schemaVer SchemaVersionFunc, providersFn ProviderStatusFunc, opts ...provider.Option) *Meta {
+func NewProvider(version VersionInfo, config AppConfig, schemaVer SchemaVersionFunc, providersFn ProviderStatusFunc, storeInfoFn StoreInfoFunc, opts ...provider.Option) *Meta {
 	m := &Meta{
 		Base:        provider.New("meta", opts...),
-		endpoints:   make([]endpoint.AnyEndpoint, 0, 5),
+		endpoints:   make([]endpoint.AnyEndpoint, 0, 6),
 		versionInfo: version,
 		appConfig:   config,
 		schemaVer:   schemaVer,
 		providersFn: providersFn,
+		storeInfoFn: storeInfoFn,
 		startTime:   time.Now(),
 	}
 
@@ -97,6 +99,18 @@ func NewProvider(version VersionInfo, config AppConfig, schemaVer SchemaVersionF
 		Handler: m.handleProviders,
 	})
 
+	provider.Register(m.Base, endpoint.Endpoint[struct{}, StoreOutput]{
+		Desc: endpoint.Descriptor{
+			OperationID: "meta-store",
+			Semantics:   endpoint.Read,
+			Summary:     "Get store health and metadata",
+			Description: "Returns store engine, path, file size, schema version, and live diagnostic results (ping, write, read, delete).",
+			Tags:        []string{"meta"},
+			HTTP:        endpoint.HTTPHint{Path: "/api/v1/meta/store"},
+		},
+		Handler: m.handleStore,
+	})
+
 	return m
 }
 
@@ -150,6 +164,16 @@ func (m *Meta) handleConfig(_ context.Context, _ *struct{}) (*ConfigOutput, erro
 		AppConfig:     m.appConfig,
 		SchemaVersion: schemaVersion,
 	}}, nil
+}
+
+func (m *Meta) handleStore(ctx context.Context, _ *struct{}) (*StoreOutput, error) {
+	if m.storeInfoFn == nil {
+		return &StoreOutput{Body: StoreInfo{
+			Status:      "unhealthy",
+			Diagnostics: []DiagnosticCheck{},
+		}}, nil
+	}
+	return &StoreOutput{Body: m.storeInfoFn(ctx)}, nil
 }
 
 func (m *Meta) handleProviders(_ context.Context, _ *struct{}) (*ProvidersOutput, error) {

@@ -112,7 +112,8 @@ func main() {
 	)
 
 	// Open database using --data-dir flag
-	dbcli, err := store.New(context.Background(), filepath.Join(*flagDataDir, "app.db"))
+	dbPath := filepath.Join(*flagDataDir, "app.db")
+	dbcli, err := store.New(context.Background(), dbPath)
 	if err != nil {
 		log.Error("store open failed", "path", *flagDataDir, "err", err)
 		os.Exit(1)
@@ -184,6 +185,59 @@ func main() {
 		return out
 	}
 
+	storeInfoFn := func(ctx context.Context) meta.StoreInfo {
+		info := meta.StoreInfo{
+			Engine: "sqlite",
+			Path:   dbcli.Path(),
+		}
+		if fi, err := os.Stat(dbcli.Path()); err == nil {
+			info.FileSizeBytes = fi.Size()
+		}
+		if v, err := dbcli.GetSchemaVersion(); err == nil {
+			info.SchemaVersion = v
+		}
+
+		diagKey := store.Key{Namespace: "_diagnostics", ID: "healthcheck"}
+		checks := []meta.DiagnosticCheck{
+			runCheck("ping", func() error { return dbcli.Health(ctx) }),
+			runCheck("write", func() error {
+				_, err := store.Save(dbcli, ctx, diagKey, "ok")
+				return err
+			}),
+			runCheck("read", func() error {
+				item, ok, err := store.Load[string](dbcli, ctx, diagKey)
+				if err != nil {
+					return err
+				}
+				if !ok {
+					return fmt.Errorf("key not found")
+				}
+				if item.Data != "ok" {
+					return fmt.Errorf("data mismatch: got %q, want %q", item.Data, "ok")
+				}
+				return nil
+			}),
+			runCheck("delete", func() error { return dbcli.Delete(ctx, diagKey) }),
+		}
+		info.Diagnostics = checks
+
+		passed := 0
+		for _, c := range checks {
+			if c.Passed {
+				passed++
+			}
+		}
+		switch {
+		case passed == len(checks):
+			info.Status = "healthy"
+		case passed > 0:
+			info.Status = "degraded"
+		default:
+			info.Status = "unhealthy"
+		}
+		return info
+	}
+
 	metaProvider := meta.NewProvider(
 		meta.VersionInfo{
 			Version:    version,
@@ -194,6 +248,7 @@ func main() {
 		appConfig,
 		schemaVerFn,
 		providersFn,
+		storeInfoFn,
 		transport.ProviderOpts("meta")...,
 	)
 
@@ -252,4 +307,19 @@ func main() {
 		lastSignal = now
 		log.Warn("interrupt received, press Ctrl+C again within 3 seconds to quit")
 	}
+}
+
+func runCheck(name string, fn func() error) meta.DiagnosticCheck {
+	start := time.Now()
+	err := fn()
+	d := time.Since(start)
+	c := meta.DiagnosticCheck{
+		Name:    name,
+		Passed:  err == nil,
+		Latency: d.String(),
+	}
+	if err != nil {
+		c.Error = err.Error()
+	}
+	return c
 }
