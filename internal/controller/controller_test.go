@@ -102,6 +102,20 @@ func TestNew_WithOptions(t *testing.T) {
 	}
 }
 
+func waitForServer(t *testing.T, addr string) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		conn, err := net.DialTimeout("tcp", addr, 100*time.Millisecond)
+		if err == nil {
+			conn.Close()
+			return
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	t.Fatalf("server at %s did not start within 5 seconds", addr)
+}
+
 func ephemeralAddr(t *testing.T) string {
 	t.Helper()
 	l, err := net.Listen("tcp", "127.0.0.1:0")
@@ -129,16 +143,7 @@ func TestRun_StartsAndStops(t *testing.T) {
 	done := make(chan error, 1)
 	go func() { done <- ctrl.Run(ctx) }()
 
-	// Wait for server to start accepting connections.
-	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) {
-		conn, err := net.DialTimeout("tcp", addr, 100*time.Millisecond)
-		if err == nil {
-			conn.Close()
-			break
-		}
-		time.Sleep(50 * time.Millisecond)
-	}
+	waitForServer(t, addr)
 
 	// Verify the meta version endpoint responds (registered by the meta provider).
 	resp, err := http.Get("http://" + addr + "/api/v1/meta/version")
@@ -176,11 +181,12 @@ func (m *mockProvider) Disable()                          { m.disabled = true; m
 
 func TestRun_WithProvider(t *testing.T) {
 	addr := ephemeralAddr(t)
-	var created *mockProvider
+	createdCh := make(chan *mockProvider, 1)
 
 	factory := func(_ context.Context, _ store.Client, opts []provider.Option) (provider.Provider, error) {
-		created = &mockProvider{Base: provider.New("test", opts...)}
-		return created, nil
+		m := &mockProvider{Base: provider.New("test", opts...)}
+		createdCh <- m
+		return m, nil
 	}
 
 	ctrl, err := New(
@@ -197,38 +203,38 @@ func TestRun_WithProvider(t *testing.T) {
 	done := make(chan error, 1)
 	go func() { done <- ctrl.Run(ctx) }()
 
-	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) {
-		conn, err := net.DialTimeout("tcp", addr, 100*time.Millisecond)
-		if err == nil {
-			conn.Close()
-			break
-		}
-		time.Sleep(50 * time.Millisecond)
+	// Wait for factory to be called (happens-before edge via channel).
+	var created *mockProvider
+	select {
+	case created = <-createdCh:
+	case <-time.After(5 * time.Second):
+		t.Fatal("provider factory was not called within 5 seconds")
 	}
 
-	if created == nil {
-		t.Fatal("provider factory was not called")
-	}
-	if !created.started {
-		t.Error("provider was not started")
-	}
-
+	// Wait for server to start, then shut down.
+	waitForServer(t, addr)
 	cancel()
+
 	select {
 	case <-done:
 	case <-time.After(5 * time.Second):
 		t.Fatal("Run() did not exit within 5 seconds")
 	}
+
+	// Assert after Run returns — no concurrent writes possible.
+	if !created.started {
+		t.Error("provider was not started")
+	}
 }
 
 func TestRun_DisabledProvider(t *testing.T) {
 	addr := ephemeralAddr(t)
-	var created *mockProvider
+	createdCh := make(chan *mockProvider, 1)
 
 	factory := func(_ context.Context, _ store.Client, opts []provider.Option) (provider.Provider, error) {
-		created = &mockProvider{Base: provider.New("disabled-test", opts...)}
-		return created, nil
+		m := &mockProvider{Base: provider.New("disabled-test", opts...)}
+		createdCh <- m
+		return m, nil
 	}
 
 	ctrl, err := New(
@@ -245,31 +251,30 @@ func TestRun_DisabledProvider(t *testing.T) {
 	done := make(chan error, 1)
 	go func() { done <- ctrl.Run(ctx) }()
 
-	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) {
-		conn, err := net.DialTimeout("tcp", addr, 100*time.Millisecond)
-		if err == nil {
-			conn.Close()
-			break
-		}
-		time.Sleep(50 * time.Millisecond)
+	// Wait for factory to be called (happens-before edge via channel).
+	var created *mockProvider
+	select {
+	case created = <-createdCh:
+	case <-time.After(5 * time.Second):
+		t.Fatal("provider factory was not called within 5 seconds")
 	}
 
-	if created == nil {
-		t.Fatal("provider factory was not called")
-	}
-	if created.disabled != true {
-		t.Error("provider Disable() was not called")
-	}
-	if created.started {
-		t.Error("disabled provider should not have been started")
-	}
-
+	// Wait for server to start, then shut down.
+	waitForServer(t, addr)
 	cancel()
+
 	select {
 	case <-done:
 	case <-time.After(5 * time.Second):
 		t.Fatal("Run() did not exit within 5 seconds")
+	}
+
+	// Assert after Run returns — no concurrent writes possible.
+	if !created.disabled {
+		t.Error("provider Disable() was not called")
+	}
+	if created.started {
+		t.Error("disabled provider should not have been started")
 	}
 }
 
