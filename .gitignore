@@ -1,7 +1,39 @@
 # Build artifacts
 bin/
 /aether-webd
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
 
-# Test coverage
+# Test artifacts
 coverage.out
 coverage.html
+*.test
+
+# Go workspace
+go.work
+go.work.sum
+
+# Vendor (if not committed)
+# vendor/
+
+# JetBrains IDEs
+.idea/
+
+# VS Code
+.vscode/
+
+# AI programmer tools
+.claude/
+.cursor/
+.aider*
+.codeium/
+.continue/
+.copilot/
+.github/copilot/
+
+# OS files
+.DS_Store
+Thumbs.db
