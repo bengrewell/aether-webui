@@ -2,7 +2,6 @@ package meta
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/user"
 	"runtime"
@@ -134,7 +133,7 @@ func (m *Meta) handleRuntime(_ context.Context, _ *struct{}) (*RuntimeOutput, er
 	info := RuntimeInfo{
 		PID:       os.Getpid(),
 		StartTime: m.startTime.Format(time.RFC3339),
-		Uptime:    fmt.Sprintf("%s", time.Since(m.startTime).Round(time.Second)),
+		Uptime:    time.Since(m.startTime).Round(time.Second).String(),
 	}
 
 	if exe, err := os.Executable(); err == nil {
