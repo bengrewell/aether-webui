@@ -4,5 +4,5 @@ Backend API service for the Aether WebUI. Provides a provider-based plugin frame
 
 ## Documents
 
-- [Architecture Overview](architecture.md) — project structure, provider framework, request lifecycle
+- [Architecture Overview](architecture.md) — controller lifecycle, project structure, provider framework, request lifecycle
 - [Security](security.md) — TLS, mTLS, token authentication configuration
