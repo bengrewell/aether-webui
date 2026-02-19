@@ -1,6 +1,8 @@
 package rest
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"testing"
 )
 
@@ -32,6 +34,28 @@ func TestSecurityScheme_Enabled(t *testing.T) {
 	}
 	if _, ok := spec.Security[0]["bearerAuth"]; !ok {
 		t.Error("expected global security to reference bearerAuth")
+	}
+}
+
+func TestHandleFunc(t *testing.T) {
+	tr := NewTransport(Config{
+		APITitle:   "Test API",
+		APIVersion: "0.0.0",
+	})
+	tr.HandleFunc("/ping", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("pong"))
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/ping", nil)
+	rec := httptest.NewRecorder()
+	tr.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	if got := rec.Body.String(); got != "pong" {
+		t.Errorf("body = %q, want %q", got, "pong")
 	}
 }
 

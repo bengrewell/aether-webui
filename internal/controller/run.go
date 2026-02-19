@@ -51,6 +51,8 @@ func (c *Controller) Run(ctx context.Context) error {
 
 	transport := c.createRESTTransport(mw)
 
+	c.registerHealthz(transport, time.Now())
+
 	if err := c.initProviders(ctx, transport); err != nil {
 		return fmt.Errorf("providers: %w", err)
 	}

@@ -89,7 +89,7 @@ func (b *Base) Status() any {
 type StatusInfo struct {
 	Enabled       bool `json:"enabled"`
 	Running       bool `json:"running"`
-	EndpointCount int  `json:"endpointCount"`
+	EndpointCount int  `json:"endpoint_count"`
 }
 
 // StatusInfo returns a typed snapshot of the provider's enabled/running state and

@@ -4,10 +4,10 @@ package system
 
 type CPUInfo struct {
 	Model         string   `json:"model" example:"Intel(R) Core(TM) i7-10700K CPU @ 3.80GHz" doc:"CPU model name"`
-	PhysicalCores int      `json:"physicalCores" example:"8" doc:"Number of physical CPU cores"`
-	LogicalCores  int      `json:"logicalCores" example:"16" doc:"Number of logical CPU cores (includes hyperthreading)"`
-	FrequencyMHz  float64  `json:"frequencyMHz" example:"3800" doc:"Base clock frequency in MHz"`
-	CacheSizeKB   int32    `json:"cacheSizeKB" example:"16384" doc:"CPU cache size in kilobytes"`
+	PhysicalCores int      `json:"physical_cores" example:"8" doc:"Number of physical CPU cores"`
+	LogicalCores  int      `json:"logical_cores" example:"16" doc:"Number of logical CPU cores (includes hyperthreading)"`
+	FrequencyMHz  float64  `json:"frequency_mhz" example:"3800" doc:"Base clock frequency in MHz"`
+	CacheSizeKB   int32    `json:"cache_size_kb" example:"16384" doc:"CPU cache size in kilobytes"`
 	Flags         []string `json:"flags" doc:"CPU feature flags"`
 }
 
@@ -16,13 +16,13 @@ type CPUInfoOutput struct {
 }
 
 type MemoryInfo struct {
-	TotalBytes     uint64  `json:"totalBytes" example:"34359738368" doc:"Total physical memory in bytes"`
-	AvailableBytes uint64  `json:"availableBytes" example:"17179869184" doc:"Available physical memory in bytes"`
-	UsedBytes      uint64  `json:"usedBytes" example:"17179869184" doc:"Used physical memory in bytes"`
-	UsagePercent   float64 `json:"usagePercent" example:"50.0" doc:"Physical memory usage as a percentage"`
-	SwapTotalBytes uint64  `json:"swapTotalBytes" example:"8589934592" doc:"Total swap space in bytes"`
-	SwapUsedBytes  uint64  `json:"swapUsedBytes" example:"0" doc:"Used swap space in bytes"`
-	SwapPercent    float64 `json:"swapPercent" example:"0.0" doc:"Swap usage as a percentage"`
+	TotalBytes     uint64  `json:"total_bytes" example:"34359738368" doc:"Total physical memory in bytes"`
+	AvailableBytes uint64  `json:"available_bytes" example:"17179869184" doc:"Available physical memory in bytes"`
+	UsedBytes      uint64  `json:"used_bytes" example:"17179869184" doc:"Used physical memory in bytes"`
+	UsagePercent   float64 `json:"usage_percent" example:"50.0" doc:"Physical memory usage as a percentage"`
+	SwapTotalBytes uint64  `json:"swap_total_bytes" example:"8589934592" doc:"Total swap space in bytes"`
+	SwapUsedBytes  uint64  `json:"swap_used_bytes" example:"0" doc:"Used swap space in bytes"`
+	SwapPercent    float64 `json:"swap_percent" example:"0.0" doc:"Swap usage as a percentage"`
 }
 
 type MemoryInfoOutput struct {
@@ -32,11 +32,11 @@ type MemoryInfoOutput struct {
 type Partition struct {
 	Device       string  `json:"device" example:"/dev/sda1" doc:"Device path"`
 	Mountpoint   string  `json:"mountpoint" example:"/" doc:"Filesystem mount point"`
-	FSType       string  `json:"fsType" example:"ext4" doc:"Filesystem type"`
-	TotalBytes   uint64  `json:"totalBytes" example:"512110190592" doc:"Total partition size in bytes"`
-	UsedBytes    uint64  `json:"usedBytes" example:"128027547648" doc:"Used space in bytes"`
-	FreeBytes    uint64  `json:"freeBytes" example:"384082642944" doc:"Free space in bytes"`
-	UsagePercent float64 `json:"usagePercent" example:"25.0" doc:"Disk usage as a percentage"`
+	FSType       string  `json:"fs_type" example:"ext4" doc:"Filesystem type"`
+	TotalBytes   uint64  `json:"total_bytes" example:"512110190592" doc:"Total partition size in bytes"`
+	UsedBytes    uint64  `json:"used_bytes" example:"128027547648" doc:"Used space in bytes"`
+	FreeBytes    uint64  `json:"free_bytes" example:"384082642944" doc:"Free space in bytes"`
+	UsagePercent float64 `json:"usage_percent" example:"25.0" doc:"Disk usage as a percentage"`
 }
 
 type DiskInfo struct {
@@ -51,10 +51,10 @@ type OSInfo struct {
 	Hostname        string `json:"hostname" example:"aether-node-01" doc:"System hostname"`
 	OS              string `json:"os" example:"linux" doc:"Operating system name"`
 	Platform        string `json:"platform" example:"ubuntu" doc:"OS distribution or platform"`
-	PlatformVersion string `json:"platformVersion" example:"22.04" doc:"Platform version"`
-	KernelVersion   string `json:"kernelVersion" example:"6.8.0-100-generic" doc:"Kernel version string"`
-	KernelArch      string `json:"kernelArch" example:"x86_64" doc:"Kernel architecture"`
-	UptimeSeconds   uint64 `json:"uptimeSeconds" example:"86400" doc:"System uptime in seconds"`
+	PlatformVersion string `json:"platform_version" example:"22.04" doc:"Platform version"`
+	KernelVersion   string `json:"kernel_version" example:"6.8.0-100-generic" doc:"Kernel version string"`
+	KernelArch      string `json:"kernel_arch" example:"x86_64" doc:"Kernel architecture"`
+	UptimeSeconds   uint64 `json:"uptime_seconds" example:"86400" doc:"System uptime in seconds"`
 }
 
 type OSInfoOutput struct {
@@ -74,8 +74,8 @@ type NetworkInterfacesOutput struct {
 }
 
 type NetworkConfig struct {
-	DNSServers    []string `json:"dnsServers" doc:"Configured DNS nameservers"`
-	SearchDomains []string `json:"searchDomains" doc:"DNS search domains"`
+	DNSServers    []string `json:"dns_servers" doc:"Configured DNS nameservers"`
+	SearchDomains []string `json:"search_domains" doc:"DNS search domains"`
 }
 
 type NetworkConfigOutput struct {
@@ -84,10 +84,10 @@ type NetworkConfigOutput struct {
 
 type ListeningPort struct {
 	Protocol    string `json:"protocol" example:"tcp" doc:"Network protocol (tcp or udp)"`
-	LocalAddr   string `json:"localAddr" example:"0.0.0.0" doc:"Local bind address"`
-	LocalPort   uint32 `json:"localPort" example:"8186" doc:"Local port number"`
+	LocalAddr   string `json:"local_addr" example:"0.0.0.0" doc:"Local bind address"`
+	LocalPort   uint32 `json:"local_port" example:"8186" doc:"Local port number"`
 	PID         int32  `json:"pid" example:"1234" doc:"Process ID of the listener"`
-	ProcessName string `json:"processName" example:"aether-webd" doc:"Name of the listening process"`
+	ProcessName string `json:"process_name" example:"aether-webd" doc:"Name of the listening process"`
 	State       string `json:"state" example:"LISTEN" doc:"Connection state"`
 }
 

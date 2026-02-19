@@ -101,6 +101,12 @@ func (t *Transport) Handler() http.Handler { return t.router }
 func (t *Transport) Log() *slog.Logger     { return t.log }
 func (t *Transport) Store() store.Client   { return t.store }
 
+// HandleFunc registers a plain http.HandlerFunc on the router, outside of the
+// Huma/OpenAPI spec. Useful for operational endpoints like /healthz.
+func (t *Transport) HandleFunc(pattern string, fn http.HandlerFunc) {
+	t.router.HandleFunc(pattern, fn)
+}
+
 // Mount attaches a catch-all handler (e.g. frontend SPA) after API routes.
 func (t *Transport) Mount(pattern string, h http.Handler) {
 	t.router.Handle(pattern, h)

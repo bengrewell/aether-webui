@@ -11,5 +11,6 @@ import (
 type Transport interface {
 	ProviderOpts(name string) []provider.Option
 	Handler() http.Handler
+	HandleFunc(pattern string, fn http.HandlerFunc)
 	Mount(pattern string, h http.Handler)
 }

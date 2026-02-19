@@ -108,7 +108,7 @@ tests:
     node: test-vm
     type: execute
     options:
-      command: curl -sf http://localhost:8186/api/v1/version | jq -e '.version != "dev" and .build_date != "unknown" and .branch != "unknown" and .commit_hash != "unknown"'
+      command: curl -sf http://localhost:8186/api/v1/meta/version | jq -e '.version != "dev" and .build_date != "unknown" and .branch != "unknown" and .commit_hash != "unknown"'
       evaluate:
         exit_code: 0
 

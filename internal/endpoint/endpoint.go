@@ -23,7 +23,7 @@ type GRPCHint struct {
 }
 
 type Descriptor struct {
-	OperationID string    `json:"operationID" yaml:"operationID" mapstructure:"operationID"`
+	OperationID string    `json:"operation_id" yaml:"operation_id" mapstructure:"operation_id"`
 	Semantics   Semantics `json:"semantic" yaml:"semantic" mapstructure:"semantic"`
 	Summary     string    `json:"summary" yaml:"summary" mapstructure:"summary"`
 	Description string    `json:"description" yaml:"description" mapstructure:"description"`

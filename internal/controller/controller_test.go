@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
@@ -275,6 +276,61 @@ func TestRun_DisabledProvider(t *testing.T) {
 	}
 	if created.started {
 		t.Error("disabled provider should not have been started")
+	}
+}
+
+func TestRun_HealthzEndpoint(t *testing.T) {
+	addr := ephemeralAddr(t)
+
+	ctrl, err := New(
+		WithListenAddr(addr),
+		WithDataDir(t.TempDir()),
+		WithFrontend(false, ""),
+		WithVersion(meta.VersionInfo{Version: "1.2.3"}),
+	)
+	if err != nil {
+		t.Fatalf("New() error: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan error, 1)
+	go func() { done <- ctrl.Run(ctx) }()
+
+	waitForServer(t, addr)
+
+	resp, err := http.Get("http://" + addr + "/healthz")
+	if err != nil {
+		t.Fatalf("GET /healthz error: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	var body map[string]string
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("decode error: %v", err)
+	}
+
+	if body["status"] != "healthy" {
+		t.Errorf("status = %q, want %q", body["status"], "healthy")
+	}
+	if body["version"] != "1.2.3" {
+		t.Errorf("version = %q, want %q", body["version"], "1.2.3")
+	}
+	if body["uptime"] == "" {
+		t.Error("uptime is empty")
+	}
+
+	cancel()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Errorf("Run() returned error: %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Run() did not exit within 5 seconds")
 	}
 }
 
