@@ -1,0 +1,409 @@
+---
+########################################################################################################################
+## Test Suite Configuration                                                                                           ##
+########################################################################################################################
+# Security E2E tests for aether-webd on a clean Ubuntu 24.04 LXD VM. Validates three progressive security layers:
+#   Phase 1 — Bearer token authentication over HTTP
+#   Phase 2 — Auto-generated TLS + token auth (HTTPS)
+#   Phase 3 — Mutual TLS + TLS + token auth
+suite: Aether Web Security Test Suite
+
+########################################################################################################################
+## Node Infrastructure Configuration                                                                                  ##
+########################################################################################################################
+lxd:
+  networks:
+    - name: webd-testing
+      type: bridge
+      subnet: 10.102.102.0/24
+      gateway: 10.102.102.1
+
+  profiles:
+    - name: aether-primary
+      description: Profile for the primary test machine
+      devices:
+        root:
+          type: disk
+          path: /
+          pool: default
+          opts:
+            size: 100GB
+      config:
+        limits.cpu: "8"
+        limits.memory: "8GB"
+
+        user.user-data: |
+          #cloud-config
+          package_update: true
+          packages:
+            - curl
+            - jq
+            - openssl
+          runcmd:
+            - [ bash, -c, 'echo "complete" > /tmp/cloud-init.complete' ]
+
+nodes:
+  - name: localhost
+    type: local
+    options:
+      exec_opts:
+        shell: /bin/bash
+
+  - name: test-vm
+    type: lxd-vm
+    options:
+      image: "ubuntu:24.04"
+      exec_opts:
+        shell: /bin/bash
+      networks:
+        - name: webd-testing
+          ip: 10.102.102.10
+      profiles:
+        - aether-primary
+
+########################################################################################################################
+## Setup — install aether-webd and configure Phase 1 (token auth)                                                    ##
+########################################################################################################################
+setup:
+  - name: "wait for cloud-init to complete"
+    node: test-vm
+    step:
+      type: execute
+      options:
+        command: while [ ! -f /tmp/cloud-init.complete ]; do sleep 1; done
+
+  - name: "install aether-webd from github release"
+    node: test-vm
+    step:
+      type: execute
+      options:
+        command: "curl -fsSL https://raw.githubusercontent.com/bengrewell/aether-webui/main/scripts/install.sh | sudo bash"
+
+  - name: "configure token auth and restart service"
+    node: test-vm
+    step:
+      type: execute
+      options:
+        command: |
+          echo 'AETHER_API_TOKEN=test-token-e2e' > /etc/aether-webd/env
+          systemctl restart aether-webd
+
+  - name: "wait for HTTP readiness with token auth"
+    node: test-vm
+    step:
+      type: execute
+      options:
+        command: for i in $(seq 1 30); do curl -sf http://localhost:8186/healthz && exit 0; sleep 1; done; exit 1
+
+########################################################################################################################
+## Tests                                                                                                              ##
+########################################################################################################################
+tests:
+
+  ######################################################################################################################
+  ## Phase 1 — Bearer Token Auth (over HTTP)                                                                          ##
+  ######################################################################################################################
+
+  - name: "phase1: unauthenticated request returns 401"
+    node: test-vm
+    type: execute
+    options:
+      command: 'code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8186/api/v1/meta/version); [ "$code" = "401" ]'
+      evaluate:
+        exit_code: 0
+
+  - name: "phase1: 401 body contains Unauthorized title"
+    node: test-vm
+    type: execute
+    options:
+      command: 'curl -s http://localhost:8186/api/v1/meta/version | jq -e ''.title == "Unauthorized"'''
+      evaluate:
+        exit_code: 0
+
+  - name: "phase1: healthz works without auth (skip path)"
+    node: test-vm
+    type: execute
+    options:
+      command: curl -sf http://localhost:8186/healthz
+      evaluate:
+        exit_code: 0
+        contains: "healthy"
+
+  - name: "phase1: openapi.json works without auth (skip path)"
+    node: test-vm
+    type: execute
+    options:
+      command: 'code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8186/openapi.json); [ "$code" = "200" ]'
+      evaluate:
+        exit_code: 0
+
+  - name: "phase1: correct token succeeds"
+    node: test-vm
+    type: execute
+    options:
+      command: |
+        curl -sf -H "Authorization: Bearer test-token-e2e" http://localhost:8186/api/v1/meta/version | jq -e '.version != ""'
+      evaluate:
+        exit_code: 0
+
+  - name: "phase1: wrong token returns 401"
+    node: test-vm
+    type: execute
+    options:
+      command: 'code=$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer wrong-token" http://localhost:8186/api/v1/meta/version); [ "$code" = "401" ]'
+      evaluate:
+        exit_code: 0
+
+  - name: "phase1: malformed auth header (Basic scheme) returns 401"
+    node: test-vm
+    type: execute
+    options:
+      command: 'code=$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Basic dGVzdDp0ZXN0" http://localhost:8186/api/v1/meta/version); [ "$code" = "401" ]'
+      evaluate:
+        exit_code: 0
+
+  - name: "phase1: config shows token_auth_enabled true"
+    node: test-vm
+    type: execute
+    options:
+      command: |
+        curl -sf -H "Authorization: Bearer test-token-e2e" http://localhost:8186/api/v1/meta/config | jq -e '.security.token_auth_enabled == true'
+      evaluate:
+        exit_code: 0
+
+  ######################################################################################################################
+  ## Phase 2 — Auto-generated TLS + Token Auth                                                                        ##
+  ######################################################################################################################
+
+  - name: "phase2-setup: add systemd drop-in for --tls flag"
+    node: test-vm
+    type: execute
+    options:
+      command: |
+        mkdir -p /etc/systemd/system/aether-webd.service.d
+        cat > /etc/systemd/system/aether-webd.service.d/override.conf <<'DROPIN'
+        [Service]
+        ExecStart=
+        ExecStart=/usr/local/bin/aether-webd --listen 0.0.0.0:8186 --tls
+        DROPIN
+        systemctl daemon-reload
+        systemctl restart aether-webd
+      evaluate:
+        exit_code: 0
+
+  - name: "phase2-setup: wait for HTTPS readiness"
+    node: test-vm
+    type: execute
+    options:
+      command: for i in $(seq 1 30); do curl -sf --cacert /var/lib/aether-webd/certs/ca.pem https://localhost:8186/healthz && exit 0; sleep 1; done; exit 1
+      evaluate:
+        exit_code: 0
+
+  - name: "phase2: plain HTTP connection fails"
+    node: test-vm
+    type: execute
+    options:
+      command: "curl -sf http://localhost:8186/healthz && exit 1 || exit 0"
+      evaluate:
+        exit_code: 0
+
+  - name: "phase2: HTTPS with CA cert and valid token succeeds"
+    node: test-vm
+    type: execute
+    options:
+      command: |
+        curl -sf --cacert /var/lib/aether-webd/certs/ca.pem -H "Authorization: Bearer test-token-e2e" https://localhost:8186/api/v1/meta/version | jq -e '.version != ""'
+      evaluate:
+        exit_code: 0
+
+  - name: "phase2: HTTPS without CA cert fails (untrusted)"
+    node: test-vm
+    type: execute
+    options:
+      command: "curl -sf https://localhost:8186/healthz && exit 1 || exit 0"
+      evaluate:
+        exit_code: 0
+
+  - name: "phase2: HTTPS insecure without token returns 401"
+    node: test-vm
+    type: execute
+    options:
+      command: 'code=$(curl -sk -o /dev/null -w "%{http_code}" https://localhost:8186/api/v1/meta/version); [ "$code" = "401" ]'
+      evaluate:
+        exit_code: 0
+
+  - name: "phase2: healthz works over HTTPS without token (skip path)"
+    node: test-vm
+    type: execute
+    options:
+      command: curl -sf --cacert /var/lib/aether-webd/certs/ca.pem https://localhost:8186/healthz
+      evaluate:
+        exit_code: 0
+        contains: "healthy"
+
+  - name: "phase2: config shows tls_enabled and tls_auto_generated true"
+    node: test-vm
+    type: execute
+    options:
+      command: |
+        curl -sf --cacert /var/lib/aether-webd/certs/ca.pem -H "Authorization: Bearer test-token-e2e" https://localhost:8186/api/v1/meta/config | jq -e '.security.tls_enabled == true and .security.tls_auto_generated == true'
+      evaluate:
+        exit_code: 0
+
+  - name: "phase2: config shows mtls_enabled false"
+    node: test-vm
+    type: execute
+    options:
+      command: |
+        curl -sf --cacert /var/lib/aether-webd/certs/ca.pem -H "Authorization: Bearer test-token-e2e" https://localhost:8186/api/v1/meta/config | jq -e '.security.mtls_enabled == false'
+      evaluate:
+        exit_code: 0
+
+  - name: "phase2: auto-generated cert files exist"
+    node: test-vm
+    type: execute
+    options:
+      command: test -f /var/lib/aether-webd/certs/ca.pem && test -f /var/lib/aether-webd/certs/server.pem && test -f /var/lib/aether-webd/certs/server-key.pem
+      evaluate:
+        exit_code: 0
+
+  ######################################################################################################################
+  ## Phase 3 — mTLS + TLS + Token Auth                                                                                ##
+  ######################################################################################################################
+
+  - name: "phase3-setup: generate valid client CA and client cert"
+    node: test-vm
+    type: execute
+    options:
+      command: |
+        mkdir -p /tmp/mtls-valid
+        openssl ecparam -genkey -name prime256v1 -noout -out /tmp/mtls-valid/ca-key.pem 2>/dev/null
+        openssl req -new -x509 -key /tmp/mtls-valid/ca-key.pem -out /tmp/mtls-valid/ca.pem -days 1 -subj "/CN=Valid Client CA" 2>/dev/null
+        openssl ecparam -genkey -name prime256v1 -noout -out /tmp/mtls-valid/client-key.pem 2>/dev/null
+        openssl req -new -key /tmp/mtls-valid/client-key.pem -out /tmp/mtls-valid/client.csr -subj "/CN=valid-client" 2>/dev/null
+        openssl x509 -req -in /tmp/mtls-valid/client.csr -CA /tmp/mtls-valid/ca.pem -CAkey /tmp/mtls-valid/ca-key.pem -CAcreateserial -out /tmp/mtls-valid/client.pem -days 1 2>/dev/null
+      evaluate:
+        exit_code: 0
+
+  - name: "phase3-setup: generate rogue CA and rogue client cert"
+    node: test-vm
+    type: execute
+    options:
+      command: |
+        mkdir -p /tmp/mtls-rogue
+        openssl ecparam -genkey -name prime256v1 -noout -out /tmp/mtls-rogue/ca-key.pem 2>/dev/null
+        openssl req -new -x509 -key /tmp/mtls-rogue/ca-key.pem -out /tmp/mtls-rogue/ca.pem -days 1 -subj "/CN=Rogue Client CA" 2>/dev/null
+        openssl ecparam -genkey -name prime256v1 -noout -out /tmp/mtls-rogue/client-key.pem 2>/dev/null
+        openssl req -new -key /tmp/mtls-rogue/client-key.pem -out /tmp/mtls-rogue/client.csr -subj "/CN=rogue-client" 2>/dev/null
+        openssl x509 -req -in /tmp/mtls-rogue/client.csr -CA /tmp/mtls-rogue/ca.pem -CAkey /tmp/mtls-rogue/ca-key.pem -CAcreateserial -out /tmp/mtls-rogue/client.pem -days 1 2>/dev/null
+      evaluate:
+        exit_code: 0
+
+  - name: "phase3-setup: install client CA and enable mTLS"
+    node: test-vm
+    type: execute
+    options:
+      command: |
+        cp /tmp/mtls-valid/ca.pem /etc/aether-webd/client-ca.pem
+        cat > /etc/systemd/system/aether-webd.service.d/override.conf <<'DROPIN'
+        [Service]
+        ExecStart=
+        ExecStart=/usr/local/bin/aether-webd --listen 0.0.0.0:8186 --tls --mtls-ca-cert /etc/aether-webd/client-ca.pem
+        DROPIN
+        systemctl daemon-reload
+        systemctl restart aether-webd
+      evaluate:
+        exit_code: 0
+
+  - name: "phase3-setup: wait for mTLS readiness"
+    node: test-vm
+    type: execute
+    options:
+      command: for i in $(seq 1 30); do curl -sf --cacert /var/lib/aether-webd/certs/ca.pem --cert /tmp/mtls-valid/client.pem --key /tmp/mtls-valid/client-key.pem https://localhost:8186/healthz && exit 0; sleep 1; done; exit 1
+      evaluate:
+        exit_code: 0
+
+  - name: "phase3: no client cert causes TLS handshake failure"
+    node: test-vm
+    type: execute
+    options:
+      command: "curl -sf --cacert /var/lib/aether-webd/certs/ca.pem https://localhost:8186/healthz && exit 1 || exit 0"
+      evaluate:
+        exit_code: 0
+
+  - name: "phase3: valid client cert with correct token succeeds"
+    node: test-vm
+    type: execute
+    options:
+      command: |
+        curl -sf --cacert /var/lib/aether-webd/certs/ca.pem --cert /tmp/mtls-valid/client.pem --key /tmp/mtls-valid/client-key.pem -H "Authorization: Bearer test-token-e2e" https://localhost:8186/api/v1/meta/version | jq -e '.version != ""'
+      evaluate:
+        exit_code: 0
+
+  - name: "phase3: valid client cert with wrong token returns 401"
+    node: test-vm
+    type: execute
+    options:
+      command: 'code=$(curl -s -o /dev/null -w "%{http_code}" --cacert /var/lib/aether-webd/certs/ca.pem --cert /tmp/mtls-valid/client.pem --key /tmp/mtls-valid/client-key.pem -H "Authorization: Bearer wrong-token" https://localhost:8186/api/v1/meta/version); [ "$code" = "401" ]'
+      evaluate:
+        exit_code: 0
+
+  - name: "phase3: rogue client cert causes TLS handshake failure"
+    node: test-vm
+    type: execute
+    options:
+      command: "curl -sf --cacert /var/lib/aether-webd/certs/ca.pem --cert /tmp/mtls-rogue/client.pem --key /tmp/mtls-rogue/client-key.pem https://localhost:8186/healthz && exit 1 || exit 0"
+      evaluate:
+        exit_code: 0
+
+  - name: "phase3: healthz works with valid client cert without token (skip path)"
+    node: test-vm
+    type: execute
+    options:
+      command: curl -sf --cacert /var/lib/aether-webd/certs/ca.pem --cert /tmp/mtls-valid/client.pem --key /tmp/mtls-valid/client-key.pem https://localhost:8186/healthz
+      evaluate:
+        exit_code: 0
+        contains: "healthy"
+
+  - name: "phase3: config shows mtls_enabled true"
+    node: test-vm
+    type: execute
+    options:
+      command: |
+        curl -sf --cacert /var/lib/aether-webd/certs/ca.pem --cert /tmp/mtls-valid/client.pem --key /tmp/mtls-valid/client-key.pem -H "Authorization: Bearer test-token-e2e" https://localhost:8186/api/v1/meta/config | jq -e '.security.mtls_enabled == true'
+      evaluate:
+        exit_code: 0
+
+  - name: "phase3: config shows all three security layers enabled"
+    node: test-vm
+    type: execute
+    options:
+      command: |
+        curl -sf --cacert /var/lib/aether-webd/certs/ca.pem --cert /tmp/mtls-valid/client.pem --key /tmp/mtls-valid/client-key.pem -H "Authorization: Bearer test-token-e2e" https://localhost:8186/api/v1/meta/config | jq -e '.security.tls_enabled == true and .security.tls_auto_generated == true and .security.mtls_enabled == true and .security.token_auth_enabled == true'
+      evaluate:
+        exit_code: 0
+
+########################################################################################################################
+## Teardown — clean up overrides and uninstall                                                                        ##
+########################################################################################################################
+teardown:
+  - name: "remove systemd drop-in overrides"
+    node: test-vm
+    step:
+      type: execute
+      options:
+        command: rm -rf /etc/systemd/system/aether-webd.service.d && systemctl daemon-reload
+
+  - name: "remove temporary mTLS certificates"
+    node: test-vm
+    step:
+      type: execute
+      options:
+        command: rm -rf /tmp/mtls-valid /tmp/mtls-rogue /etc/aether-webd/client-ca.pem
+
+  - name: "uninstall aether-webd"
+    node: test-vm
+    step:
+      type: execute
+      options:
+        command: curl -fsSL https://raw.githubusercontent.com/bengrewell/aether-webui/main/scripts/uninstall.sh | sudo bash -s -- --purge
