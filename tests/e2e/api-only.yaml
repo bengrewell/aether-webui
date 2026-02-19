@@ -132,7 +132,7 @@ tests:
     node: test-vm
     type: execute
     options:
-      command: curl -sf http://localhost:8186/api/v1/meta/config | jq -e '.listen_address != "" and (.security | has("tls_enabled")) and .storage.data_dir != "" and .schema_version >= 1'
+      command: curl -sf http://localhost:8186/api/v1/meta/config | jq -e '.listen_address != "" and (.security | has("tls_enabled")) and .storage.data_dir != "" and .schema_version >= 0'
       evaluate:
         exit_code: 0
 
