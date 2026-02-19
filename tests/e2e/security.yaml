@@ -141,7 +141,8 @@ tests:
     node: test-vm
     type: execute
     options:
-      command: curl -sf -H "Authorization: Bearer test-token-e2e" http://localhost:8186/api/v1/meta/version | jq -e '.version != ""'
+      command: |
+        curl -sf -H "Authorization: Bearer test-token-e2e" http://localhost:8186/api/v1/meta/version | jq -e '.version != ""'
       evaluate:
         exit_code: 0
 
@@ -165,7 +166,8 @@ tests:
     node: test-vm
     type: execute
     options:
-      command: curl -sf -H "Authorization: Bearer test-token-e2e" http://localhost:8186/api/v1/meta/config | jq -e '.security.token_auth_enabled == true'
+      command: |
+        curl -sf -H "Authorization: Bearer test-token-e2e" http://localhost:8186/api/v1/meta/config | jq -e '.security.token_auth_enabled == true'
       evaluate:
         exit_code: 0
 
@@ -209,7 +211,8 @@ tests:
     node: test-vm
     type: execute
     options:
-      command: curl -sf --cacert /var/lib/aether-webd/certs/ca.pem -H "Authorization: Bearer test-token-e2e" https://localhost:8186/api/v1/meta/version | jq -e '.version != ""'
+      command: |
+        curl -sf --cacert /var/lib/aether-webd/certs/ca.pem -H "Authorization: Bearer test-token-e2e" https://localhost:8186/api/v1/meta/version | jq -e '.version != ""'
       evaluate:
         exit_code: 0
 
@@ -242,7 +245,8 @@ tests:
     node: test-vm
     type: execute
     options:
-      command: curl -sf --cacert /var/lib/aether-webd/certs/ca.pem -H "Authorization: Bearer test-token-e2e" https://localhost:8186/api/v1/meta/config | jq -e '.security.tls_enabled == true and .security.tls_auto_generated == true'
+      command: |
+        curl -sf --cacert /var/lib/aether-webd/certs/ca.pem -H "Authorization: Bearer test-token-e2e" https://localhost:8186/api/v1/meta/config | jq -e '.security.tls_enabled == true and .security.tls_auto_generated == true'
       evaluate:
         exit_code: 0
 
@@ -250,7 +254,8 @@ tests:
     node: test-vm
     type: execute
     options:
-      command: curl -sf --cacert /var/lib/aether-webd/certs/ca.pem -H "Authorization: Bearer test-token-e2e" https://localhost:8186/api/v1/meta/config | jq -e '.security.mtls_enabled == false'
+      command: |
+        curl -sf --cacert /var/lib/aether-webd/certs/ca.pem -H "Authorization: Bearer test-token-e2e" https://localhost:8186/api/v1/meta/config | jq -e '.security.mtls_enabled == false'
       evaluate:
         exit_code: 0
 
@@ -330,7 +335,8 @@ tests:
     node: test-vm
     type: execute
     options:
-      command: curl -sf --cacert /var/lib/aether-webd/certs/ca.pem --cert /tmp/mtls-valid/client.pem --key /tmp/mtls-valid/client-key.pem -H "Authorization: Bearer test-token-e2e" https://localhost:8186/api/v1/meta/version | jq -e '.version != ""'
+      command: |
+        curl -sf --cacert /var/lib/aether-webd/certs/ca.pem --cert /tmp/mtls-valid/client.pem --key /tmp/mtls-valid/client-key.pem -H "Authorization: Bearer test-token-e2e" https://localhost:8186/api/v1/meta/version | jq -e '.version != ""'
       evaluate:
         exit_code: 0
 
@@ -363,7 +369,8 @@ tests:
     node: test-vm
     type: execute
     options:
-      command: curl -sf --cacert /var/lib/aether-webd/certs/ca.pem --cert /tmp/mtls-valid/client.pem --key /tmp/mtls-valid/client-key.pem -H "Authorization: Bearer test-token-e2e" https://localhost:8186/api/v1/meta/config | jq -e '.security.mtls_enabled == true'
+      command: |
+        curl -sf --cacert /var/lib/aether-webd/certs/ca.pem --cert /tmp/mtls-valid/client.pem --key /tmp/mtls-valid/client-key.pem -H "Authorization: Bearer test-token-e2e" https://localhost:8186/api/v1/meta/config | jq -e '.security.mtls_enabled == true'
       evaluate:
         exit_code: 0
 
@@ -371,7 +378,8 @@ tests:
     node: test-vm
     type: execute
     options:
-      command: curl -sf --cacert /var/lib/aether-webd/certs/ca.pem --cert /tmp/mtls-valid/client.pem --key /tmp/mtls-valid/client-key.pem -H "Authorization: Bearer test-token-e2e" https://localhost:8186/api/v1/meta/config | jq -e '.security.tls_enabled == true and .security.tls_auto_generated == true and .security.mtls_enabled == true and .security.token_auth_enabled == true'
+      command: |
+        curl -sf --cacert /var/lib/aether-webd/certs/ca.pem --cert /tmp/mtls-valid/client.pem --key /tmp/mtls-valid/client-key.pem -H "Authorization: Bearer test-token-e2e" https://localhost:8186/api/v1/meta/config | jq -e '.security.tls_enabled == true and .security.tls_auto_generated == true and .security.mtls_enabled == true and .security.token_auth_enabled == true'
       evaluate:
         exit_code: 0
 
