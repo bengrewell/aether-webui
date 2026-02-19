@@ -4,9 +4,13 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/bengrewell/aether-webui/internal/controller"
+	"github.com/bengrewell/aether-webui/internal/provider"
 	"github.com/bengrewell/aether-webui/internal/provider/meta"
+	"github.com/bengrewell/aether-webui/internal/provider/system"
+	"github.com/bengrewell/aether-webui/internal/store"
 	"github.com/bgrewell/usage"
 )
 
@@ -70,6 +74,12 @@ func main() {
 		return
 	}
 
+	collectInterval, err := time.ParseDuration(*flagMetricsInterval)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "invalid --metrics-interval: %v\n", err)
+		os.Exit(1)
+	}
+
 	ctrl, err := controller.New(
 		controller.WithVersion(meta.VersionInfo{
 			Version:    version,
@@ -86,9 +96,14 @@ func main() {
 		controller.WithFrontend(*flagServeFrontend, *flagFrontendDir),
 		controller.WithMetrics(*flagMetricsInterval, *flagMetricsRetention),
 		controller.WithEncryptionKey(*flagEncryptionKey),
+		controller.WithProvider("system", true, func(_ context.Context, _ store.Client, opts []provider.Option) (provider.Provider, error) {
+			return system.NewProvider(system.Config{
+				CollectInterval: collectInterval,
+			}, opts...), nil
+		}),
 	)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}
 	if err := ctrl.Run(context.Background()); err != nil {

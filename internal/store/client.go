@@ -87,3 +87,13 @@ func Load[T any](c Client, ctx context.Context, key Key, opts ...LoadOption) (It
 func (c Client) GetSchemaVersion() (int, error) {
 	return c.s.GetSchemaVersion()
 }
+
+// AppendSamples writes metric samples to the time-series store.
+func (c Client) AppendSamples(ctx context.Context, samples []Sample) error {
+	return c.s.AppendSamples(ctx, samples)
+}
+
+// QueryRange queries metric samples over a time range.
+func (c Client) QueryRange(ctx context.Context, q RangeQuery) ([]Series, error) {
+	return c.s.QueryRange(ctx, q)
+}
