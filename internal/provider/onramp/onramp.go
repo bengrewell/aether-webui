@@ -35,6 +35,32 @@ func NewProvider(cfg Config, opts ...provider.Option) *OnRamp {
 		tasks:     make([]*Task, 0),
 	}
 
+	// --- Repo ---
+
+	provider.Register(o.Base, endpoint.Endpoint[struct{}, RepoStatusOutput]{
+		Desc: endpoint.Descriptor{
+			OperationID: "onramp-get-repo-status",
+			Semantics:   endpoint.Read,
+			Summary:     "Get OnRamp repo status",
+			Description: "Returns clone status, current commit, branch, tag, and dirty state of the OnRamp repository.",
+			Tags:        []string{"onramp"},
+			HTTP:        endpoint.HTTPHint{Path: "/api/v1/onramp/repo"},
+		},
+		Handler: o.handleGetRepoStatus,
+	})
+
+	provider.Register(o.Base, endpoint.Endpoint[struct{}, RepoRefreshOutput]{
+		Desc: endpoint.Descriptor{
+			OperationID: "onramp-refresh-repo",
+			Semantics:   endpoint.Action,
+			Summary:     "Refresh OnRamp repo",
+			Description: "Clones the repo if missing, checks out the pinned version, and validates the directory.",
+			Tags:        []string{"onramp"},
+			HTTP:        endpoint.HTTPHint{Path: "/api/v1/onramp/repo/refresh"},
+		},
+		Handler: o.handleRefreshRepo,
+	})
+
 	// --- Components ---
 
 	provider.Register(o.Base, endpoint.Endpoint[struct{}, ComponentListOutput]{

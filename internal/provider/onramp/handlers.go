@@ -17,6 +17,61 @@ import (
 )
 
 // ---------------------------------------------------------------------------
+// Repo handlers
+// ---------------------------------------------------------------------------
+
+func (o *OnRamp) handleGetRepoStatus(_ context.Context, _ *struct{}) (*RepoStatusOutput, error) {
+	status := o.gatherRepoStatus()
+	return &RepoStatusOutput{Body: status}, nil
+}
+
+func (o *OnRamp) handleRefreshRepo(_ context.Context, _ *struct{}) (*RepoRefreshOutput, error) {
+	log := o.Log()
+	if err := ensureRepo(o.config, log); err != nil {
+		status := o.gatherRepoStatus()
+		status.Error = err.Error()
+		return &RepoRefreshOutput{Body: status}, nil
+	}
+	status := o.gatherRepoStatus()
+	return &RepoRefreshOutput{Body: status}, nil
+}
+
+// gatherRepoStatus inspects the OnRamp directory and returns its git state.
+func (o *OnRamp) gatherRepoStatus() RepoStatus {
+	rs := RepoStatus{
+		Dir:     o.config.OnRampDir,
+		RepoURL: o.config.RepoURL,
+		Version: o.config.Version,
+	}
+
+	gitDir := filepath.Join(o.config.OnRampDir, ".git")
+	if info, err := os.Stat(gitDir); err != nil || !info.IsDir() {
+		return rs
+	}
+	rs.Cloned = true
+
+	if commit, err := gitOutput(o.config.OnRampDir, "rev-parse", "HEAD"); err == nil {
+		rs.Commit = commit
+	}
+
+	if branch, err := gitOutput(o.config.OnRampDir, "rev-parse", "--abbrev-ref", "HEAD"); err == nil {
+		rs.Branch = branch
+	}
+
+	// Resolve the tag pointing at HEAD, if any.
+	if tag, err := gitOutput(o.config.OnRampDir, "describe", "--tags", "--exact-match", "HEAD"); err == nil {
+		rs.Tag = tag
+	}
+
+	// A non-empty output from `git status --porcelain` indicates uncommitted changes.
+	if porcelain, err := gitOutput(o.config.OnRampDir, "status", "--porcelain"); err == nil && porcelain != "" {
+		rs.Dirty = true
+	}
+
+	return rs
+}
+
+// ---------------------------------------------------------------------------
 // Component handlers
 // ---------------------------------------------------------------------------
 

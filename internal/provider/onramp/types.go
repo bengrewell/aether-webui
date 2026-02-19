@@ -451,8 +451,35 @@ type N3IWFServer struct {
 }
 
 // ---------------------------------------------------------------------------
+// Repo status
+// ---------------------------------------------------------------------------
+
+// RepoStatus describes the current state of the cloned OnRamp repository.
+type RepoStatus struct {
+	Cloned    bool   `json:"cloned"`
+	Dir       string `json:"dir"`
+	RepoURL   string `json:"repo_url"`
+	Version   string `json:"version"`
+	Commit    string `json:"commit,omitempty"`
+	Branch    string `json:"branch,omitempty"`
+	Tag       string `json:"tag,omitempty"`
+	Dirty     bool   `json:"dirty"`
+	Error     string `json:"error,omitempty"`
+}
+
+// ---------------------------------------------------------------------------
 // Huma I/O types
 // ---------------------------------------------------------------------------
+
+// --- Repo ---
+
+type RepoStatusOutput struct {
+	Body RepoStatus
+}
+
+type RepoRefreshOutput struct {
+	Body RepoStatus
+}
 
 // --- Components ---
 
