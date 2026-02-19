@@ -92,7 +92,7 @@ setup:
         command: for i in $(seq 1 30); do curl -sf http://localhost:8186/healthz && exit 0; sleep 1; done; exit 1
 
 ########################################################################################################################
-## Tests — health and version API endpoints                                                                           ##
+## Tests — API endpoint validation                                                                                    ##
 ########################################################################################################################
 tests:
   - name: "health check returns healthy"
@@ -109,6 +109,110 @@ tests:
     type: execute
     options:
       command: curl -sf http://localhost:8186/api/v1/meta/version | jq -e '.version != "dev" and .build_date != "unknown" and .branch != "unknown" and .commit_hash != "unknown"'
+      evaluate:
+        exit_code: 0
+
+  - name: "build endpoint returns Go toolchain info"
+    node: test-vm
+    type: execute
+    options:
+      command: curl -sf http://localhost:8186/api/v1/meta/build | jq -e '.go_version != "" and .os != "" and .arch != ""'
+      evaluate:
+        exit_code: 0
+
+  - name: "runtime endpoint returns process info"
+    node: test-vm
+    type: execute
+    options:
+      command: curl -sf http://localhost:8186/api/v1/meta/runtime | jq -e '.pid > 0 and .binary_path != "" and .uptime != "" and .user.uid != null and .group.gid != null'
+      evaluate:
+        exit_code: 0
+
+  - name: "config endpoint returns application config"
+    node: test-vm
+    type: execute
+    options:
+      command: curl -sf http://localhost:8186/api/v1/meta/config | jq -e '.listen_address != "" and (.security | has("tls_enabled")) and .storage.data_dir != "" and .schema_version >= 1'
+      evaluate:
+        exit_code: 0
+
+  - name: "providers endpoint returns registered providers"
+    node: test-vm
+    type: execute
+    options:
+      command: curl -sf http://localhost:8186/api/v1/meta/providers | jq -e '.providers | length > 0 and all(has("name", "enabled", "endpoint_count"))'
+      evaluate:
+        exit_code: 0
+
+  - name: "store endpoint returns health diagnostics"
+    node: test-vm
+    type: execute
+    options:
+      command: curl -sf http://localhost:8186/api/v1/meta/store | jq -e '.engine == "sqlite" and .status != null and (.diagnostics | length > 0 and all(has("name", "passed")))'
+      evaluate:
+        exit_code: 0
+
+  - name: "cpu endpoint returns processor info"
+    node: test-vm
+    type: execute
+    options:
+      command: curl -sf http://localhost:8186/api/v1/system/cpu | jq -e '.model != "" and .physical_cores >= 1 and .logical_cores >= 1'
+      evaluate:
+        exit_code: 0
+
+  - name: "memory endpoint returns usage info"
+    node: test-vm
+    type: execute
+    options:
+      command: curl -sf http://localhost:8186/api/v1/system/memory | jq -e '.total_bytes > 0 and .usage_percent >= 0'
+      evaluate:
+        exit_code: 0
+
+  - name: "disks endpoint returns partition info"
+    node: test-vm
+    type: execute
+    options:
+      command: curl -sf http://localhost:8186/api/v1/system/disks | jq -e '.partitions | length > 0 and .[0].device != null and .[0].mountpoint != null and .[0].total_bytes > 0'
+      evaluate:
+        exit_code: 0
+
+  - name: "os endpoint returns host info"
+    node: test-vm
+    type: execute
+    options:
+      command: curl -sf http://localhost:8186/api/v1/system/os | jq -e '.os == "linux" and .hostname != "" and .platform != "" and .uptime_seconds > 0'
+      evaluate:
+        exit_code: 0
+
+  - name: "network interfaces endpoint returns interface list"
+    node: test-vm
+    type: execute
+    options:
+      command: curl -sf http://localhost:8186/api/v1/system/network/interfaces | jq -e 'length > 0 and .[0].name != null and .[0].mtu > 0'
+      evaluate:
+        exit_code: 0
+
+  - name: "network config endpoint returns DNS configuration"
+    node: test-vm
+    type: execute
+    options:
+      command: curl -sf http://localhost:8186/api/v1/system/network/config | jq -e '.dns_servers | length > 0'
+      evaluate:
+        exit_code: 0
+
+  - name: "network ports endpoint returns listening sockets"
+    node: test-vm
+    type: execute
+    options:
+      command: curl -sf http://localhost:8186/api/v1/system/network/ports | jq -e 'length > 0 and any(.[]; .local_port == 8186)'
+      evaluate:
+        exit_code: 0
+
+  - name: "metrics endpoint returns time-series data"
+    node: test-vm
+    type: execute
+    options:
+      command: 'curl -sf "http://localhost:8186/api/v1/system/metrics?metric=system.cpu.usage_percent" | jq -e ''.series | type == "array"'''
       evaluate:
         exit_code: 0
 
