@@ -40,7 +40,6 @@ curl -fsSL https://raw.githubusercontent.com/bengrewell/aether-webui/main/script
 
 - System monitoring (CPU, memory, disk, NIC metrics)
 - Kubernetes cluster management
-- Aether 5G lifecycle management (SD-Core, gNB)
 - Multi-host distributed deployments
 
 ## Building
@@ -117,6 +116,13 @@ aether-webd [options]
 | `-u, --exec-user` | User for command execution | - |
 | `-e, --exec-env` | Environment variables for execution | - |
 
+### OnRamp Options
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--onramp-dir` | Path to the aether-onramp repository on disk | `{data-dir}/aether-onramp` |
+| `--onramp-version` | Tag, branch, or commit to pin aether-onramp to | `main` |
+
 ### Frontend Options
 
 | Flag | Description | Default |
@@ -178,6 +184,7 @@ Endpoints are grouped into providers. Additional providers will be added as the 
 | Provider | Endpoints | Description |
 |----------|-----------|-------------|
 | meta | 6 | Version, build, runtime, config, provider list, store diagnostics |
+| onramp | 12 | Aether OnRamp lifecycle — repo, components, tasks, config, profiles |
 
 ### Meta Endpoints
 
@@ -189,6 +196,44 @@ Endpoints are grouped into providers. Additional providers will be added as the 
 | `GET` | `/api/v1/meta/config` | Active configuration (listen address, security, frontend, storage, metrics) |
 | `GET` | `/api/v1/meta/providers` | Registered providers with enabled/running status and endpoint counts |
 | `GET` | `/api/v1/meta/store` | Store engine, schema version, file size, and diagnostic checks |
+
+### OnRamp Endpoints
+
+The onramp provider wraps the [aether-onramp](https://github.com/opennetworkinglab/aether-onramp) Make/Ansible toolchain, exposing it as a REST API. The provider auto-clones the repo on startup and starts in degraded mode if the clone fails.
+
+**Repository**
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/v1/onramp/repo` | Clone status, current commit, branch, tag, and dirty state |
+| `POST` | `/api/v1/onramp/repo/refresh` | Trigger clone/checkout/validate cycle |
+
+**Components**
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/v1/onramp/components` | List all components and their available actions |
+| `GET` | `/api/v1/onramp/components/{component}` | Get a single component by name |
+| `POST` | `/api/v1/onramp/components/{component}/{action}` | Execute a make target asynchronously |
+
+Available components: `k8s`, `5gc`, `4gc`, `gnbsim`, `amp`, `sdran`, `ueransim`, `oai`, `srsran`, `oscric`, `n3iwf`, `cluster`
+
+**Tasks**
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/v1/onramp/tasks` | List recent task executions (most recent first) |
+| `GET` | `/api/v1/onramp/tasks/{id}` | Get task details and output by UUID |
+
+**Configuration**
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/v1/onramp/config` | Read `vars/main.yml` as JSON |
+| `PATCH` | `/api/v1/onramp/config` | Merge partial updates into `vars/main.yml` |
+| `GET` | `/api/v1/onramp/config/profiles` | List available profiles (`main-*.yml` files) |
+| `GET` | `/api/v1/onramp/config/profiles/{name}` | Read a specific profile |
+| `POST` | `/api/v1/onramp/config/profiles/{name}/activate` | Copy a profile to `vars/main.yml` |
 
 ### Built-in Routes
 
@@ -221,6 +266,38 @@ curl http://localhost:8186/api/v1/meta/store
 
 # With bearer token authentication
 curl -H "Authorization: Bearer my-secret-token" http://localhost:8186/api/v1/meta/version
+
+# OnRamp repo clone status
+curl http://localhost:8186/api/v1/onramp/repo
+
+# Re-clone / re-validate the OnRamp repo
+curl -X POST http://localhost:8186/api/v1/onramp/repo/refresh
+
+# List all components and their actions
+curl http://localhost:8186/api/v1/onramp/components
+
+# Deploy the 5G core
+curl -X POST http://localhost:8186/api/v1/onramp/components/5gc/install
+
+# Check the status of all tasks
+curl http://localhost:8186/api/v1/onramp/tasks
+
+# Get output of a specific task
+curl http://localhost:8186/api/v1/onramp/tasks/<task-uuid>
+
+# Read current OnRamp configuration (vars/main.yml)
+curl http://localhost:8186/api/v1/onramp/config
+
+# Update the data interface used by the core
+curl -X PATCH http://localhost:8186/api/v1/onramp/config \
+  -H "Content-Type: application/json" \
+  -d '{"core": {"data_iface": "eth1"}}'
+
+# List available configuration profiles
+curl http://localhost:8186/api/v1/onramp/config/profiles
+
+# Activate the "gnbsim" profile
+curl -X POST http://localhost:8186/api/v1/onramp/config/profiles/gnbsim/activate
 ```
 
 ## Development

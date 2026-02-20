@@ -12,6 +12,8 @@ internal/
   logging/             Structured logging (tint) + request middleware
   provider/            Provider framework (base, registration, options)
     meta/              Introspection provider (version, config, health)
+    onramp/            Aether OnRamp provider (repo, components, tasks, config, profiles)
+    system/            System metrics provider (CPU, memory, disk, NIC)
   security/            TLS/mTLS configuration and self-signed cert generation
   store/               Persistence layer (SQLite)
 deploy/                Deployment configurations
@@ -66,6 +68,14 @@ provider.Register(p.Base, provider.Endpoint[*struct{}, *VersionOutput]{
     Handler: p.handleVersion,
 })
 ```
+
+### Built-in Providers
+
+| Provider | Package | Description |
+|----------|---------|-------------|
+| `meta` | `internal/provider/meta` | Server introspection — version, build, runtime, config, provider list, store diagnostics |
+| `onramp` | `internal/provider/onramp` | Aether OnRamp lifecycle — repo management, component deployment, task tracking, config/profile editing |
+| `system` | `internal/provider/system` | Host system metrics — CPU, memory, disk, NIC sampling |
 
 ### Adding a Provider
 
