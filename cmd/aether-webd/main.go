@@ -4,11 +4,13 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/bengrewell/aether-webui/internal/controller"
 	"github.com/bengrewell/aether-webui/internal/provider"
 	"github.com/bengrewell/aether-webui/internal/provider/meta"
+	"github.com/bengrewell/aether-webui/internal/provider/onramp"
 	"github.com/bengrewell/aether-webui/internal/provider/system"
 	"github.com/bengrewell/aether-webui/internal/store"
 	"github.com/bgrewell/usage"
@@ -48,6 +50,10 @@ func main() {
 	exeOptions := u.AddGroup(1, "Execution Options", "Options that control API command execution")
 	_ = u.AddStringOption("u", "exec-user", "", "User account under which API commands will be executed", "", exeOptions)
 	_ = u.AddStringOption("e", "exec-env", "", "Environment variables to pass to the command execution context", "", exeOptions)
+
+	onrampOptions := u.AddGroup(6, "OnRamp Options", "Options that control the Aether OnRamp provider")
+	flagOnRampDir := u.AddStringOption("", "onramp-dir", "", "Path to aether-onramp repo (default: {data-dir}/aether-onramp)", "", onrampOptions)
+	flagOnRampVersion := u.AddStringOption("", "onramp-version", "main", "Tag, branch, or commit to pin aether-onramp to", "", onrampOptions)
 
 	frontendOptions := u.AddGroup(3, "Frontend Options", "Options that control frontend serving")
 	flagServeFrontend := u.AddBooleanOption("f", "serve-frontend", true, "Enable serving frontend static files from embedded or custom directory", "", frontendOptions)
@@ -99,6 +105,17 @@ func main() {
 		controller.WithProvider("system", true, func(_ context.Context, _ store.Client, opts []provider.Option) (provider.Provider, error) {
 			return system.NewProvider(system.Config{
 				CollectInterval: collectInterval,
+			}, opts...), nil
+		}),
+		controller.WithProvider("onramp", true, func(_ context.Context, _ store.Client, opts []provider.Option) (provider.Provider, error) {
+			dir := *flagOnRampDir
+			if dir == "" {
+				dir = filepath.Join(*flagDataDir, "aether-onramp")
+			}
+			return onramp.NewProvider(onramp.Config{
+				OnRampDir: dir,
+				RepoURL:   "https://github.com/opennetworkinglab/aether-onramp.git",
+				Version:   *flagOnRampVersion,
 			}, opts...), nil
 		}),
 	)
