@@ -1,6 +1,7 @@
 package rest
 
 import (
+	"fmt"
 	"log/slog"
 	"net/http"
 
@@ -73,6 +74,9 @@ func NewTransport(cfg Config, middleware ...func(http.Handler) http.Handler) *Tr
 	}
 	humaConfig := huma.DefaultConfig(cfg.APITitle, cfg.APIVersion)
 	humaConfig.Info.Description = apiOverview
+	// Disable Huma's built-in docs handler; we register a custom one below
+	// that points to the OpenAPI 3.0 spec to avoid Stoplight Elements crashes.
+	humaConfig.DocsPath = ""
 
 	if cfg.TokenAuthEnabled {
 		if humaConfig.Components == nil {
@@ -93,6 +97,35 @@ func NewTransport(cfg Config, middleware ...func(http.Handler) http.Handler) *Tr
 	}
 
 	api := humachi.New(r, humaConfig)
+
+	// Serve the docs page using the downgraded OpenAPI 3.0 spec. Huma's
+	// default serves 3.1 which causes Stoplight Elements v9.0.0 to crash on
+	// endpoints that define path/query parameters.
+	docsTitle := cfg.APITitle + " Reference"
+	r.Get("/docs", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		fmt.Fprintf(w, `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="referrer" content="same-origin" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <title>%s</title>
+    <link href="https://unpkg.com/@stoplight/elements@9.0.0/styles.min.css" rel="stylesheet" />
+    <script src="https://unpkg.com/@stoplight/elements@9.0.0/web-components.min.js" integrity="sha256-Tqvw1qE2abI+G6dPQBc5zbeHqfVwGoamETU3/TSpUw4="
+            crossorigin="anonymous"></script>
+  </head>
+  <body style="height: 100vh;">
+    <elements-api
+      apiDescriptionUrl="/openapi-3.0.yaml"
+      router="hash"
+      layout="sidebar"
+      tryItCredentialsPolicy="same-origin"
+    />
+  </body>
+</html>`, docsTitle)
+	})
+
 	return &Transport{router: r, api: api, log: log, store: cfg.Store}
 }
 
