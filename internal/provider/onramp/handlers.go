@@ -1,19 +1,18 @@
 package onramp
 
 import (
-	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/danielgtaylor/huma/v2"
-	"github.com/google/uuid"
 	"gopkg.in/yaml.v3"
+
+	"github.com/bengrewell/aether-webui/internal/taskrunner"
 )
 
 // ---------------------------------------------------------------------------
@@ -105,65 +104,25 @@ func (o *OnRamp) handleExecuteAction(_ context.Context, in *ExecuteActionInput) 
 			fmt.Errorf("component %s has no action %s", in.Component, in.Action))
 	}
 
-	// Reject if another task is still running.
-	o.mu.Lock()
-	for _, t := range o.tasks {
-		if t.Status == "running" {
-			o.mu.Unlock()
-			return nil, huma.Error409Conflict("a task is already running",
-				fmt.Errorf("task %s (%s) is still in progress", t.ID, t.Target))
-		}
-	}
-
-	task := &Task{
-		ID:        uuid.NewString(),
-		Component: in.Component,
-		Action:    in.Action,
-		Target:    target,
-		Status:    "running",
-		StartedAt: time.Now().UTC(),
-	}
-	// Prepend so most-recent is first.
-	o.tasks = append([]*Task{task}, o.tasks...)
-	o.mu.Unlock()
-
-	go o.runMake(task)
-
-	return &ExecuteActionOutput{Body: *task}, nil
-}
-
-// runMake executes `make <target>` in the OnRamp directory and updates the task
-// when complete.
-func (o *OnRamp) runMake(task *Task) {
-	log := o.Log()
-
-	cmd := exec.Command("make", task.Target)
-	cmd.Dir = o.config.OnRampDir
-
-	var buf bytes.Buffer
-	cmd.Stdout = &buf
-	cmd.Stderr = &buf
-
-	log.Info("starting make target", "target", task.Target, "task_id", task.ID)
-	err := cmd.Run()
-
-	o.mu.Lock()
-	task.FinishedAt = time.Now().UTC()
-	task.Output = buf.String()
+	view, err := o.runner.Submit(taskrunner.TaskSpec{
+		Command:     "make",
+		Args:        []string{target},
+		Dir:         o.config.OnRampDir,
+		Description: fmt.Sprintf("%s/%s", in.Component, in.Action),
+		Labels: map[string]string{
+			"component": in.Component,
+			"action":    in.Action,
+			"target":    target,
+		},
+	})
 	if err != nil {
-		task.Status = "failed"
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			task.ExitCode = exitErr.ExitCode()
-		} else {
-			task.ExitCode = -1
+		if errors.Is(err, taskrunner.ErrConcurrencyLimit) {
+			return nil, huma.Error409Conflict("a task is already running", err)
 		}
-		log.Error("make target failed", "target", task.Target, "task_id", task.ID, "error", err)
-	} else {
-		task.Status = "succeeded"
-		task.ExitCode = 0
-		log.Info("make target succeeded", "target", task.Target, "task_id", task.ID)
+		return nil, huma.Error500InternalServerError("failed to start task", err)
 	}
-	o.mu.Unlock()
+
+	return &ExecuteActionOutput{Body: toOnRampTask(view, "", 0)}, nil
 }
 
 // ---------------------------------------------------------------------------
@@ -171,24 +130,22 @@ func (o *OnRamp) runMake(task *Task) {
 // ---------------------------------------------------------------------------
 
 func (o *OnRamp) handleListTasks(_ context.Context, _ *struct{}) (*TaskListOutput, error) {
-	o.mu.Lock()
-	out := make([]Task, len(o.tasks))
-	for i, t := range o.tasks {
-		out[i] = *t
+	views := o.runner.List(nil)
+	out := make([]OnRampTask, len(views))
+	for i, v := range views {
+		chunk, _ := o.runner.Output(v.ID, 0)
+		out[i] = toOnRampTask(v, chunk.Data, chunk.NewOffset)
 	}
-	o.mu.Unlock()
 	return &TaskListOutput{Body: out}, nil
 }
 
 func (o *OnRamp) handleGetTask(_ context.Context, in *TaskGetInput) (*TaskGetOutput, error) {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	for _, t := range o.tasks {
-		if t.ID == in.ID {
-			return &TaskGetOutput{Body: *t}, nil
-		}
+	view, err := o.runner.Get(in.ID)
+	if err != nil {
+		return nil, huma.Error404NotFound("task not found", fmt.Errorf("no task with id %s", in.ID))
 	}
-	return nil, huma.Error404NotFound("task not found", fmt.Errorf("no task with id %s", in.ID))
+	chunk, _ := o.runner.Output(in.ID, in.Offset)
+	return &TaskGetOutput{Body: toOnRampTask(view, chunk.Data, chunk.NewOffset)}, nil
 }
 
 // ---------------------------------------------------------------------------
