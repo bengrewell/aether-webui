@@ -58,12 +58,13 @@ Endpoints are registered via the generic `provider.Register[I, O]()` function, w
 | Delete    | DELETE      |
 
 ```go
-provider.Register(p.Base, provider.Endpoint[*struct{}, *VersionOutput]{
-    Descriptor: provider.Descriptor{
+provider.Register(p.Base, endpoint.Endpoint[struct{}, VersionOutput]{
+    Desc: endpoint.Descriptor{
         OperationID: "meta-version",
-        Path:        "/api/v1/meta/version",
-        Operation:   provider.Read,
+        Semantics:   endpoint.Read,
         Summary:     "Get version info",
+        Tags:        []string{"meta"},
+        HTTP:        endpoint.HTTPHint{Path: "/api/v1/meta/version"},
     },
     Handler: p.handleVersion,
 })
@@ -71,11 +72,11 @@ provider.Register(p.Base, provider.Endpoint[*struct{}, *VersionOutput]{
 
 ### Built-in Providers
 
-| Provider | Package | Description |
-|----------|---------|-------------|
-| `meta` | `internal/provider/meta` | Server introspection — version, build, runtime, config, provider list, store diagnostics |
-| `onramp` | `internal/provider/onramp` | Aether OnRamp lifecycle — repo management, component deployment, task tracking, config/profile editing |
-| `system` | `internal/provider/system` | Host system metrics — CPU, memory, disk, NIC sampling |
+| Provider | Package | Documentation | Description |
+|----------|---------|---------------|-------------|
+| `meta` | `internal/provider/meta` | [providers/meta.md](providers/meta.md) | Server introspection — version, build, runtime, config, provider list, store diagnostics |
+| `onramp` | `internal/provider/onramp` | [providers/onramp.md](providers/onramp.md) | Aether OnRamp lifecycle — repo management, component deployment, task tracking, config/profile editing |
+| `system` | `internal/provider/system` | [providers/system.md](providers/system.md) | Host system metrics — CPU, memory, disk, NIC sampling |
 
 ### Adding a Provider
 

@@ -1,4 +1,4 @@
-# onramp provider
+# OnRamp Provider
 
 The `onramp` provider wraps the [aether-onramp](https://github.com/opennetworkinglab/aether-onramp)
 Make/Ansible toolchain and exposes it as a REST API. It manages the lifecycle of
@@ -9,7 +9,7 @@ On startup the provider calls `ensureRepo`, which clones the repository if
 absent, checks out the configured version, and validates that `Makefile` and
 `vars/main.yml` are present. If any step fails the provider logs the error and
 continues in degraded mode — endpoints still respond, but operations that require
-the repo (e.g. executing actions, reading config) will return errors until the
+the repo (e.g. executing actions, reading config) return errors until the
 repo is repaired via `POST /api/v1/onramp/repo/refresh`.
 
 ## Architecture
@@ -17,10 +17,10 @@ repo is repaired via `POST /api/v1/onramp/repo/refresh`.
 `OnRamp` embeds `provider.Base` and implements the `provider.Provider` interface.
 All 12 endpoints are registered at construction time via `provider.Register`.
 
-An in-memory `tasks` slice (most-recent first, protected by `sync.Mutex`) tracks
-in-flight and completed `make` executions. Only one task may run at a time; a
-second `POST` to any component action while a task is running returns `409
-Conflict`.
+Task execution is managed by a shared `taskrunner.Runner` configured with
+`MaxConcurrent: 1`. The runner handles task lifecycle (creation, output
+streaming, completion) and enforces the single-task constraint — a second `POST`
+to any component action while a task is running returns `409 Conflict`.
 
 Configuration round-trips are handled by `readVarsFile` / `writeVarsFile` (YAML
 unmarshal/marshal). The `mergeConfig` helper performs a section-level merge:
@@ -31,10 +31,10 @@ non-nil sections in the PATCH body overwrite the corresponding section in
 
 ### Repository
 
-| Operation ID | Semantics | HTTP | Description |
-|---|---|---|---|
-| `onramp-get-repo-status` | Read | `GET /api/v1/onramp/repo` | Clone status, current commit, branch, tag, and dirty state |
-| `onramp-refresh-repo` | Action | `POST /api/v1/onramp/repo/refresh` | Clone if missing, checkout pinned version, validate |
+| Method | Path | Operation ID | Description |
+|--------|------|--------------|-------------|
+| `GET` | `/api/v1/onramp/repo` | `onramp-get-repo-status` | Clone status, current commit, branch, tag, and dirty state |
+| `POST` | `/api/v1/onramp/repo/refresh` | `onramp-refresh-repo` | Clone if missing, checkout pinned version, validate |
 
 **Repo status fields:**
 
@@ -52,11 +52,11 @@ non-nil sections in the PATCH body overwrite the corresponding section in
 
 ### Components
 
-| Operation ID | Semantics | HTTP | Description |
-|---|---|---|---|
-| `onramp-list-components` | Read | `GET /api/v1/onramp/components` | All components and their actions |
-| `onramp-get-component` | Read | `GET /api/v1/onramp/components/{component}` | Single component by name |
-| `onramp-execute-action` | Action | `POST /api/v1/onramp/components/{component}/{action}` | Run a make target (async) |
+| Method | Path | Operation ID | Description |
+|--------|------|--------------|-------------|
+| `GET` | `/api/v1/onramp/components` | `onramp-list-components` | All components and their actions |
+| `GET` | `/api/v1/onramp/components/{component}` | `onramp-get-component` | Single component by name |
+| `POST` | `/api/v1/onramp/components/{component}/{action}` | `onramp-execute-action` | Run a make target (async) |
 
 `POST /api/v1/onramp/components/{component}/{action}` returns the newly created
 task immediately. Poll `GET /api/v1/onramp/tasks/{id}` to track progress and
@@ -81,10 +81,15 @@ retrieve output.
 
 ### Tasks
 
-| Operation ID | Semantics | HTTP | Description |
-|---|---|---|---|
-| `onramp-list-tasks` | Read | `GET /api/v1/onramp/tasks` | All tasks, most recent first |
-| `onramp-get-task` | Read | `GET /api/v1/onramp/tasks/{id}` | Single task by UUID |
+| Method | Path | Operation ID | Description |
+|--------|------|--------------|-------------|
+| `GET` | `/api/v1/onramp/tasks` | `onramp-list-tasks` | All tasks, most recent first |
+| `GET` | `/api/v1/onramp/tasks/{id}` | `onramp-get-task` | Single task by UUID (supports incremental output) |
+
+The task detail endpoint accepts an `offset` query parameter (default `0`) for
+incremental output reads. The response includes an `output_offset` field
+indicating the byte position to use as `offset` on the next request, enabling
+efficient polling of long-running tasks without re-fetching earlier output.
 
 **Task fields:**
 
@@ -98,17 +103,18 @@ retrieve output.
 | `started_at` | string | RFC 3339 timestamp |
 | `finished_at` | string | RFC 3339 timestamp (omitted while running) |
 | `exit_code` | int | Process exit code (omitted while running; `-1` on exec error) |
-| `output` | string | Combined stdout/stderr from `make` |
+| `output` | string | Combined stdout/stderr (or incremental chunk when `offset` is used) |
+| `output_offset` | int | Byte offset for the next incremental read |
 
 ### Configuration
 
-| Operation ID | Semantics | HTTP | Description |
-|---|---|---|---|
-| `onramp-get-config` | Read | `GET /api/v1/onramp/config` | Parse and return `vars/main.yml` as JSON |
-| `onramp-patch-config` | Update | `PATCH /api/v1/onramp/config` | Merge partial update into `vars/main.yml` |
-| `onramp-list-profiles` | Read | `GET /api/v1/onramp/config/profiles` | Names of `vars/main-*.yml` profile files |
-| `onramp-get-profile` | Read | `GET /api/v1/onramp/config/profiles/{name}` | Parse a named profile as JSON |
-| `onramp-activate-profile` | Action | `POST /api/v1/onramp/config/profiles/{name}/activate` | Copy profile to `vars/main.yml` |
+| Method | Path | Operation ID | Description |
+|--------|------|--------------|-------------|
+| `GET` | `/api/v1/onramp/config` | `onramp-get-config` | Parse and return `vars/main.yml` as JSON |
+| `PATCH` | `/api/v1/onramp/config` | `onramp-patch-config` | Merge partial update into `vars/main.yml` |
+| `GET` | `/api/v1/onramp/config/profiles` | `onramp-list-profiles` | Names of `vars/main-*.yml` profile files |
+| `GET` | `/api/v1/onramp/config/profiles/{name}` | `onramp-get-profile` | Parse a named profile as JSON |
+| `POST` | `/api/v1/onramp/config/profiles/{name}/activate` | `onramp-activate-profile` | Copy profile to `vars/main.yml` |
 
 PATCH performs a **section-level** merge: supply only the top-level sections you
 want to change. Omitting a section leaves it unchanged. For example, to update
