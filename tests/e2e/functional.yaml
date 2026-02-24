@@ -2,9 +2,9 @@
 ########################################################################################################################
 ## Test Suite Configuration                                                                                           ##
 ########################################################################################################################
-# API smoke tests for aether-webd on a clean Ubuntu 24.04 LXD VM. Installs from the latest GitHub release via the
-# hosted install script, verifies the systemd service starts and responds to health/version API requests, then
-# uninstalls with --purge.
+# Functional tests for aether-webd on a clean Ubuntu 24.04 LXD VM. Installs from the latest GitHub release via the
+# hosted install script, verifies meta + system endpoints, then tests the OnRamp provider: information endpoints,
+# node management, inventory sync, and Ansible pingall via localhost. Uninstalls with --purge at teardown.
 suite: Aether Web User Interface API Test Suite
 
 ########################################################################################################################
@@ -41,7 +41,17 @@ lxd:
           packages:
             - curl
             - jq
+            - git
+            - make
+            - ansible
+            - sshpass
           runcmd:
+            # Set password for the ubuntu user so Ansible can SSH to localhost
+            - [ bash, -c, "echo 'ubuntu:onramp-test' | chpasswd" ]
+            # Enable SSH password authentication (base config + drop-in overrides)
+            - [ bash, -c, "sed -i 's/^#\\?PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config" ]
+            - [ bash, -c, "sed -i 's/^#\\?PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config.d/*.conf 2>/dev/null || true" ]
+            - [ systemctl, restart, ssh ]
             # Write a file to show cloud-init has finished running
             - [ bash, -c, 'echo "complete" > /tmp/cloud-init.complete' ]
 
@@ -90,6 +100,23 @@ setup:
       type: execute
       options:
         command: for i in $(seq 1 30); do curl -sf http://localhost:8186/healthz && exit 0; sleep 1; done; exit 1
+
+  - name: "configure Ansible environment for the service"
+    node: test-vm
+    step:
+      type: execute
+      options:
+        command: |
+          sudo bash -c 'printf "ANSIBLE_HOST_KEY_CHECKING=False\nHOME=/var/lib/aether-webd\n" >> /etc/aether-webd/env'
+          sudo systemctl restart aether-webd
+          for i in $(seq 1 30); do curl -sf http://localhost:8186/healthz && exit 0; sleep 1; done; exit 1
+
+  - name: "wait for OnRamp repo clone to complete"
+    node: test-vm
+    step:
+      type: execute
+      options:
+        command: for i in $(seq 1 120); do curl -sf http://localhost:8186/api/v1/onramp/repo | jq -e '.cloned == true' && exit 0; sleep 1; done; exit 1
 
 ########################################################################################################################
 ## Tests — API endpoint validation                                                                                    ##
@@ -213,6 +240,145 @@ tests:
     type: execute
     options:
       command: 'curl -sf "http://localhost:8186/api/v1/system/metrics?metric=system.cpu.usage_percent" | jq -e ''.series | type == "array"'''
+      evaluate:
+        exit_code: 0
+
+  ######################################################################################################################
+  ## OnRamp provider — information endpoints                                                                          ##
+  ######################################################################################################################
+
+  - name: "repo status shows cloned repo"
+    node: test-vm
+    type: execute
+    options:
+      command: curl -sf http://localhost:8186/api/v1/onramp/repo | jq -e '.cloned == true and .dir != "" and .commit != ""'
+      evaluate:
+        exit_code: 0
+
+  - name: "components list returns all registered"
+    node: test-vm
+    type: execute
+    options:
+      command: curl -sf http://localhost:8186/api/v1/onramp/components | jq -e 'length == 12 and any(.[]; .name == "k8s") and any(.[]; .name == "cluster")'
+      evaluate:
+        exit_code: 0
+
+  - name: "get single component returns actions"
+    node: test-vm
+    type: execute
+    options:
+      command: curl -sf http://localhost:8186/api/v1/onramp/components/cluster | jq -e '.name == "cluster" and (.actions | length > 0) and any(.actions[]; .name == "pingall")'
+      evaluate:
+        exit_code: 0
+
+  - name: "config returns parsed vars"
+    node: test-vm
+    type: execute
+    options:
+      command: curl -sf http://localhost:8186/api/v1/onramp/config | jq -e 'has("k8s") or has("core") or . == {}'
+      evaluate:
+        exit_code: 0
+
+  - name: "profiles list returns array"
+    node: test-vm
+    type: execute
+    options:
+      command: curl -sf http://localhost:8186/api/v1/onramp/config/profiles | jq -e 'type == "array"'
+      evaluate:
+        exit_code: 0
+
+  - name: "tasks list initially empty"
+    node: test-vm
+    type: execute
+    options:
+      command: curl -sf http://localhost:8186/api/v1/onramp/tasks | jq -e 'type == "array"'
+      evaluate:
+        exit_code: 0
+
+  - name: "inventory initially has nodes array"
+    node: test-vm
+    type: execute
+    options:
+      command: curl -sf http://localhost:8186/api/v1/onramp/inventory | jq -e '.nodes | type == "array"'
+      evaluate:
+        exit_code: 0
+
+  ######################################################################################################################
+  ## OnRamp provider — node management, inventory sync, and pingall                                                   ##
+  ######################################################################################################################
+
+  - name: "create localhost node with all roles"
+    node: test-vm
+    type: execute
+    options:
+      command: >-
+        curl -sf -X POST http://localhost:8186/api/v1/nodes
+        -H 'Content-Type: application/json'
+        -d '{"name":"localhost","ansible_host":"127.0.0.1","ansible_user":"ubuntu","password":"onramp-test","sudo_password":"onramp-test","roles":["master","worker","gnbsim","oai","ueransim","srsran","oscric","n3iwf"]}'
+        | jq -e '.id != "" and .has_password == true'
+      evaluate:
+        exit_code: 0
+
+  - name: "list nodes returns created node"
+    node: test-vm
+    type: execute
+    options:
+      command: curl -sf http://localhost:8186/api/v1/nodes | jq -e 'length == 1 and .[0].name == "localhost"'
+      evaluate:
+        exit_code: 0
+
+  - name: "sync inventory to hosts.ini"
+    node: test-vm
+    type: execute
+    options:
+      command: curl -sf -X POST http://localhost:8186/api/v1/onramp/inventory/sync | jq -e '.message | test("1 nodes")'
+      evaluate:
+        exit_code: 0
+
+  - name: "get inventory shows localhost with all roles"
+    node: test-vm
+    type: execute
+    options:
+      command: curl -sf http://localhost:8186/api/v1/onramp/inventory | jq -e '.nodes | length == 1 and .[0].name == "localhost" and (.[0].roles | length == 8)'
+      evaluate:
+        exit_code: 0
+
+  - name: "execute pingall action"
+    node: test-vm
+    type: execute
+    options:
+      command: curl -sf -X POST http://localhost:8186/api/v1/onramp/components/cluster/pingall | jq -r '.id' | tee /tmp/pingall_task_id
+      evaluate:
+        exit_code: 0
+
+  - name: "wait for pingall to complete"
+    node: test-vm
+    type: execute
+    options:
+      command: >-
+        TASK_ID=$(cat /tmp/pingall_task_id);
+        for i in $(seq 1 120); do
+          STATUS=$(curl -sf "http://localhost:8186/api/v1/onramp/tasks/${TASK_ID}" | jq -r '.status');
+          [ "$STATUS" != "running" ] && exit 0;
+          sleep 1;
+        done;
+        exit 1
+
+  - name: "verify pingall succeeded"
+    node: test-vm
+    type: execute
+    options:
+      command: >-
+        TASK_ID=$(cat /tmp/pingall_task_id);
+        curl -sf "http://localhost:8186/api/v1/onramp/tasks/${TASK_ID}" | jq -e '.status == "succeeded" and .exit_code == 0'
+      evaluate:
+        exit_code: 0
+
+  - name: "tasks list includes completed pingall"
+    node: test-vm
+    type: execute
+    options:
+      command: curl -sf http://localhost:8186/api/v1/onramp/tasks | jq -e 'length > 0 and any(.[]; .component == "cluster" and .action == "pingall")'
       evaluate:
         exit_code: 0
 
