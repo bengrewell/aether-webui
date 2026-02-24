@@ -29,7 +29,7 @@ func NewProvider(cfg Config, opts ...provider.Option) *OnRamp {
 	o := &OnRamp{
 		Base:      base,
 		config:    cfg,
-		endpoints: make([]endpoint.AnyEndpoint, 0, 12),
+		endpoints: make([]endpoint.AnyEndpoint, 0, 14),
 		runner: taskrunner.New(taskrunner.RunnerConfig{
 			MaxConcurrent: 1,
 			Logger:        base.Log(),
@@ -188,6 +188,32 @@ func NewProvider(cfg Config, opts ...provider.Option) *OnRamp {
 			HTTP:        endpoint.HTTPHint{Path: "/api/v1/onramp/config/profiles/{name}/activate"},
 		},
 		Handler: o.handleActivateProfile,
+	})
+
+	// --- Inventory ---
+
+	provider.Register(o.Base, endpoint.Endpoint[struct{}, InventoryGetOutput]{
+		Desc: endpoint.Descriptor{
+			OperationID: "onramp-get-inventory",
+			Semantics:   endpoint.Read,
+			Summary:     "Get Ansible inventory",
+			Description: "Parses the current hosts.ini and returns structured inventory data.",
+			Tags:        []string{"onramp"},
+			HTTP:        endpoint.HTTPHint{Path: "/api/v1/onramp/inventory"},
+		},
+		Handler: o.handleGetInventory,
+	})
+
+	provider.Register(o.Base, endpoint.Endpoint[struct{}, InventorySyncOutput]{
+		Desc: endpoint.Descriptor{
+			OperationID: "onramp-sync-inventory",
+			Semantics:   endpoint.Action,
+			Summary:     "Sync inventory to hosts.ini",
+			Description: "Generates hosts.ini from managed nodes in the database and writes it to disk.",
+			Tags:        []string{"onramp"},
+			HTTP:        endpoint.HTTPHint{Path: "/api/v1/onramp/inventory/sync"},
+		},
+		Handler: o.handleSyncInventory,
 	})
 
 	return o

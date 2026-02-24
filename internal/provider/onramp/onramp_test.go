@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/bengrewell/aether-webui/internal/provider"
+	"github.com/bengrewell/aether-webui/internal/store"
 	"github.com/bengrewell/aether-webui/internal/taskrunner"
 )
 
@@ -119,8 +120,8 @@ func TestNewProvider_ImplementsInterface(t *testing.T) {
 func TestNewProvider_EndpointCount(t *testing.T) {
 	p := newTestProvider(t, "")
 	descs := p.Base.Descriptors()
-	if len(descs) != 12 {
-		t.Errorf("registered %d endpoints, want 12", len(descs))
+	if len(descs) != 14 {
+		t.Errorf("registered %d endpoints, want 14", len(descs))
 	}
 }
 
@@ -140,6 +141,8 @@ func TestNewProvider_EndpointPaths(t *testing.T) {
 		"onramp-list-profiles":  "/api/v1/onramp/config/profiles",
 		"onramp-get-profile":    "/api/v1/onramp/config/profiles/{name}",
 		"onramp-activate-profile": "/api/v1/onramp/config/profiles/{name}/activate",
+		"onramp-get-inventory":    "/api/v1/onramp/inventory",
+		"onramp-sync-inventory":   "/api/v1/onramp/inventory/sync",
 	}
 
 	descs := p.Base.Descriptors()
@@ -909,6 +912,190 @@ func TestComponentRegistryConsistency(t *testing.T) {
 		} else if indexed.Name != comp.Name {
 			t.Errorf("index[%q].Name = %q", comp.Name, indexed.Name)
 		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Start / Stop
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Inventory: parseHostsINI
+// ---------------------------------------------------------------------------
+
+func TestParseHostsINI_Full(t *testing.T) {
+	data := []byte(`[all]
+node1 ansible_host=10.0.0.1 ansible_user=ubuntu ansible_password=secret ansible_sudo_pass=sudo
+node2 ansible_host=10.0.0.2 ansible_user=root
+
+[master_nodes]
+node1
+
+[worker_nodes]
+node2
+`)
+	inv := parseHostsINI(data)
+	if len(inv.Nodes) != 2 {
+		t.Fatalf("got %d nodes, want 2", len(inv.Nodes))
+	}
+
+	nodeMap := make(map[string]InventoryNode)
+	for _, n := range inv.Nodes {
+		nodeMap[n.Name] = n
+	}
+
+	n1 := nodeMap["node1"]
+	if n1.AnsibleHost != "10.0.0.1" {
+		t.Errorf("node1 host = %q, want %q", n1.AnsibleHost, "10.0.0.1")
+	}
+	if n1.AnsibleUser != "ubuntu" {
+		t.Errorf("node1 user = %q, want %q", n1.AnsibleUser, "ubuntu")
+	}
+	if len(n1.Roles) != 1 || n1.Roles[0] != "master" {
+		t.Errorf("node1 roles = %v, want [master]", n1.Roles)
+	}
+
+	n2 := nodeMap["node2"]
+	if len(n2.Roles) != 1 || n2.Roles[0] != "worker" {
+		t.Errorf("node2 roles = %v, want [worker]", n2.Roles)
+	}
+}
+
+func TestParseHostsINI_Empty(t *testing.T) {
+	inv := parseHostsINI([]byte(""))
+	if len(inv.Nodes) != 0 {
+		t.Errorf("expected empty nodes, got %d", len(inv.Nodes))
+	}
+}
+
+func TestParseHostsINI_CommentsAndBlanks(t *testing.T) {
+	data := []byte(`# This is a comment
+[all]
+# Another comment
+node1 ansible_host=10.0.0.1
+
+[master_nodes]
+node1
+`)
+	inv := parseHostsINI(data)
+	if len(inv.Nodes) != 1 {
+		t.Fatalf("got %d nodes, want 1", len(inv.Nodes))
+	}
+	if inv.Nodes[0].Name != "node1" {
+		t.Errorf("name = %q, want %q", inv.Nodes[0].Name, "node1")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Inventory: generateHostsINI
+// ---------------------------------------------------------------------------
+
+func TestGenerateHostsINI(t *testing.T) {
+	nodes := []store.Node{
+		{
+			Name:         "node1",
+			AnsibleHost:  "10.0.0.1",
+			AnsibleUser:  "ubuntu",
+			Password:     []byte("pass1"),
+			SudoPassword: []byte("sudo1"),
+			Roles:        []string{"master"},
+		},
+		{
+			Name:         "node2",
+			AnsibleHost:  "10.0.0.2",
+			AnsibleUser:  "root",
+			Roles:        []string{"worker"},
+		},
+	}
+
+	data := generateHostsINI(nodes)
+	content := string(data)
+
+	// Verify [all] section entries.
+	if !strings.Contains(content, "node1 ansible_host=10.0.0.1 ansible_user=ubuntu ansible_password=pass1 ansible_sudo_pass=sudo1") {
+		t.Errorf("missing node1 in [all] section:\n%s", content)
+	}
+	if !strings.Contains(content, "node2 ansible_host=10.0.0.2 ansible_user=root") {
+		t.Errorf("missing node2 in [all] section:\n%s", content)
+	}
+
+	// Verify role sections.
+	if !strings.Contains(content, "[master_nodes]\nnode1") {
+		t.Errorf("missing node1 in [master_nodes]:\n%s", content)
+	}
+	if !strings.Contains(content, "[worker_nodes]\nnode2") {
+		t.Errorf("missing node2 in [worker_nodes]:\n%s", content)
+	}
+}
+
+func TestGenerateHostsINI_EmptySections(t *testing.T) {
+	// No nodes: all role sections should still be emitted.
+	data := generateHostsINI(nil)
+	content := string(data)
+
+	for _, section := range []string{"[master_nodes]", "[worker_nodes]", "[gnbsim_nodes]"} {
+		if !strings.Contains(content, section) {
+			t.Errorf("missing section %s:\n%s", section, content)
+		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Inventory: handler tests
+// ---------------------------------------------------------------------------
+
+func TestHandleGetInventory_MissingFile(t *testing.T) {
+	p := newTestProvider(t, "")
+	out, err := p.handleGetInventory(t.Context(), nil)
+	if err != nil {
+		t.Fatalf("handleGetInventory: %v", err)
+	}
+	if len(out.Body.Nodes) != 0 {
+		t.Errorf("expected empty inventory, got %d nodes", len(out.Body.Nodes))
+	}
+}
+
+func TestHandleGetInventory_ExistingFile(t *testing.T) {
+	p := newTestProvider(t, "")
+	hostsINI := `[all]
+node1 ansible_host=10.0.0.1
+
+[master_nodes]
+node1
+`
+	if err := os.WriteFile(filepath.Join(p.config.OnRampDir, "hosts.ini"), []byte(hostsINI), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	out, err := p.handleGetInventory(t.Context(), nil)
+	if err != nil {
+		t.Fatalf("handleGetInventory: %v", err)
+	}
+	if len(out.Body.Nodes) != 1 {
+		t.Fatalf("expected 1 node, got %d", len(out.Body.Nodes))
+	}
+	if out.Body.Nodes[0].Name != "node1" {
+		t.Errorf("name = %q, want %q", out.Body.Nodes[0].Name, "node1")
+	}
+}
+
+func TestHandleSyncInventory(t *testing.T) {
+	p := newTestProvider(t, "")
+
+	// Sync requires a store — the test provider doesn't have one,
+	// so calling handleSyncInventory will fail on store access.
+	// This is tested via integration tests with a real store.
+	// Here we just verify the handler exists and is wired.
+	descs := p.Base.Descriptors()
+	found := false
+	for _, d := range descs {
+		if d.OperationID == "onramp-sync-inventory" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("expected onramp-sync-inventory endpoint to be registered")
 	}
 }
 
