@@ -1,10 +1,9 @@
 package onramp
 
 import (
-	"sync"
-
 	"github.com/bengrewell/aether-webui/internal/endpoint"
 	"github.com/bengrewell/aether-webui/internal/provider"
+	"github.com/bengrewell/aether-webui/internal/taskrunner"
 )
 
 var _ provider.Provider = (*OnRamp)(nil)
@@ -21,18 +20,20 @@ type OnRamp struct {
 	*provider.Base
 	config    Config
 	endpoints []endpoint.AnyEndpoint
-
-	mu    sync.Mutex
-	tasks []*Task // most-recent first
+	runner    *taskrunner.Runner
 }
 
 // NewProvider creates a new OnRamp provider with all endpoints registered.
 func NewProvider(cfg Config, opts ...provider.Option) *OnRamp {
+	base := provider.New("onramp", opts...)
 	o := &OnRamp{
-		Base:      provider.New("onramp", opts...),
+		Base:      base,
 		config:    cfg,
 		endpoints: make([]endpoint.AnyEndpoint, 0, 12),
-		tasks:     make([]*Task, 0),
+		runner: taskrunner.New(taskrunner.RunnerConfig{
+			MaxConcurrent: 1,
+			Logger:        base.Log(),
+		}),
 	}
 
 	// --- Repo ---

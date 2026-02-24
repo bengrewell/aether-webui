@@ -1,6 +1,10 @@
 package onramp
 
-import "time"
+import (
+	"time"
+
+	"github.com/bengrewell/aether-webui/internal/taskrunner"
+)
 
 // ---------------------------------------------------------------------------
 // Component registry
@@ -146,17 +150,38 @@ func init() {
 // Task tracking
 // ---------------------------------------------------------------------------
 
-// Task represents an in-flight or completed make target execution.
-type Task struct {
-	ID         string    `json:"id"`
-	Component  string    `json:"component"`
-	Action     string    `json:"action"`
-	Target     string    `json:"target"`
-	Status     string    `json:"status"` // pending, running, succeeded, failed
-	StartedAt  time.Time `json:"started_at"`
-	FinishedAt time.Time `json:"finished_at,omitempty"`
-	ExitCode   int       `json:"exit_code,omitempty"`
-	Output     string    `json:"output"`
+// OnRampTask is the API-facing representation of a make target execution.
+// It preserves the JSON shape of the previous Task type and adds an
+// output_offset field for incremental streaming support.
+type OnRampTask struct {
+	ID           string    `json:"id"`
+	Component    string    `json:"component"`
+	Action       string    `json:"action"`
+	Target       string    `json:"target"`
+	Status       string    `json:"status"`
+	StartedAt    time.Time `json:"started_at"`
+	FinishedAt   time.Time `json:"finished_at,omitempty"`
+	ExitCode     int       `json:"exit_code,omitempty"`
+	Output       string    `json:"output"`
+	OutputOffset int       `json:"output_offset"`
+}
+
+// toOnRampTask converts a TaskView and output chunk into the OnRamp-specific
+// task representation. Component, action, and target are extracted from the
+// task's labels.
+func toOnRampTask(view taskrunner.TaskView, output string, outputOffset int) OnRampTask {
+	return OnRampTask{
+		ID:           view.ID,
+		Component:    view.Labels["component"],
+		Action:       view.Labels["action"],
+		Target:       view.Labels["target"],
+		Status:       string(view.Status),
+		StartedAt:    view.StartedAt,
+		FinishedAt:   view.FinishedAt,
+		ExitCode:     view.ExitCode,
+		Output:       output,
+		OutputOffset: outputOffset,
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -501,21 +526,22 @@ type ExecuteActionInput struct {
 }
 
 type ExecuteActionOutput struct {
-	Body Task
+	Body OnRampTask
 }
 
 // --- Tasks ---
 
 type TaskListOutput struct {
-	Body []Task
+	Body []OnRampTask
 }
 
 type TaskGetInput struct {
-	ID string `path:"id" doc:"Task ID"`
+	ID     string `path:"id" doc:"Task ID"`
+	Offset int    `query:"offset" default:"0" doc:"Byte offset for incremental output reads"`
 }
 
 type TaskGetOutput struct {
-	Body Task
+	Body OnRampTask
 }
 
 // --- Config ---
