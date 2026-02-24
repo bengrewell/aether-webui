@@ -10,6 +10,7 @@ import (
 	"github.com/bengrewell/aether-webui/internal/controller"
 	"github.com/bengrewell/aether-webui/internal/provider"
 	"github.com/bengrewell/aether-webui/internal/provider/meta"
+	"github.com/bengrewell/aether-webui/internal/provider/nodes"
 	"github.com/bengrewell/aether-webui/internal/provider/onramp"
 	"github.com/bengrewell/aether-webui/internal/provider/system"
 	"github.com/bengrewell/aether-webui/internal/store"
@@ -106,6 +107,9 @@ func main() {
 			return system.NewProvider(system.Config{
 				CollectInterval: collectInterval,
 			}, opts...), nil
+		}),
+		controller.WithProvider("nodes", true, func(_ context.Context, _ store.Client, opts []provider.Option) (provider.Provider, error) {
+			return nodes.NewProvider(opts...), nil
 		}),
 		controller.WithProvider("onramp", true, func(_ context.Context, _ store.Client, opts []provider.Option) (provider.Provider, error) {
 			dir := *flagOnRampDir

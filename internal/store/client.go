@@ -84,6 +84,26 @@ func Load[T any](c Client, ctx context.Context, key Key, opts ...LoadOption) (It
 	}, true, nil
 }
 
+// UpsertNode creates or updates a node in the store.
+func (c Client) UpsertNode(ctx context.Context, node Node) error {
+	return c.s.UpsertNode(ctx, node)
+}
+
+// GetNode retrieves a node by ID, returning decrypted secrets.
+func (c Client) GetNode(ctx context.Context, id string) (Node, bool, error) {
+	return c.s.GetNode(ctx, id)
+}
+
+// DeleteNode removes a node and its role assignments.
+func (c Client) DeleteNode(ctx context.Context, id string) error {
+	return c.s.DeleteNode(ctx, id)
+}
+
+// ListNodes returns all nodes without secrets.
+func (c Client) ListNodes(ctx context.Context) ([]NodeInfo, error) {
+	return c.s.ListNodes(ctx)
+}
+
 func (c Client) GetSchemaVersion() (int, error) {
 	return c.s.GetSchemaVersion()
 }

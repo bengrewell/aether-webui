@@ -37,6 +37,31 @@ type CredentialInfo struct {
 	UpdatedAt time.Time
 }
 
+// Nodes
+
+type Node struct {
+	ID           string
+	Name         string   // Ansible inventory hostname (e.g. "node1")
+	AnsibleHost  string   // IP or hostname for SSH
+	AnsibleUser  string   // SSH username
+	Password     []byte   // plaintext at API boundary; encrypted at rest
+	SudoPassword []byte   // plaintext at API boundary; encrypted at rest
+	SSHKey       []byte   // plaintext at API boundary; encrypted at rest
+	Roles        []string // role assignments (master, worker, gnbsim, etc.)
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+}
+
+type NodeInfo struct {
+	ID          string
+	Name        string
+	AnsibleHost string
+	AnsibleUser string
+	Roles       []string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
 // Metrics
 
 type Sample struct {

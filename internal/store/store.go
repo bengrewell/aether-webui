@@ -19,6 +19,12 @@ type Store interface {
 	DeleteCredential(ctx context.Context, id string) error
 	ListCredentials(ctx context.Context) ([]CredentialInfo, error)
 
+	// Nodes (typed)
+	UpsertNode(ctx context.Context, node Node) error
+	GetNode(ctx context.Context, id string) (Node, bool, error)
+	DeleteNode(ctx context.Context, id string) error
+	ListNodes(ctx context.Context) ([]NodeInfo, error)
+
 	// Metrics (typed)
 	AppendSample(ctx context.Context, s Sample) error
 	AppendSamples(ctx context.Context, samples []Sample) error

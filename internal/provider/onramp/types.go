@@ -581,3 +581,29 @@ type ProfileActivateOutput struct {
 		Message string `json:"message"`
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Inventory types
+// ---------------------------------------------------------------------------
+
+type InventoryData struct {
+	Nodes []InventoryNode `json:"nodes"`
+}
+
+type InventoryNode struct {
+	Name        string   `json:"name"`
+	AnsibleHost string   `json:"ansible_host"`
+	AnsibleUser string   `json:"ansible_user"`
+	Roles       []string `json:"roles"`
+}
+
+type InventoryGetOutput struct {
+	Body InventoryData
+}
+
+type InventorySyncOutput struct {
+	Body struct {
+		Message string `json:"message"`
+		Path    string `json:"path"`
+	}
+}
