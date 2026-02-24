@@ -1,8 +1,10 @@
 # Aether WebUI Documentation
 
-Backend API service for the Aether WebUI. Provides a provider-based plugin framework, persistent state, embedded frontend serving, and OpenAPI-documented REST endpoints.
+## Architecture & Concepts
+- [Architecture Overview](architecture.md) — controller lifecycle, provider framework, request flow
+- [Security](security.md) — TLS, mTLS, token authentication
 
-## Documents
-
-- [Architecture Overview](architecture.md) — controller lifecycle, project structure, provider framework, request lifecycle
-- [Security](security.md) — TLS, mTLS, token authentication configuration
+## Providers
+- [Meta](providers/meta.md) — server introspection and diagnostics
+- [OnRamp](providers/onramp.md) — Aether OnRamp lifecycle management
+- [System](providers/system.md) — host system metrics
