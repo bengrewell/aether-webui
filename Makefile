@@ -24,7 +24,7 @@ LDFLAGS := -X 'main.version=$(VERSION)' \
            -X 'main.branch=$(BRANCH)' \
            -X 'main.buildDate=$(DATE)'
 
-.PHONY: build clean test coverage coverage-html run version docker-build docker-push frontend embed-frontend all ensure-frontend init-submodules lint
+.PHONY: build clean test coverage coverage-html run version docker-build docker-push frontend embed-frontend all ensure-frontend init-submodules lint openapi
 
 # Initialize git submodules if needed
 init-submodules:
@@ -103,6 +103,11 @@ docker-build:
 		-t $(DOCKER_IMAGE):latest \
 		-f deploy/docker/Dockerfile .
 	@echo "Built $(DOCKER_IMAGE):$(DOCKER_TAG)"
+
+# Generate static OpenAPI spec from registered providers
+openapi:
+	go run ./cmd/generate-openapi
+	@echo "Generated api/openapi.json"
 
 # Push Docker image
 docker-push: docker-build

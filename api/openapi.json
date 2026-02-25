@@ -1,0 +1,3775 @@
+{
+  "components": {
+    "schemas": {
+      "AMFConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "ip": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "ip"
+        ],
+        "type": "object"
+      },
+      "AMPConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "aether_roc": {
+            "$ref": "#/components/schemas/HelmBlock"
+          },
+          "atomix": {
+            "$ref": "#/components/schemas/HelmBlock"
+          },
+          "monitor": {
+            "$ref": "#/components/schemas/HelmBlock"
+          },
+          "monitor_crd": {
+            "$ref": "#/components/schemas/HelmBlock"
+          },
+          "monitor_dashboard": {
+            "type": "string"
+          },
+          "onosproject": {
+            "$ref": "#/components/schemas/HelmBlock"
+          },
+          "roc_models": {
+            "type": "string"
+          },
+          "store": {
+            "$ref": "#/components/schemas/StoreConfig"
+          }
+        },
+        "type": "object"
+      },
+      "Action": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "description",
+          "target"
+        ],
+        "type": "object"
+      },
+      "BuildInfo": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/BuildInfo.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "arch": {
+            "description": "Target architecture",
+            "examples": [
+              "amd64"
+            ],
+            "type": "string"
+          },
+          "go_version": {
+            "description": "Go toolchain version",
+            "examples": [
+              "go1.25.0"
+            ],
+            "type": "string"
+          },
+          "os": {
+            "description": "Target operating system",
+            "examples": [
+              "linux"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "go_version",
+          "os",
+          "arch"
+        ],
+        "type": "object"
+      },
+      "CPUInfo": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/CPUInfo.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "cache_size_kb": {
+            "description": "CPU cache size in kilobytes",
+            "examples": [
+              16384
+            ],
+            "format": "int32",
+            "type": "integer"
+          },
+          "flags": {
+            "description": "CPU feature flags",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "frequency_mhz": {
+            "description": "Base clock frequency in MHz",
+            "examples": [
+              3800
+            ],
+            "format": "double",
+            "type": "number"
+          },
+          "logical_cores": {
+            "description": "Number of logical CPU cores (includes hyperthreading)",
+            "examples": [
+              16
+            ],
+            "format": "int64",
+            "type": "integer"
+          },
+          "model": {
+            "description": "CPU model name",
+            "examples": [
+              "Intel(R) Core(TM) i7-10700K CPU @ 3.80GHz"
+            ],
+            "type": "string"
+          },
+          "physical_cores": {
+            "description": "Number of physical CPU cores",
+            "examples": [
+              8
+            ],
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "model",
+          "physical_cores",
+          "logical_cores",
+          "frequency_mhz",
+          "cache_size_kb",
+          "flags"
+        ],
+        "type": "object"
+      },
+      "Component": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/Component.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "actions": {
+            "items": {
+              "$ref": "#/components/schemas/Action"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "description": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "description",
+          "actions"
+        ],
+        "type": "object"
+      },
+      "ConfigInfo": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/ConfigInfo.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "debug_enabled": {
+            "description": "Whether debug mode is enabled",
+            "examples": [
+              false
+            ],
+            "type": "boolean"
+          },
+          "frontend": {
+            "$ref": "#/components/schemas/FrontendConfig",
+            "description": "Frontend serving configuration"
+          },
+          "listen_address": {
+            "description": "Server listen address",
+            "examples": [
+              "127.0.0.1:8186"
+            ],
+            "type": "string"
+          },
+          "metrics": {
+            "$ref": "#/components/schemas/MetricsConfig",
+            "description": "Metrics collection configuration"
+          },
+          "schema_version": {
+            "description": "Current database schema version",
+            "examples": [
+              2
+            ],
+            "format": "int64",
+            "type": "integer"
+          },
+          "security": {
+            "$ref": "#/components/schemas/SecurityConfig",
+            "description": "Security configuration"
+          },
+          "storage": {
+            "$ref": "#/components/schemas/StorageConfig",
+            "description": "Storage configuration"
+          }
+        },
+        "required": [
+          "schema_version",
+          "listen_address",
+          "debug_enabled",
+          "security",
+          "frontend",
+          "storage",
+          "metrics"
+        ],
+        "type": "object"
+      },
+      "CoreConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "amf": {
+            "$ref": "#/components/schemas/AMFConfig"
+          },
+          "data_iface": {
+            "type": "string"
+          },
+          "helm": {
+            "$ref": "#/components/schemas/HelmRef"
+          },
+          "mme": {
+            "$ref": "#/components/schemas/MMEConfig"
+          },
+          "ran_subnet": {
+            "type": "string"
+          },
+          "standalone": {
+            "type": "boolean"
+          },
+          "upf": {
+            "$ref": "#/components/schemas/UPFConfig"
+          },
+          "values_file": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "DiagnosticCheck": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "description": "Error message if the check failed",
+            "type": "string"
+          },
+          "latency": {
+            "description": "Check execution time",
+            "examples": [
+              "1.2ms"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "description": "Diagnostic check name",
+            "examples": [
+              "ping"
+            ],
+            "type": "string"
+          },
+          "passed": {
+            "description": "Whether the check passed",
+            "examples": [
+              true
+            ],
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "passed",
+          "latency"
+        ],
+        "type": "object"
+      },
+      "DiskInfo": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/DiskInfo.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "partitions": {
+            "items": {
+              "$ref": "#/components/schemas/Partition"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "partitions"
+        ],
+        "type": "object"
+      },
+      "ErrorDetail": {
+        "additionalProperties": false,
+        "properties": {
+          "location": {
+            "description": "Where the error occurred, e.g. 'body.items[3].tags' or 'path.thing-id'",
+            "type": "string"
+          },
+          "message": {
+            "description": "Error message text",
+            "type": "string"
+          },
+          "value": {
+            "description": "The value at the given location"
+          }
+        },
+        "type": "object"
+      },
+      "ErrorModel": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/ErrorModel.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "detail": {
+            "description": "A human-readable explanation specific to this occurrence of the problem.",
+            "examples": [
+              "Property foo is required but is missing."
+            ],
+            "type": "string"
+          },
+          "errors": {
+            "description": "Optional list of individual error details",
+            "items": {
+              "$ref": "#/components/schemas/ErrorDetail"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "instance": {
+            "description": "A URI reference that identifies the specific occurrence of the problem.",
+            "examples": [
+              "https://example.com/error-log/abc123"
+            ],
+            "format": "uri",
+            "type": "string"
+          },
+          "status": {
+            "description": "HTTP status code",
+            "examples": [
+              400
+            ],
+            "format": "int64",
+            "type": "integer"
+          },
+          "title": {
+            "description": "A short, human-readable summary of the problem type. This value should not change between occurrences of the error.",
+            "examples": [
+              "Bad Request"
+            ],
+            "type": "string"
+          },
+          "type": {
+            "default": "about:blank",
+            "description": "A URI reference to human-readable documentation for the error.",
+            "examples": [
+              "https://example.com/errors/example"
+            ],
+            "format": "uri",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "FrontendConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "dir": {
+            "description": "Custom frontend directory path, if any",
+            "examples": [
+              ""
+            ],
+            "type": "string"
+          },
+          "enabled": {
+            "description": "Whether frontend serving is enabled",
+            "examples": [
+              true
+            ],
+            "type": "boolean"
+          },
+          "source": {
+            "description": "Frontend source (embedded or directory)",
+            "examples": [
+              "embedded"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "enabled",
+          "source",
+          "dir"
+        ],
+        "type": "object"
+      },
+      "GNBSimConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "docker": {
+            "$ref": "#/components/schemas/GNBSimDocker"
+          },
+          "router": {
+            "$ref": "#/components/schemas/GNBSimRouter"
+          },
+          "servers": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "GNBSimContainer": {
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "image": {
+            "type": "string"
+          },
+          "prefix": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "image",
+          "prefix",
+          "count"
+        ],
+        "type": "object"
+      },
+      "GNBSimDocker": {
+        "additionalProperties": false,
+        "properties": {
+          "container": {
+            "$ref": "#/components/schemas/GNBSimContainer"
+          },
+          "network": {
+            "$ref": "#/components/schemas/GNBSimNetwork"
+          }
+        },
+        "type": "object"
+      },
+      "GNBSimMacvlan": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "GNBSimNetwork": {
+        "additionalProperties": false,
+        "properties": {
+          "macvlan": {
+            "$ref": "#/components/schemas/GNBSimMacvlan"
+          }
+        },
+        "type": "object"
+      },
+      "GNBSimRouter": {
+        "additionalProperties": false,
+        "properties": {
+          "data_iface": {
+            "type": "string"
+          },
+          "macvlan": {
+            "$ref": "#/components/schemas/GNBSimRouterMacvlan"
+          }
+        },
+        "type": "object"
+      },
+      "GNBSimRouterMacvlan": {
+        "additionalProperties": false,
+        "properties": {
+          "subnet_prefix": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "subnet_prefix"
+        ],
+        "type": "object"
+      },
+      "GroupInfo": {
+        "additionalProperties": false,
+        "properties": {
+          "gid": {
+            "description": "Numeric group ID",
+            "examples": [
+              "1000"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "description": "Group name",
+            "examples": [
+              "aether"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "gid",
+          "name"
+        ],
+        "type": "object"
+      },
+      "HelmBlock": {
+        "additionalProperties": false,
+        "properties": {
+          "helm": {
+            "$ref": "#/components/schemas/HelmRef"
+          }
+        },
+        "type": "object"
+      },
+      "HelmRef": {
+        "additionalProperties": false,
+        "properties": {
+          "chart_ref": {
+            "type": "string"
+          },
+          "chart_version": {
+            "type": "string"
+          },
+          "local_charts": {
+            "type": "boolean"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "InventoryData": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/InventoryData.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/InventoryNode"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "nodes"
+        ],
+        "type": "object"
+      },
+      "InventoryNode": {
+        "additionalProperties": false,
+        "properties": {
+          "ansible_host": {
+            "type": "string"
+          },
+          "ansible_user": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "roles": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "ansible_host",
+          "ansible_user",
+          "roles"
+        ],
+        "type": "object"
+      },
+      "InventorySyncOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/InventorySyncOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "message",
+          "path"
+        ],
+        "type": "object"
+      },
+      "K8sConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "helm": {
+            "$ref": "#/components/schemas/HelmRef"
+          },
+          "rke2": {
+            "$ref": "#/components/schemas/RKE2Config"
+          }
+        },
+        "type": "object"
+      },
+      "LPPConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "version"
+        ],
+        "type": "object"
+      },
+      "ListeningPort": {
+        "additionalProperties": false,
+        "properties": {
+          "local_addr": {
+            "description": "Local bind address",
+            "examples": [
+              "0.0.0.0"
+            ],
+            "type": "string"
+          },
+          "local_port": {
+            "description": "Local port number",
+            "examples": [
+              8186
+            ],
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "pid": {
+            "description": "Process ID of the listener",
+            "examples": [
+              1234
+            ],
+            "format": "int32",
+            "type": "integer"
+          },
+          "process_name": {
+            "description": "Name of the listening process",
+            "examples": [
+              "aether-webd"
+            ],
+            "type": "string"
+          },
+          "protocol": {
+            "description": "Network protocol (tcp or udp)",
+            "examples": [
+              "tcp"
+            ],
+            "type": "string"
+          },
+          "state": {
+            "description": "Connection state",
+            "examples": [
+              "LISTEN"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "protocol",
+          "local_addr",
+          "local_port",
+          "pid",
+          "process_name",
+          "state"
+        ],
+        "type": "object"
+      },
+      "MMEConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "ip": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "ip"
+        ],
+        "type": "object"
+      },
+      "ManagedNode": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/ManagedNode.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "ansible_host": {
+            "type": "string"
+          },
+          "ansible_user": {
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "has_password": {
+            "type": "boolean"
+          },
+          "has_ssh_key": {
+            "type": "boolean"
+          },
+          "has_sudo_password": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "roles": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "ansible_host",
+          "ansible_user",
+          "has_password",
+          "has_sudo_password",
+          "has_ssh_key",
+          "roles",
+          "created_at",
+          "updated_at"
+        ],
+        "type": "object"
+      },
+      "MemoryInfo": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/MemoryInfo.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "available_bytes": {
+            "description": "Available physical memory in bytes",
+            "examples": [
+              17179869184
+            ],
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "swap_percent": {
+            "description": "Swap usage as a percentage",
+            "examples": [
+              0
+            ],
+            "format": "double",
+            "type": "number"
+          },
+          "swap_total_bytes": {
+            "description": "Total swap space in bytes",
+            "examples": [
+              8589934592
+            ],
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "swap_used_bytes": {
+            "description": "Used swap space in bytes",
+            "examples": [
+              0
+            ],
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "total_bytes": {
+            "description": "Total physical memory in bytes",
+            "examples": [
+              34359738368
+            ],
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "usage_percent": {
+            "description": "Physical memory usage as a percentage",
+            "examples": [
+              50
+            ],
+            "format": "double",
+            "type": "number"
+          },
+          "used_bytes": {
+            "description": "Used physical memory in bytes",
+            "examples": [
+              17179869184
+            ],
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total_bytes",
+          "available_bytes",
+          "used_bytes",
+          "usage_percent",
+          "swap_total_bytes",
+          "swap_used_bytes",
+          "swap_percent"
+        ],
+        "type": "object"
+      },
+      "MetricsConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "interval": {
+            "description": "Metrics collection interval",
+            "examples": [
+              "10s"
+            ],
+            "type": "string"
+          },
+          "retention": {
+            "description": "Metrics retention period",
+            "examples": [
+              "24h"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "interval",
+          "retention"
+        ],
+        "type": "object"
+      },
+      "MetricsResult": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/MetricsResult.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "series": {
+            "items": {
+              "$ref": "#/components/schemas/SeriesResult"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "series"
+        ],
+        "type": "object"
+      },
+      "N3IWFConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "docker": {
+            "$ref": "#/components/schemas/N3IWFDocker"
+          },
+          "servers": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/N3IWFServer"
+            },
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "N3IWFDocker": {
+        "additionalProperties": false,
+        "properties": {
+          "image": {
+            "type": "string"
+          },
+          "network": {
+            "$ref": "#/components/schemas/N3IWFNetwork"
+          }
+        },
+        "type": "object"
+      },
+      "N3IWFNetwork": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "N3IWFServer": {
+        "additionalProperties": false,
+        "properties": {
+          "conf_file": {
+            "type": "string"
+          },
+          "n2_ip": {
+            "type": "string"
+          },
+          "n3_ip": {
+            "type": "string"
+          },
+          "n3iwf_ip": {
+            "type": "string"
+          },
+          "nwu_ip": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "conf_file",
+          "n3iwf_ip",
+          "n2_ip",
+          "n3_ip",
+          "nwu_ip"
+        ],
+        "type": "object"
+      },
+      "NetworkConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/NetworkConfig.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "dns_servers": {
+            "description": "Configured DNS nameservers",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "search_domains": {
+            "description": "DNS search domains",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "dns_servers",
+          "search_domains"
+        ],
+        "type": "object"
+      },
+      "NetworkInterface": {
+        "additionalProperties": false,
+        "properties": {
+          "addresses": {
+            "description": "Assigned IP addresses with CIDR prefix",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "flags": {
+            "description": "Interface flags (e.g. up, broadcast, multicast)",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "mac": {
+            "description": "Hardware MAC address",
+            "examples": [
+              "00:1a:2b:3c:4d:5e"
+            ],
+            "type": "string"
+          },
+          "mtu": {
+            "description": "Maximum transmission unit",
+            "examples": [
+              1500
+            ],
+            "format": "int64",
+            "type": "integer"
+          },
+          "name": {
+            "description": "Interface name",
+            "examples": [
+              "eth0"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "mac",
+          "mtu",
+          "flags",
+          "addresses"
+        ],
+        "type": "object"
+      },
+      "NodeCreateInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/NodeCreateInputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "ansible_host": {
+            "description": "IP or hostname for SSH",
+            "type": "string"
+          },
+          "ansible_user": {
+            "description": "SSH username",
+            "type": "string"
+          },
+          "name": {
+            "description": "Unique node name (Ansible inventory hostname)",
+            "type": "string"
+          },
+          "password": {
+            "description": "SSH password",
+            "type": "string"
+          },
+          "roles": {
+            "description": "Role assignments",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "ssh_key": {
+            "description": "SSH private key",
+            "type": "string"
+          },
+          "sudo_password": {
+            "description": "Sudo password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "ansible_host"
+        ],
+        "type": "object"
+      },
+      "NodeDeleteOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/NodeDeleteOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "type": "object"
+      },
+      "NodeUpdateInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/NodeUpdateInputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "ansible_host": {
+            "description": "IP or hostname for SSH",
+            "type": "string"
+          },
+          "ansible_user": {
+            "description": "SSH username",
+            "type": "string"
+          },
+          "name": {
+            "description": "Unique node name",
+            "type": "string"
+          },
+          "password": {
+            "description": "SSH password (set to empty string to clear)",
+            "type": "string"
+          },
+          "roles": {
+            "description": "Role assignments (replaces entire set)",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "ssh_key": {
+            "description": "SSH private key (set to empty string to clear)",
+            "type": "string"
+          },
+          "sudo_password": {
+            "description": "Sudo password (set to empty string to clear)",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "OAIBridge": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "OAIConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "docker": {
+            "$ref": "#/components/schemas/OAIDocker"
+          },
+          "servers": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/OAIServer"
+            },
+            "type": "object"
+          },
+          "simulation": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "OAIContainer": {
+        "additionalProperties": false,
+        "properties": {
+          "gnb_image": {
+            "type": "string"
+          },
+          "ue_image": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "gnb_image",
+          "ue_image"
+        ],
+        "type": "object"
+      },
+      "OAIDocker": {
+        "additionalProperties": false,
+        "properties": {
+          "container": {
+            "$ref": "#/components/schemas/OAIContainer"
+          },
+          "network": {
+            "$ref": "#/components/schemas/OAINetwork"
+          }
+        },
+        "type": "object"
+      },
+      "OAINetwork": {
+        "additionalProperties": false,
+        "properties": {
+          "bridge": {
+            "$ref": "#/components/schemas/OAIBridge"
+          },
+          "data_iface": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "subnet": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "OAIServer": {
+        "additionalProperties": false,
+        "properties": {
+          "gnb_conf": {
+            "type": "string"
+          },
+          "gnb_ip": {
+            "type": "string"
+          },
+          "ue_conf": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "gnb_conf",
+          "gnb_ip",
+          "ue_conf"
+        ],
+        "type": "object"
+      },
+      "OSInfo": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/OSInfo.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "hostname": {
+            "description": "System hostname",
+            "examples": [
+              "aether-node-01"
+            ],
+            "type": "string"
+          },
+          "kernel_arch": {
+            "description": "Kernel architecture",
+            "examples": [
+              "x86_64"
+            ],
+            "type": "string"
+          },
+          "kernel_version": {
+            "description": "Kernel version string",
+            "examples": [
+              "6.8.0-100-generic"
+            ],
+            "type": "string"
+          },
+          "os": {
+            "description": "Operating system name",
+            "examples": [
+              "linux"
+            ],
+            "type": "string"
+          },
+          "platform": {
+            "description": "OS distribution or platform",
+            "examples": [
+              "ubuntu"
+            ],
+            "type": "string"
+          },
+          "platform_version": {
+            "description": "Platform version",
+            "examples": [
+              "22.04"
+            ],
+            "type": "string"
+          },
+          "uptime_seconds": {
+            "description": "System uptime in seconds",
+            "examples": [
+              86400
+            ],
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "hostname",
+          "os",
+          "platform",
+          "platform_version",
+          "kernel_version",
+          "kernel_arch",
+          "uptime_seconds"
+        ],
+        "type": "object"
+      },
+      "OnRampConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/OnRampConfig.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "amp": {
+            "$ref": "#/components/schemas/AMPConfig"
+          },
+          "core": {
+            "$ref": "#/components/schemas/CoreConfig"
+          },
+          "gnbsim": {
+            "$ref": "#/components/schemas/GNBSimConfig"
+          },
+          "k8s": {
+            "$ref": "#/components/schemas/K8sConfig"
+          },
+          "n3iwf": {
+            "$ref": "#/components/schemas/N3IWFConfig"
+          },
+          "oai": {
+            "$ref": "#/components/schemas/OAIConfig"
+          },
+          "sdran": {
+            "$ref": "#/components/schemas/SDRANConfig"
+          },
+          "srsran": {
+            "$ref": "#/components/schemas/SRSRanConfig"
+          },
+          "ueransim": {
+            "$ref": "#/components/schemas/UERANSIMConfig"
+          }
+        },
+        "type": "object"
+      },
+      "OnRampTask": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/OnRampTask.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "action": {
+            "type": "string"
+          },
+          "component": {
+            "type": "string"
+          },
+          "exit_code": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "finished_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "output": {
+            "type": "string"
+          },
+          "output_offset": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "started_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "component",
+          "action",
+          "target",
+          "status",
+          "started_at",
+          "output",
+          "output_offset"
+        ],
+        "type": "object"
+      },
+      "ParamsFile": {
+        "additionalProperties": false,
+        "properties": {
+          "master": {
+            "type": "string"
+          },
+          "worker": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "master",
+          "worker"
+        ],
+        "type": "object"
+      },
+      "Partition": {
+        "additionalProperties": false,
+        "properties": {
+          "device": {
+            "description": "Device path",
+            "examples": [
+              "/dev/sda1"
+            ],
+            "type": "string"
+          },
+          "free_bytes": {
+            "description": "Free space in bytes",
+            "examples": [
+              384082642944
+            ],
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "fs_type": {
+            "description": "Filesystem type",
+            "examples": [
+              "ext4"
+            ],
+            "type": "string"
+          },
+          "mountpoint": {
+            "description": "Filesystem mount point",
+            "examples": [
+              "/"
+            ],
+            "type": "string"
+          },
+          "total_bytes": {
+            "description": "Total partition size in bytes",
+            "examples": [
+              512110190592
+            ],
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "usage_percent": {
+            "description": "Disk usage as a percentage",
+            "examples": [
+              25
+            ],
+            "format": "double",
+            "type": "number"
+          },
+          "used_bytes": {
+            "description": "Used space in bytes",
+            "examples": [
+              128027547648
+            ],
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "device",
+          "mountpoint",
+          "fs_type",
+          "total_bytes",
+          "used_bytes",
+          "free_bytes",
+          "usage_percent"
+        ],
+        "type": "object"
+      },
+      "PointResult": {
+        "additionalProperties": false,
+        "properties": {
+          "timestamp": {
+            "description": "Sample timestamp (RFC 3339)",
+            "examples": [
+              "2026-02-18T21:00:00Z"
+            ],
+            "type": "string"
+          },
+          "value": {
+            "description": "Metric value at this timestamp",
+            "examples": [
+              23.5
+            ],
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "timestamp",
+          "value"
+        ],
+        "type": "object"
+      },
+      "ProfileActivateOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/ProfileActivateOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "type": "object"
+      },
+      "ProviderStatus": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "description": "Whether the provider is enabled",
+            "examples": [
+              true
+            ],
+            "type": "boolean"
+          },
+          "endpoint_count": {
+            "description": "Number of registered endpoints",
+            "examples": [
+              8
+            ],
+            "format": "int64",
+            "type": "integer"
+          },
+          "name": {
+            "description": "Provider name",
+            "examples": [
+              "system"
+            ],
+            "type": "string"
+          },
+          "running": {
+            "description": "Whether the provider is currently running",
+            "examples": [
+              true
+            ],
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "enabled",
+          "running",
+          "endpoint_count"
+        ],
+        "type": "object"
+      },
+      "ProvidersInfo": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/ProvidersInfo.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "providers": {
+            "items": {
+              "$ref": "#/components/schemas/ProviderStatus"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "providers"
+        ],
+        "type": "object"
+      },
+      "RANSimConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "metric": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "RKE2Config": {
+        "additionalProperties": false,
+        "properties": {
+          "config": {
+            "$ref": "#/components/schemas/RKE2Inner"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "version"
+        ],
+        "type": "object"
+      },
+      "RKE2Inner": {
+        "additionalProperties": false,
+        "properties": {
+          "params_file": {
+            "$ref": "#/components/schemas/ParamsFile"
+          },
+          "port": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "token": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "token",
+          "port"
+        ],
+        "type": "object"
+      },
+      "RepoStatus": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/RepoStatus.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "branch": {
+            "type": "string"
+          },
+          "cloned": {
+            "type": "boolean"
+          },
+          "commit": {
+            "type": "string"
+          },
+          "dir": {
+            "type": "string"
+          },
+          "dirty": {
+            "type": "boolean"
+          },
+          "error": {
+            "type": "string"
+          },
+          "repo_url": {
+            "type": "string"
+          },
+          "tag": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "cloned",
+          "dir",
+          "repo_url",
+          "version",
+          "dirty"
+        ],
+        "type": "object"
+      },
+      "RuntimeInfo": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/RuntimeInfo.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "binary_path": {
+            "description": "Path to the running binary",
+            "examples": [
+              "/usr/local/bin/aether-webd"
+            ],
+            "type": "string"
+          },
+          "group": {
+            "$ref": "#/components/schemas/GroupInfo",
+            "description": "Process primary group"
+          },
+          "pid": {
+            "description": "Process ID",
+            "examples": [
+              4821
+            ],
+            "format": "int64",
+            "type": "integer"
+          },
+          "start_time": {
+            "description": "Server start time (RFC 3339)",
+            "examples": [
+              "2026-02-18T12:00:00Z"
+            ],
+            "type": "string"
+          },
+          "uptime": {
+            "description": "Time since server start",
+            "examples": [
+              "2h30m0s"
+            ],
+            "type": "string"
+          },
+          "user": {
+            "$ref": "#/components/schemas/UserInfo",
+            "description": "Process owner"
+          }
+        },
+        "required": [
+          "pid",
+          "user",
+          "group",
+          "binary_path",
+          "start_time",
+          "uptime"
+        ],
+        "type": "object"
+      },
+      "SDRANConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "platform": {
+            "$ref": "#/components/schemas/SDRANPlatform"
+          },
+          "sdran": {
+            "$ref": "#/components/schemas/SDRANInner"
+          }
+        },
+        "type": "object"
+      },
+      "SDRANImport": {
+        "additionalProperties": false,
+        "properties": {
+          "a1t": {
+            "type": "boolean"
+          },
+          "config": {
+            "type": "boolean"
+          },
+          "e2t": {
+            "type": "boolean"
+          },
+          "kpimon": {
+            "type": "boolean"
+          },
+          "mho": {
+            "type": "boolean"
+          },
+          "mlb": {
+            "type": "boolean"
+          },
+          "pci": {
+            "type": "boolean"
+          },
+          "ransim": {
+            "type": "boolean"
+          },
+          "topo": {
+            "type": "boolean"
+          },
+          "ts": {
+            "type": "boolean"
+          },
+          "uenib": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "SDRANInner": {
+        "additionalProperties": false,
+        "properties": {
+          "helm": {
+            "$ref": "#/components/schemas/HelmRef"
+          },
+          "import": {
+            "$ref": "#/components/schemas/SDRANImport"
+          },
+          "ransim": {
+            "$ref": "#/components/schemas/RANSimConfig"
+          }
+        },
+        "type": "object"
+      },
+      "SDRANPlatform": {
+        "additionalProperties": false,
+        "properties": {
+          "atomix": {
+            "$ref": "#/components/schemas/HelmBlock"
+          },
+          "onosproject": {
+            "$ref": "#/components/schemas/HelmBlock"
+          },
+          "store": {
+            "$ref": "#/components/schemas/StoreConfig"
+          }
+        },
+        "type": "object"
+      },
+      "SRSRanConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "docker": {
+            "$ref": "#/components/schemas/SRSRanDocker"
+          },
+          "servers": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/SRSRanServer"
+            },
+            "type": "object"
+          },
+          "simulation": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "SRSRanContainer": {
+        "additionalProperties": false,
+        "properties": {
+          "gnb_image": {
+            "type": "string"
+          },
+          "ue_image": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "gnb_image",
+          "ue_image"
+        ],
+        "type": "object"
+      },
+      "SRSRanDocker": {
+        "additionalProperties": false,
+        "properties": {
+          "container": {
+            "$ref": "#/components/schemas/SRSRanContainer"
+          },
+          "network": {
+            "$ref": "#/components/schemas/SRSRanNetwork"
+          }
+        },
+        "type": "object"
+      },
+      "SRSRanNetwork": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "SRSRanServer": {
+        "additionalProperties": false,
+        "properties": {
+          "gnb_conf": {
+            "type": "string"
+          },
+          "gnb_ip": {
+            "type": "string"
+          },
+          "ue_conf": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "gnb_ip",
+          "gnb_conf",
+          "ue_conf"
+        ],
+        "type": "object"
+      },
+      "SecurityConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "mtls_enabled": {
+            "description": "Whether mutual TLS is enabled",
+            "examples": [
+              false
+            ],
+            "type": "boolean"
+          },
+          "rbac_enabled": {
+            "description": "Whether RBAC is enabled",
+            "examples": [
+              false
+            ],
+            "type": "boolean"
+          },
+          "tls_auto_generated": {
+            "description": "Whether the TLS certificate was auto-generated",
+            "examples": [
+              false
+            ],
+            "type": "boolean"
+          },
+          "tls_enabled": {
+            "description": "Whether TLS is enabled",
+            "examples": [
+              false
+            ],
+            "type": "boolean"
+          },
+          "token_auth_enabled": {
+            "description": "Whether bearer token authentication is enabled",
+            "examples": [
+              true
+            ],
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "tls_enabled",
+          "tls_auto_generated",
+          "mtls_enabled",
+          "token_auth_enabled",
+          "rbac_enabled"
+        ],
+        "type": "object"
+      },
+      "SeriesResult": {
+        "additionalProperties": false,
+        "properties": {
+          "labels": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Label key-value pairs identifying the series",
+            "type": "object"
+          },
+          "metric": {
+            "description": "Metric name",
+            "examples": [
+              "system.cpu.usage_percent"
+            ],
+            "type": "string"
+          },
+          "points": {
+            "description": "Time-ordered data points",
+            "items": {
+              "$ref": "#/components/schemas/PointResult"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "metric",
+          "labels",
+          "points"
+        ],
+        "type": "object"
+      },
+      "StorageConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "data_dir": {
+            "description": "Directory for persistent state database",
+            "examples": [
+              "/var/lib/aether-webd"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "data_dir"
+        ],
+        "type": "object"
+      },
+      "StoreConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "lpp": {
+            "$ref": "#/components/schemas/LPPConfig"
+          }
+        },
+        "type": "object"
+      },
+      "StoreInfo": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/StoreInfo.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "diagnostics": {
+            "description": "Individual diagnostic check results",
+            "items": {
+              "$ref": "#/components/schemas/DiagnosticCheck"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "engine": {
+            "description": "Storage engine type",
+            "examples": [
+              "sqlite"
+            ],
+            "type": "string"
+          },
+          "file_size_bytes": {
+            "description": "Database file size in bytes",
+            "examples": [
+              524288
+            ],
+            "format": "int64",
+            "type": "integer"
+          },
+          "path": {
+            "description": "Database file path",
+            "examples": [
+              "/var/lib/aether-webd/app.db"
+            ],
+            "type": "string"
+          },
+          "schema_version": {
+            "description": "Current schema migration version",
+            "examples": [
+              2
+            ],
+            "format": "int64",
+            "type": "integer"
+          },
+          "status": {
+            "description": "Overall store health (healthy, degraded, unhealthy)",
+            "examples": [
+              "healthy"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "engine",
+          "path",
+          "file_size_bytes",
+          "schema_version",
+          "status",
+          "diagnostics"
+        ],
+        "type": "object"
+      },
+      "UERANSIMConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "gnb": {
+            "$ref": "#/components/schemas/UERANSIMGnb"
+          },
+          "servers": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/UERANSIMServer"
+            },
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "UERANSIMGnb": {
+        "additionalProperties": false,
+        "properties": {
+          "ip": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "ip"
+        ],
+        "type": "object"
+      },
+      "UERANSIMServer": {
+        "additionalProperties": false,
+        "properties": {
+          "gnb": {
+            "type": "string"
+          },
+          "ue": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "gnb",
+          "ue"
+        ],
+        "type": "object"
+      },
+      "UPFConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "access_subnet": {
+            "type": "string"
+          },
+          "additional_upfs": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/UPFInstance"
+            },
+            "type": "object"
+          },
+          "core_subnet": {
+            "type": "string"
+          },
+          "default_upf": {
+            "$ref": "#/components/schemas/UPFInstance"
+          },
+          "helm": {
+            "$ref": "#/components/schemas/HelmRef"
+          },
+          "mode": {
+            "type": "string"
+          },
+          "multihop_gnb": {
+            "type": "boolean"
+          },
+          "values_file": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "UPFIP": {
+        "additionalProperties": false,
+        "properties": {
+          "access": {
+            "type": "string"
+          },
+          "core": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "access",
+          "core"
+        ],
+        "type": "object"
+      },
+      "UPFInstance": {
+        "additionalProperties": false,
+        "properties": {
+          "ip": {
+            "$ref": "#/components/schemas/UPFIP"
+          },
+          "ue_ip_pool": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "UserInfo": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "description": "Username",
+            "examples": [
+              "aether"
+            ],
+            "type": "string"
+          },
+          "uid": {
+            "description": "Numeric user ID",
+            "examples": [
+              "1000"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "uid",
+          "name"
+        ],
+        "type": "object"
+      },
+      "VersionInfo": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/VersionInfo.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "branch": {
+            "description": "Git branch at build time",
+            "examples": [
+              "main"
+            ],
+            "type": "string"
+          },
+          "build_date": {
+            "description": "Build timestamp",
+            "examples": [
+              "2026-02-18T12:00:00Z"
+            ],
+            "type": "string"
+          },
+          "commit_hash": {
+            "description": "Short git commit hash",
+            "examples": [
+              "a1b2c3d"
+            ],
+            "type": "string"
+          },
+          "version": {
+            "description": "Semantic version string",
+            "examples": [
+              "1.2.0"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "version",
+          "build_date",
+          "branch",
+          "commit_hash"
+        ],
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "bearerAuth": {
+        "bearerFormat": "token",
+        "description": "Bearer token authentication. Pass the token configured via --api-token or AETHER_API_TOKEN.",
+        "scheme": "bearer",
+        "type": "http"
+      }
+    }
+  },
+  "info": {
+    "description": "Backend API service for the **Aether WebUI**. This service manages Aether 5G deployments including SD-Core components, gNBs (srsRAN, OCUDU), Kubernetes clusters, and host systems.\n\n## Base URL\n\nAll API endpoints are served under `/api/v1/`.\n\n## Authentication\n\nWhen token authentication is enabled (`--api-token` flag or `AETHER_API_TOKEN` env var), all `/api/*` endpoints require a bearer token:\n\n```\nAuthorization: Bearer \u003ctoken\u003e\n```\n\nThe following paths are always public: `/healthz`, `/openapi.json`, `/docs`, and frontend static files.\n\n## Providers\n\nThe API is organized into **providers** — modular units that each register a set of endpoints:\n\n| Provider | Prefix | Description |\n|----------|--------|-------------|\n| meta | `/api/v1/meta/` | Server introspection — version, build info, runtime, config, provider status, store health |\n\n## Response Format\n\nAll endpoints return JSON. Error responses follow the [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457) Problem Details format.\n",
+    "title": "Aether WebUI API",
+    "version": "0.0.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/v1/meta/build": {
+      "get": {
+        "description": "Returns the Go toolchain version, target OS, and architecture used to compile the server binary.",
+        "operationId": "meta-build",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BuildInfo"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get build environment information",
+        "tags": [
+          "meta"
+        ]
+      }
+    },
+    "/api/v1/meta/config": {
+      "get": {
+        "description": "Returns non-secret configuration values including listen address, storage paths, feature flags, and schema version.",
+        "operationId": "meta-config",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigInfo"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get active application configuration",
+        "tags": [
+          "meta"
+        ]
+      }
+    },
+    "/api/v1/meta/providers": {
+      "get": {
+        "description": "Returns the name, enabled/running state, and endpoint count for each registered provider.",
+        "operationId": "meta-providers",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProvidersInfo"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get registered provider statuses",
+        "tags": [
+          "meta"
+        ]
+      }
+    },
+    "/api/v1/meta/runtime": {
+      "get": {
+        "description": "Returns the server's PID, running user/group, binary path, start time, and uptime.",
+        "operationId": "meta-runtime",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuntimeInfo"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get process runtime information",
+        "tags": [
+          "meta"
+        ]
+      }
+    },
+    "/api/v1/meta/store": {
+      "get": {
+        "description": "Returns store engine, path, file size, schema version, and live diagnostic results (ping, write, read, delete).",
+        "operationId": "meta-store",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoreInfo"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get store health and metadata",
+        "tags": [
+          "meta"
+        ]
+      }
+    },
+    "/api/v1/meta/version": {
+      "get": {
+        "description": "Returns the server's version string, build date, git branch, and commit hash. Useful for diagnostics, compatibility checks, and deployment verification.",
+        "operationId": "meta-version",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionInfo"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get build and version information",
+        "tags": [
+          "meta"
+        ]
+      }
+    },
+    "/api/v1/nodes": {
+      "get": {
+        "description": "Returns all managed cluster nodes with role assignments.",
+        "operationId": "nodes-list",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ManagedNode"
+                  },
+                  "type": [
+                    "array",
+                    "null"
+                  ]
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List all nodes",
+        "tags": [
+          "nodes"
+        ]
+      },
+      "post": {
+        "description": "Creates a new node with optional roles and credentials.",
+        "operationId": "nodes-create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NodeCreateInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagedNode"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Create a node",
+        "tags": [
+          "nodes"
+        ]
+      }
+    },
+    "/api/v1/nodes/{id}": {
+      "delete": {
+        "description": "Deletes a node and its role assignments.",
+        "operationId": "nodes-delete",
+        "parameters": [
+          {
+            "description": "Node ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Node ID",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NodeDeleteOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Delete a node",
+        "tags": [
+          "nodes"
+        ]
+      },
+      "get": {
+        "description": "Returns a single node with secret-presence flags.",
+        "operationId": "nodes-get",
+        "parameters": [
+          {
+            "description": "Node ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Node ID",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagedNode"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get a node",
+        "tags": [
+          "nodes"
+        ]
+      },
+      "put": {
+        "description": "Partial update — merges non-nil fields; roles replaces entire set when provided.",
+        "operationId": "nodes-update",
+        "parameters": [
+          {
+            "description": "Node ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Node ID",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NodeUpdateInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagedNode"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Update a node",
+        "tags": [
+          "nodes"
+        ]
+      }
+    },
+    "/api/v1/onramp/components": {
+      "get": {
+        "description": "Returns all available OnRamp components and their actions.",
+        "operationId": "onramp-list-components",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Component"
+                  },
+                  "type": [
+                    "array",
+                    "null"
+                  ]
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List OnRamp components",
+        "tags": [
+          "onramp"
+        ]
+      }
+    },
+    "/api/v1/onramp/components/{component}": {
+      "get": {
+        "description": "Returns a single OnRamp component by name.",
+        "operationId": "onramp-get-component",
+        "parameters": [
+          {
+            "description": "Component name",
+            "in": "path",
+            "name": "component",
+            "required": true,
+            "schema": {
+              "description": "Component name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Component"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get OnRamp component",
+        "tags": [
+          "onramp"
+        ]
+      }
+    },
+    "/api/v1/onramp/components/{component}/{action}": {
+      "post": {
+        "description": "Runs a make target for the specified component and action.",
+        "operationId": "onramp-execute-action",
+        "parameters": [
+          {
+            "description": "Component name",
+            "in": "path",
+            "name": "component",
+            "required": true,
+            "schema": {
+              "description": "Component name",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Action name",
+            "in": "path",
+            "name": "action",
+            "required": true,
+            "schema": {
+              "description": "Action name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OnRampTask"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Execute component action",
+        "tags": [
+          "onramp"
+        ]
+      }
+    },
+    "/api/v1/onramp/config": {
+      "get": {
+        "description": "Reads vars/main.yml and returns the parsed configuration.",
+        "operationId": "onramp-get-config",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OnRampConfig"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get OnRamp configuration",
+        "tags": [
+          "onramp"
+        ]
+      },
+      "patch": {
+        "description": "Merges the provided fields into vars/main.yml, preserving untouched values.",
+        "operationId": "onramp-patch-config",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OnRampConfig"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OnRampConfig"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Patch OnRamp configuration",
+        "tags": [
+          "onramp"
+        ]
+      }
+    },
+    "/api/v1/onramp/config/profiles": {
+      "get": {
+        "description": "Lists available vars profiles (main-*.yml files).",
+        "operationId": "onramp-list-profiles",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": [
+                    "array",
+                    "null"
+                  ]
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List OnRamp config profiles",
+        "tags": [
+          "onramp"
+        ]
+      }
+    },
+    "/api/v1/onramp/config/profiles/{name}": {
+      "get": {
+        "description": "Reads a specific vars profile and returns its configuration.",
+        "operationId": "onramp-get-profile",
+        "parameters": [
+          {
+            "description": "Profile name",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "description": "Profile name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OnRampConfig"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get OnRamp config profile",
+        "tags": [
+          "onramp"
+        ]
+      }
+    },
+    "/api/v1/onramp/config/profiles/{name}/activate": {
+      "post": {
+        "description": "Copies the named profile to vars/main.yml, making it active.",
+        "operationId": "onramp-activate-profile",
+        "parameters": [
+          {
+            "description": "Profile name",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "description": "Profile name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileActivateOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Activate OnRamp config profile",
+        "tags": [
+          "onramp"
+        ]
+      }
+    },
+    "/api/v1/onramp/inventory": {
+      "get": {
+        "description": "Parses the current hosts.ini and returns structured inventory data.",
+        "operationId": "onramp-get-inventory",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InventoryData"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get Ansible inventory",
+        "tags": [
+          "onramp"
+        ]
+      }
+    },
+    "/api/v1/onramp/inventory/sync": {
+      "post": {
+        "description": "Generates hosts.ini from managed nodes in the database and writes it to disk.",
+        "operationId": "onramp-sync-inventory",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InventorySyncOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Sync inventory to hosts.ini",
+        "tags": [
+          "onramp"
+        ]
+      }
+    },
+    "/api/v1/onramp/repo": {
+      "get": {
+        "description": "Returns clone status, current commit, branch, tag, and dirty state of the OnRamp repository.",
+        "operationId": "onramp-get-repo-status",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RepoStatus"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get OnRamp repo status",
+        "tags": [
+          "onramp"
+        ]
+      }
+    },
+    "/api/v1/onramp/repo/refresh": {
+      "post": {
+        "description": "Clones the repo if missing, checks out the pinned version, and validates the directory.",
+        "operationId": "onramp-refresh-repo",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RepoStatus"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Refresh OnRamp repo",
+        "tags": [
+          "onramp"
+        ]
+      }
+    },
+    "/api/v1/onramp/tasks": {
+      "get": {
+        "description": "Returns recent make target executions and their status.",
+        "operationId": "onramp-list-tasks",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/OnRampTask"
+                  },
+                  "type": [
+                    "array",
+                    "null"
+                  ]
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List OnRamp tasks",
+        "tags": [
+          "onramp"
+        ]
+      }
+    },
+    "/api/v1/onramp/tasks/{id}": {
+      "get": {
+        "description": "Returns details and output for a specific task.",
+        "operationId": "onramp-get-task",
+        "parameters": [
+          {
+            "description": "Task ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Task ID",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Byte offset for incremental output reads",
+            "explode": false,
+            "in": "query",
+            "name": "offset",
+            "schema": {
+              "default": 0,
+              "description": "Byte offset for incremental output reads",
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OnRampTask"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get OnRamp task",
+        "tags": [
+          "onramp"
+        ]
+      }
+    },
+    "/api/v1/system/cpu": {
+      "get": {
+        "description": "Returns CPU model, core counts, frequency, cache, and flags.",
+        "operationId": "system-cpu",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CPUInfo"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get CPU information",
+        "tags": [
+          "system"
+        ]
+      }
+    },
+    "/api/v1/system/disks": {
+      "get": {
+        "description": "Returns partition list with usage details.",
+        "operationId": "system-disks",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiskInfo"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get disk information",
+        "tags": [
+          "system"
+        ]
+      }
+    },
+    "/api/v1/system/memory": {
+      "get": {
+        "description": "Returns physical and swap memory usage.",
+        "operationId": "system-memory",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryInfo"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get memory information",
+        "tags": [
+          "system"
+        ]
+      }
+    },
+    "/api/v1/system/metrics": {
+      "get": {
+        "description": "Returns time-series metric data with optional time range, label filtering, and aggregation.",
+        "operationId": "system-metrics",
+        "parameters": [
+          {
+            "description": "Metric name to query",
+            "example": "system.cpu.usage_percent",
+            "explode": false,
+            "in": "query",
+            "name": "metric",
+            "required": true,
+            "schema": {
+              "description": "Metric name to query",
+              "examples": [
+                "system.cpu.usage_percent"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Start time (RFC 3339)",
+            "example": "2026-02-18T21:00:00Z",
+            "explode": false,
+            "in": "query",
+            "name": "from",
+            "schema": {
+              "description": "Start time (RFC 3339)",
+              "examples": [
+                "2026-02-18T21:00:00Z"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "End time (RFC 3339)",
+            "example": "2026-02-18T21:30:00Z",
+            "explode": false,
+            "in": "query",
+            "name": "to",
+            "schema": {
+              "description": "End time (RFC 3339)",
+              "examples": [
+                "2026-02-18T21:30:00Z"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Comma-separated key=val label filters",
+            "example": "cpu=total",
+            "explode": false,
+            "in": "query",
+            "name": "labels",
+            "schema": {
+              "description": "Comma-separated key=val label filters",
+              "examples": [
+                "cpu=total"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Time bucket aggregation",
+            "example": "1m",
+            "explode": false,
+            "in": "query",
+            "name": "aggregation",
+            "schema": {
+              "description": "Time bucket aggregation",
+              "enum": [
+                "raw",
+                "10s",
+                "1m",
+                "5m",
+                "1h"
+              ],
+              "examples": [
+                "1m"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetricsResult"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Query system metrics",
+        "tags": [
+          "system"
+        ]
+      }
+    },
+    "/api/v1/system/network/config": {
+      "get": {
+        "description": "Returns DNS servers and search domains from resolv.conf.",
+        "operationId": "system-network-config",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NetworkConfig"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get network configuration",
+        "tags": [
+          "system"
+        ]
+      }
+    },
+    "/api/v1/system/network/interfaces": {
+      "get": {
+        "description": "Returns network interface details including addresses, MAC, MTU, and flags.",
+        "operationId": "system-network-interfaces",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/NetworkInterface"
+                  },
+                  "type": [
+                    "array",
+                    "null"
+                  ]
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get network interfaces",
+        "tags": [
+          "system"
+        ]
+      }
+    },
+    "/api/v1/system/network/ports": {
+      "get": {
+        "description": "Returns TCP/UDP ports in LISTEN state with process info.",
+        "operationId": "system-network-ports",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ListeningPort"
+                  },
+                  "type": [
+                    "array",
+                    "null"
+                  ]
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get listening ports",
+        "tags": [
+          "system"
+        ]
+      }
+    },
+    "/api/v1/system/os": {
+      "get": {
+        "description": "Returns hostname, OS, platform, kernel version, arch, and uptime.",
+        "operationId": "system-os",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OSInfo"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get OS information",
+        "tags": [
+          "system"
+        ]
+      }
+    }
+  },
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ]
+}
