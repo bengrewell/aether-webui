@@ -31,6 +31,7 @@ type TaskSpec struct {
 	Env         []string          // extra KEY=VALUE env vars (appended to inherited env)
 	Labels      map[string]string // arbitrary provider-specific metadata
 	Description string            // human-readable summary
+	OnComplete  func(TaskView)    // called after task finishes; nil = no callback
 }
 
 // task is the internal mutable state for a running or completed command.

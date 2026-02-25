@@ -316,7 +316,7 @@ func TestMigrationCount(t *testing.T) {
 	if err != nil {
 		t.Fatalf("count migrations: %v", err)
 	}
-	if count != 3 {
-		t.Errorf("migration count = %d, want 3", count)
+	if count != 4 {
+		t.Errorf("migration count = %d, want 4", count)
 	}
 }

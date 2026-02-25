@@ -25,6 +25,17 @@ type Store interface {
 	DeleteNode(ctx context.Context, id string) error
 	ListNodes(ctx context.Context) ([]NodeInfo, error)
 
+	// Actions
+	InsertAction(ctx context.Context, rec ActionRecord) error
+	UpdateActionResult(ctx context.Context, id string, result ActionResult) error
+	GetAction(ctx context.Context, id string) (ActionRecord, bool, error)
+	ListActions(ctx context.Context, filter ActionFilter) ([]ActionRecord, error)
+
+	// Component state
+	UpsertComponentState(ctx context.Context, cs ComponentState) error
+	GetComponentState(ctx context.Context, component string) (ComponentState, bool, error)
+	ListComponentStates(ctx context.Context) ([]ComponentState, error)
+
 	// Metrics (typed)
 	AppendSample(ctx context.Context, s Sample) error
 	AppendSamples(ctx context.Context, samples []Sample) error

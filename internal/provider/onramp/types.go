@@ -521,8 +521,14 @@ type ComponentGetOutput struct {
 }
 
 type ExecuteActionInput struct {
-	Component string `path:"component" doc:"Component name"`
-	Action    string `path:"action" doc:"Action name"`
+	Component string            `path:"component" doc:"Component name"`
+	Action    string            `path:"action" doc:"Action name"`
+	Body      *ExecuteActionBody `json:",omitempty"`
+}
+
+type ExecuteActionBody struct {
+	Labels map[string]string `json:"labels,omitempty"`
+	Tags   []string          `json:"tags,omitempty"`
 }
 
 type ExecuteActionOutput struct {
@@ -580,6 +586,66 @@ type ProfileActivateOutput struct {
 	Body struct {
 		Message string `json:"message"`
 	}
+}
+
+// --- Actions ---
+
+type ActionListInput struct {
+	Component string `query:"component" doc:"Filter by component name"`
+	Action    string `query:"action" doc:"Filter by action name"`
+	Status    string `query:"status" doc:"Filter by status"`
+	Limit     int    `query:"limit" default:"50" doc:"Max results"`
+	Offset    int    `query:"offset" default:"0" doc:"Pagination offset"`
+}
+
+type ActionListOutput struct {
+	Body []ActionHistoryItem
+}
+
+type ActionGetInput struct {
+	ID string `path:"id" doc:"Action ID"`
+}
+
+type ActionGetOutput struct {
+	Body ActionHistoryItem
+}
+
+// ActionHistoryItem is the API-facing representation of an action execution.
+type ActionHistoryItem struct {
+	ID         string            `json:"id"`
+	Component  string            `json:"component"`
+	Action     string            `json:"action"`
+	Target     string            `json:"target"`
+	Status     string            `json:"status"`
+	ExitCode   int               `json:"exit_code"`
+	Error      string            `json:"error,omitempty"`
+	Labels     map[string]string `json:"labels,omitempty"`
+	Tags       []string          `json:"tags,omitempty"`
+	StartedAt  int64             `json:"started_at"`
+	FinishedAt int64             `json:"finished_at,omitempty"`
+}
+
+// --- Component State ---
+
+type ComponentStateListOutput struct {
+	Body []ComponentStateItem
+}
+
+type ComponentStateGetInput struct {
+	Component string `path:"component" doc:"Component name"`
+}
+
+type ComponentStateGetOutput struct {
+	Body ComponentStateItem
+}
+
+// ComponentStateItem is the API-facing representation of a component's current state.
+type ComponentStateItem struct {
+	Component  string `json:"component"`
+	Status     string `json:"status"`
+	LastAction string `json:"last_action,omitempty"`
+	ActionID   string `json:"action_id,omitempty"`
+	UpdatedAt  int64  `json:"updated_at,omitempty"`
 }
 
 // ---------------------------------------------------------------------------

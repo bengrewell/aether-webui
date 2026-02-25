@@ -8,10 +8,13 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/danielgtaylor/huma/v2"
+	"github.com/google/uuid"
 	"gopkg.in/yaml.v3"
 
+	"github.com/bengrewell/aether-webui/internal/store"
 	"github.com/bengrewell/aether-webui/internal/taskrunner"
 )
 
@@ -86,7 +89,7 @@ func (o *OnRamp) handleGetComponent(_ context.Context, in *ComponentGetInput) (*
 	return &ComponentGetOutput{Body: *comp}, nil
 }
 
-func (o *OnRamp) handleExecuteAction(_ context.Context, in *ExecuteActionInput) (*ExecuteActionOutput, error) {
+func (o *OnRamp) handleExecuteAction(ctx context.Context, in *ExecuteActionInput) (*ExecuteActionOutput, error) {
 	comp, ok := componentIndex[in.Component]
 	if !ok {
 		return nil, huma.Error404NotFound("component not found", fmt.Errorf("unknown component: %s", in.Component))
@@ -104,6 +107,18 @@ func (o *OnRamp) handleExecuteAction(_ context.Context, in *ExecuteActionInput) 
 			fmt.Errorf("component %s has no action %s", in.Component, in.Action))
 	}
 
+	// Extract optional labels/tags from the request body.
+	var labels map[string]string
+	var tags []string
+	if in.Body != nil {
+		labels = in.Body.Labels
+		tags = in.Body.Tags
+	}
+
+	actionID := uuid.NewString()
+	st := o.Store()
+	log := o.Log()
+
 	view, err := o.runner.Submit(taskrunner.TaskSpec{
 		Command:     "make",
 		Args:        []string{target},
@@ -114,12 +129,48 @@ func (o *OnRamp) handleExecuteAction(_ context.Context, in *ExecuteActionInput) 
 			"action":    in.Action,
 			"target":    target,
 		},
+		OnComplete: buildOnComplete(st, log, actionID, in.Component, in.Action),
 	})
 	if err != nil {
 		if errors.Is(err, taskrunner.ErrConcurrencyLimit) {
 			return nil, huma.Error409Conflict("a task is already running", err)
 		}
 		return nil, huma.Error500InternalServerError("failed to start task", err)
+	}
+
+	// Record the action in persistent history.
+	now := time.Now().UTC()
+	rec := store.ActionRecord{
+		ID:        actionID,
+		Component: in.Component,
+		Action:    in.Action,
+		Target:    target,
+		Status:    "running",
+		ExitCode:  -1,
+		Labels:    labels,
+		Tags:      tags,
+		StartedAt: now,
+	}
+	if err := st.InsertAction(ctx, rec); err != nil {
+		log.Error("failed to insert action record", "action_id", actionID, "error", err)
+	}
+
+	// Update component state for install/uninstall actions.
+	if cat := actionCategory(in.Action); cat != "" {
+		status := "installing"
+		if cat == "uninstall" {
+			status = "uninstalling"
+		}
+		cs := store.ComponentState{
+			Component:  in.Component,
+			Status:     status,
+			LastAction: in.Action,
+			ActionID:   actionID,
+			UpdatedAt:  now,
+		}
+		if err := st.UpsertComponentState(ctx, cs); err != nil {
+			log.Error("failed to upsert component state", "component", in.Component, "error", err)
+		}
 	}
 
 	return &ExecuteActionOutput{Body: toOnRampTask(view, "", 0)}, nil
@@ -146,6 +197,121 @@ func (o *OnRamp) handleGetTask(_ context.Context, in *TaskGetInput) (*TaskGetOut
 	}
 	chunk, _ := o.runner.Output(in.ID, in.Offset)
 	return &TaskGetOutput{Body: toOnRampTask(view, chunk.Data, chunk.NewOffset)}, nil
+}
+
+// ---------------------------------------------------------------------------
+// Action history handlers
+// ---------------------------------------------------------------------------
+
+func (o *OnRamp) handleListActions(ctx context.Context, in *ActionListInput) (*ActionListOutput, error) {
+	recs, err := o.Store().ListActions(ctx, store.ActionFilter{
+		Component: in.Component,
+		Action:    in.Action,
+		Status:    in.Status,
+		Limit:     in.Limit,
+		Offset:    in.Offset,
+	})
+	if err != nil {
+		return nil, huma.Error500InternalServerError("failed to list actions", err)
+	}
+	items := make([]ActionHistoryItem, len(recs))
+	for i, r := range recs {
+		items[i] = actionRecordToItem(r)
+	}
+	return &ActionListOutput{Body: items}, nil
+}
+
+func (o *OnRamp) handleGetAction(ctx context.Context, in *ActionGetInput) (*ActionGetOutput, error) {
+	rec, ok, err := o.Store().GetAction(ctx, in.ID)
+	if err != nil {
+		return nil, huma.Error500InternalServerError("failed to get action", err)
+	}
+	if !ok {
+		return nil, huma.Error404NotFound("action not found", fmt.Errorf("no action with id %s", in.ID))
+	}
+	return &ActionGetOutput{Body: actionRecordToItem(rec)}, nil
+}
+
+func actionRecordToItem(r store.ActionRecord) ActionHistoryItem {
+	item := ActionHistoryItem{
+		ID:        r.ID,
+		Component: r.Component,
+		Action:    r.Action,
+		Target:    r.Target,
+		Status:    r.Status,
+		ExitCode:  r.ExitCode,
+		Error:     r.Error,
+		Labels:    r.Labels,
+		Tags:      r.Tags,
+		StartedAt: r.StartedAt.Unix(),
+	}
+	if !r.FinishedAt.IsZero() {
+		item.FinishedAt = r.FinishedAt.Unix()
+	}
+	return item
+}
+
+// ---------------------------------------------------------------------------
+// Component state handlers
+// ---------------------------------------------------------------------------
+
+func (o *OnRamp) handleListComponentStates(ctx context.Context, _ *struct{}) (*ComponentStateListOutput, error) {
+	states, err := o.Store().ListComponentStates(ctx)
+	if err != nil {
+		return nil, huma.Error500InternalServerError("failed to list component states", err)
+	}
+
+	// Build a map of known states.
+	stateMap := make(map[string]store.ComponentState, len(states))
+	for _, s := range states {
+		stateMap[s.Component] = s
+	}
+
+	// Emit an entry for every registered component, defaulting to not_installed.
+	items := make([]ComponentStateItem, 0, len(componentRegistry))
+	for _, comp := range componentRegistry {
+		if s, ok := stateMap[comp.Name]; ok {
+			items = append(items, componentStateToItem(s))
+		} else {
+			items = append(items, ComponentStateItem{
+				Component: comp.Name,
+				Status:    "not_installed",
+			})
+		}
+	}
+	return &ComponentStateListOutput{Body: items}, nil
+}
+
+func (o *OnRamp) handleGetComponentState(ctx context.Context, in *ComponentStateGetInput) (*ComponentStateGetOutput, error) {
+	// Validate the component name against the registry.
+	if _, ok := componentIndex[in.Component]; !ok {
+		return nil, huma.Error404NotFound("component not found", fmt.Errorf("unknown component: %s", in.Component))
+	}
+
+	cs, ok, err := o.Store().GetComponentState(ctx, in.Component)
+	if err != nil {
+		return nil, huma.Error500InternalServerError("failed to get component state", err)
+	}
+	if !ok {
+		return &ComponentStateGetOutput{Body: ComponentStateItem{
+			Component: in.Component,
+			Status:    "not_installed",
+		}}, nil
+	}
+	return &ComponentStateGetOutput{Body: componentStateToItem(cs)}, nil
+}
+
+func componentStateToItem(cs store.ComponentState) ComponentStateItem {
+	item := ComponentStateItem{
+		Component:  cs.Component,
+		Status:     cs.Status,
+		LastAction: cs.LastAction,
+		ActionID:   cs.ActionID,
+	}
+	if !cs.UpdatedAt.IsZero() {
+		item.UpdatedAt = cs.UpdatedAt.Unix()
+	}
+	return item
 }
 
 // ---------------------------------------------------------------------------

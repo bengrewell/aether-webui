@@ -189,7 +189,23 @@ func (r *Runner) run(ctx context.Context, t *task) {
 		t.exitCode = 0
 		r.log.Info("task succeeded", "id", t.id)
 	}
+	v := t.view()
+	cb := t.spec.OnComplete
 	r.mu.Unlock()
+
+	if cb != nil {
+		r.safeCallback(v, cb)
+	}
+}
+
+// safeCallback invokes the OnComplete callback, recovering from panics.
+func (r *Runner) safeCallback(v TaskView, cb func(TaskView)) {
+	defer func() {
+		if p := recover(); p != nil {
+			r.log.Error("OnComplete callback panicked", "task_id", v.ID, "panic", p)
+		}
+	}()
+	cb(v)
 }
 
 // matchFilter returns true if the task matches all non-nil filter criteria.

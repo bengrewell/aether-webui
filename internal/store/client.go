@@ -104,6 +104,41 @@ func (c Client) ListNodes(ctx context.Context) ([]NodeInfo, error) {
 	return c.s.ListNodes(ctx)
 }
 
+// InsertAction records a new action execution in the action history.
+func (c Client) InsertAction(ctx context.Context, rec ActionRecord) error {
+	return c.s.InsertAction(ctx, rec)
+}
+
+// UpdateActionResult updates the result of a completed action.
+func (c Client) UpdateActionResult(ctx context.Context, id string, result ActionResult) error {
+	return c.s.UpdateActionResult(ctx, id, result)
+}
+
+// GetAction retrieves a single action record by ID.
+func (c Client) GetAction(ctx context.Context, id string) (ActionRecord, bool, error) {
+	return c.s.GetAction(ctx, id)
+}
+
+// ListActions returns action records matching the filter criteria.
+func (c Client) ListActions(ctx context.Context, filter ActionFilter) ([]ActionRecord, error) {
+	return c.s.ListActions(ctx, filter)
+}
+
+// UpsertComponentState creates or updates the state of a component.
+func (c Client) UpsertComponentState(ctx context.Context, cs ComponentState) error {
+	return c.s.UpsertComponentState(ctx, cs)
+}
+
+// GetComponentState retrieves the state of a single component.
+func (c Client) GetComponentState(ctx context.Context, component string) (ComponentState, bool, error) {
+	return c.s.GetComponentState(ctx, component)
+}
+
+// ListComponentStates returns the state of all tracked components.
+func (c Client) ListComponentStates(ctx context.Context) ([]ComponentState, error) {
+	return c.s.ListComponentStates(ctx)
+}
+
 func (c Client) GetSchemaVersion() (int, error) {
 	return c.s.GetSchemaVersion()
 }
