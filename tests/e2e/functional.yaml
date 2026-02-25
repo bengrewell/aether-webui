@@ -374,6 +374,21 @@ tests:
       evaluate:
         exit_code: 0
 
+  - name: "dump pingall task output on failure"
+    node: test-vm
+    type: execute
+    options:
+      command: >-
+        TASK_ID=$(cat /tmp/pingall_task_id);
+        STATUS=$(curl -sf "http://localhost:8186/api/v1/onramp/tasks/${TASK_ID}" | jq -r '.status');
+        if [ "$STATUS" != "succeeded" ]; then
+          echo "=== Task status: $STATUS ===";
+          curl -sf "http://localhost:8186/api/v1/onramp/tasks/${TASK_ID}" | jq '{status, exit_code, component, action, started_at, finished_at}';
+          echo "=== Task output ===";
+          curl -sf "http://localhost:8186/api/v1/onramp/tasks/${TASK_ID}" | jq -r '.output';
+        fi;
+        exit 0
+
   - name: "tasks list includes completed pingall"
     node: test-vm
     type: execute
