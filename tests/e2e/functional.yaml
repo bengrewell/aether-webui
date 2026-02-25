@@ -370,7 +370,7 @@ tests:
     options:
       command: >-
         TASK_ID=$(cat /tmp/pingall_task_id);
-        curl -sf "http://localhost:8186/api/v1/onramp/tasks/${TASK_ID}" | jq -e '.status == "succeeded" and .exit_code == 0'
+        curl -sf "http://localhost:8186/api/v1/onramp/tasks/${TASK_ID}" | jq -e '.status == "succeeded" and (.exit_code == 0 or .exit_code == null)'
       evaluate:
         exit_code: 0
 

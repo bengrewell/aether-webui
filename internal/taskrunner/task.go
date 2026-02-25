@@ -77,7 +77,7 @@ type TaskView struct {
 	CreatedAt   time.Time         `json:"created_at"`
 	StartedAt   time.Time         `json:"started_at,omitzero"`
 	FinishedAt  time.Time         `json:"finished_at,omitzero"`
-	ExitCode    int               `json:"exit_code,omitempty"`
+	ExitCode    int               `json:"exit_code"`
 	Error       string            `json:"error,omitempty"`
 }
 

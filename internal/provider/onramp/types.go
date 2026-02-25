@@ -161,7 +161,7 @@ type OnRampTask struct {
 	Status       string    `json:"status"`
 	StartedAt    time.Time `json:"started_at"`
 	FinishedAt   time.Time `json:"finished_at,omitempty"`
-	ExitCode     int       `json:"exit_code,omitempty"`
+	ExitCode     int       `json:"exit_code"`
 	Output       string    `json:"output"`
 	OutputOffset int       `json:"output_offset"`
 }
