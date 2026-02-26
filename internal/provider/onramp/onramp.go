@@ -29,7 +29,7 @@ func NewProvider(cfg Config, opts ...provider.Option) *OnRamp {
 	o := &OnRamp{
 		Base:      base,
 		config:    cfg,
-		endpoints: make([]endpoint.AnyEndpoint, 0, 14),
+		endpoints: make([]endpoint.AnyEndpoint, 0, 18),
 		runner: taskrunner.New(taskrunner.RunnerConfig{
 			MaxConcurrent: 1,
 			Logger:        base.Log(),
@@ -124,6 +124,58 @@ func NewProvider(cfg Config, opts ...provider.Option) *OnRamp {
 			HTTP:        endpoint.HTTPHint{Path: "/api/v1/onramp/tasks/{id}"},
 		},
 		Handler: o.handleGetTask,
+	})
+
+	// --- Actions ---
+
+	provider.Register(o.Base, endpoint.Endpoint[ActionListInput, ActionListOutput]{
+		Desc: endpoint.Descriptor{
+			OperationID: "onramp-list-actions",
+			Semantics:   endpoint.Read,
+			Summary:     "List action history",
+			Description: "Returns paginated action execution history, filterable by component, action, and status.",
+			Tags:        []string{"onramp"},
+			HTTP:        endpoint.HTTPHint{Path: "/api/v1/onramp/actions"},
+		},
+		Handler: o.handleListActions,
+	})
+
+	provider.Register(o.Base, endpoint.Endpoint[ActionGetInput, ActionGetOutput]{
+		Desc: endpoint.Descriptor{
+			OperationID: "onramp-get-action",
+			Semantics:   endpoint.Read,
+			Summary:     "Get action detail",
+			Description: "Returns a single action execution record by ID.",
+			Tags:        []string{"onramp"},
+			HTTP:        endpoint.HTTPHint{Path: "/api/v1/onramp/actions/{id}"},
+		},
+		Handler: o.handleGetAction,
+	})
+
+	// --- State ---
+
+	provider.Register(o.Base, endpoint.Endpoint[struct{}, ComponentStateListOutput]{
+		Desc: endpoint.Descriptor{
+			OperationID: "onramp-list-state",
+			Semantics:   endpoint.Read,
+			Summary:     "List component states",
+			Description: "Returns the current deployment state of all components. Components with no history default to not_installed.",
+			Tags:        []string{"onramp"},
+			HTTP:        endpoint.HTTPHint{Path: "/api/v1/onramp/state"},
+		},
+		Handler: o.handleListComponentStates,
+	})
+
+	provider.Register(o.Base, endpoint.Endpoint[ComponentStateGetInput, ComponentStateGetOutput]{
+		Desc: endpoint.Descriptor{
+			OperationID: "onramp-get-state",
+			Semantics:   endpoint.Read,
+			Summary:     "Get component state",
+			Description: "Returns the current deployment state of a single component.",
+			Tags:        []string{"onramp"},
+			HTTP:        endpoint.HTTPHint{Path: "/api/v1/onramp/state/{component}"},
+		},
+		Handler: o.handleGetComponentState,
 	})
 
 	// --- Config ---

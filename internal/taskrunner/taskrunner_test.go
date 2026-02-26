@@ -2,6 +2,7 @@ package taskrunner
 
 import (
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -282,6 +283,128 @@ func TestStderrCaptured(t *testing.T) {
 	chunk, _ := r.Output(view.ID, 0)
 	if chunk.Data != "errout" {
 		t.Fatalf("stderr output = %q, want %q", chunk.Data, "errout")
+	}
+}
+
+func TestOnComplete_Success(t *testing.T) {
+	r := New(RunnerConfig{})
+
+	var mu sync.Mutex
+	var captured TaskView
+	done := make(chan struct{})
+
+	view, err := r.Submit(TaskSpec{
+		Command:     "echo",
+		Args:        []string{"hello"},
+		Description: "callback test",
+		OnComplete: func(v TaskView) {
+			mu.Lock()
+			captured = v
+			mu.Unlock()
+			close(done)
+		},
+	})
+	if err != nil {
+		t.Fatalf("Submit: %v", err)
+	}
+
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("OnComplete not called within timeout")
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if captured.ID != view.ID {
+		t.Errorf("callback ID = %q, want %q", captured.ID, view.ID)
+	}
+	if captured.Status != StatusSucceeded {
+		t.Errorf("callback status = %q, want %q", captured.Status, StatusSucceeded)
+	}
+	if captured.ExitCode != 0 {
+		t.Errorf("callback exit code = %d, want 0", captured.ExitCode)
+	}
+}
+
+func TestOnComplete_Failure(t *testing.T) {
+	r := New(RunnerConfig{})
+
+	done := make(chan TaskView, 1)
+	_, err := r.Submit(TaskSpec{
+		Command:     "sh",
+		Args:        []string{"-c", "exit 42"},
+		Description: "fail callback test",
+		OnComplete: func(v TaskView) {
+			done <- v
+		},
+	})
+	if err != nil {
+		t.Fatalf("Submit: %v", err)
+	}
+
+	select {
+	case v := <-done:
+		if v.Status != StatusFailed {
+			t.Errorf("status = %q, want %q", v.Status, StatusFailed)
+		}
+		if v.ExitCode != 42 {
+			t.Errorf("exit code = %d, want 42", v.ExitCode)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("OnComplete not called within timeout")
+	}
+}
+
+func TestOnComplete_Nil(t *testing.T) {
+	r := New(RunnerConfig{})
+
+	view, err := r.Submit(TaskSpec{
+		Command:     "echo",
+		Args:        []string{"no callback"},
+		Description: "nil callback test",
+	})
+	if err != nil {
+		t.Fatalf("Submit: %v", err)
+	}
+
+	waitForTask(t, r, view.ID, 5*time.Second)
+
+	got, _ := r.Get(view.ID)
+	if got.Status != StatusSucceeded {
+		t.Errorf("status = %q, want %q", got.Status, StatusSucceeded)
+	}
+}
+
+func TestOnComplete_PanicRecovery(t *testing.T) {
+	r := New(RunnerConfig{})
+
+	panicked := make(chan struct{})
+	view, err := r.Submit(TaskSpec{
+		Command:     "echo",
+		Args:        []string{"panic"},
+		Description: "panic callback test",
+		OnComplete: func(v TaskView) {
+			close(panicked)
+			panic("callback exploded")
+		},
+	})
+	if err != nil {
+		t.Fatalf("Submit: %v", err)
+	}
+
+	waitForTask(t, r, view.ID, 5*time.Second)
+
+	// Wait for the callback to actually fire (it runs after the status is set).
+	select {
+	case <-panicked:
+	case <-time.After(5 * time.Second):
+		t.Fatal("callback not invoked within timeout")
+	}
+
+	got, _ := r.Get(view.ID)
+	if got.Status != StatusSucceeded {
+		t.Errorf("status = %q, want %q (panic should not affect task status)", got.Status, StatusSucceeded)
 	}
 }
 

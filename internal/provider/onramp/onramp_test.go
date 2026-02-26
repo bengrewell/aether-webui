@@ -41,6 +41,35 @@ func newTestProvider(t *testing.T, mainYML string) *OnRamp {
 	})
 }
 
+// newTestProviderWithStore creates an OnRamp provider backed by a real SQLite store.
+func newTestProviderWithStore(t *testing.T, mainYML string) *OnRamp {
+	t.Helper()
+	dir := t.TempDir()
+
+	if mainYML != "" {
+		varsDir := filepath.Join(dir, "vars")
+		if err := os.MkdirAll(varsDir, 0o755); err != nil {
+			t.Fatalf("MkdirAll: %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(varsDir, "main.yml"), []byte(mainYML), 0o644); err != nil {
+			t.Fatalf("WriteFile: %v", err)
+		}
+	}
+
+	dbPath := t.TempDir() + "/test.db"
+	st, err := store.New(t.Context(), dbPath)
+	if err != nil {
+		t.Fatalf("store.New: %v", err)
+	}
+	t.Cleanup(func() { st.Close() })
+
+	return NewProvider(Config{
+		OnRampDir: dir,
+		RepoURL:   "https://example.com/fake.git",
+		Version:   "main",
+	}, provider.WithStore(st))
+}
+
 // writeProfile creates a vars/main-{name}.yml file in the provider's OnRampDir.
 func writeProfile(t *testing.T, o *OnRamp, name, content string) {
 	t.Helper()
@@ -120,8 +149,8 @@ func TestNewProvider_ImplementsInterface(t *testing.T) {
 func TestNewProvider_EndpointCount(t *testing.T) {
 	p := newTestProvider(t, "")
 	descs := p.Base.Descriptors()
-	if len(descs) != 14 {
-		t.Errorf("registered %d endpoints, want 14", len(descs))
+	if len(descs) != 18 {
+		t.Errorf("registered %d endpoints, want 18", len(descs))
 	}
 }
 
@@ -129,20 +158,24 @@ func TestNewProvider_EndpointPaths(t *testing.T) {
 	p := newTestProvider(t, "")
 
 	wantOps := map[string]string{
-		"onramp-get-repo-status": "/api/v1/onramp/repo",
-		"onramp-refresh-repo":   "/api/v1/onramp/repo/refresh",
-		"onramp-list-components": "/api/v1/onramp/components",
-		"onramp-get-component":  "/api/v1/onramp/components/{component}",
-		"onramp-execute-action": "/api/v1/onramp/components/{component}/{action}",
-		"onramp-list-tasks":     "/api/v1/onramp/tasks",
-		"onramp-get-task":       "/api/v1/onramp/tasks/{id}",
-		"onramp-get-config":     "/api/v1/onramp/config",
-		"onramp-patch-config":   "/api/v1/onramp/config",
-		"onramp-list-profiles":  "/api/v1/onramp/config/profiles",
-		"onramp-get-profile":    "/api/v1/onramp/config/profiles/{name}",
-		"onramp-activate-profile": "/api/v1/onramp/config/profiles/{name}/activate",
-		"onramp-get-inventory":    "/api/v1/onramp/inventory",
-		"onramp-sync-inventory":   "/api/v1/onramp/inventory/sync",
+		"onramp-get-repo-status":   "/api/v1/onramp/repo",
+		"onramp-refresh-repo":      "/api/v1/onramp/repo/refresh",
+		"onramp-list-components":   "/api/v1/onramp/components",
+		"onramp-get-component":     "/api/v1/onramp/components/{component}",
+		"onramp-execute-action":    "/api/v1/onramp/components/{component}/{action}",
+		"onramp-list-tasks":        "/api/v1/onramp/tasks",
+		"onramp-get-task":          "/api/v1/onramp/tasks/{id}",
+		"onramp-list-actions":      "/api/v1/onramp/actions",
+		"onramp-get-action":        "/api/v1/onramp/actions/{id}",
+		"onramp-list-state":        "/api/v1/onramp/state",
+		"onramp-get-state":         "/api/v1/onramp/state/{component}",
+		"onramp-get-config":        "/api/v1/onramp/config",
+		"onramp-patch-config":      "/api/v1/onramp/config",
+		"onramp-list-profiles":     "/api/v1/onramp/config/profiles",
+		"onramp-get-profile":       "/api/v1/onramp/config/profiles/{name}",
+		"onramp-activate-profile":  "/api/v1/onramp/config/profiles/{name}/activate",
+		"onramp-get-inventory":     "/api/v1/onramp/inventory",
+		"onramp-sync-inventory":    "/api/v1/onramp/inventory/sync",
 	}
 
 	descs := p.Base.Descriptors()
@@ -264,7 +297,7 @@ func TestHandleExecuteAction_Success(t *testing.T) {
 		t.Skip("make not available on PATH")
 	}
 
-	p := newTestProvider(t, "")
+	p := newTestProviderWithStore(t, "")
 	out, err := p.handleExecuteAction(t.Context(), &ExecuteActionInput{
 		Component: "cluster",
 		Action:    "pingall",
@@ -297,7 +330,7 @@ func TestHandleExecuteAction_ConcurrencyLimit(t *testing.T) {
 		t.Skip("make not available on PATH")
 	}
 
-	p := newTestProvider(t, "")
+	p := newTestProviderWithStore(t, "")
 
 	// Submit a long-running task via the runner to occupy the slot.
 	view, err := p.runner.Submit(taskrunner.TaskSpec{

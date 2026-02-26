@@ -62,6 +62,45 @@ type NodeInfo struct {
 	UpdatedAt   time.Time
 }
 
+// Actions
+
+type ActionRecord struct {
+	ID        string
+	Component string
+	Action    string
+	Target    string
+	Status    string
+	Error     string
+	ExitCode  int
+	Labels    map[string]string
+	Tags      []string
+	StartedAt  time.Time
+	FinishedAt time.Time
+}
+
+type ActionResult struct {
+	Status     string
+	Error      string
+	ExitCode   int
+	FinishedAt time.Time
+}
+
+type ActionFilter struct {
+	Component string
+	Action    string
+	Status    string
+	Limit     int
+	Offset    int
+}
+
+type ComponentState struct {
+	Component  string
+	Status     string
+	LastAction string
+	ActionID   string
+	UpdatedAt  time.Time
+}
+
 // Metrics
 
 type Sample struct {
