@@ -15,6 +15,16 @@ func (d *db) InsertAction(ctx context.Context, rec ActionRecord) error {
 	if rec.ID == "" || rec.Component == "" || rec.Action == "" || rec.Target == "" {
 		return ErrInvalidArgument
 	}
+	if rec.Status == "" {
+		rec.Status = "running"
+	}
+	if rec.ExitCode == 0 && rec.Status == "running" {
+		rec.ExitCode = -1
+	}
+	if rec.StartedAt.IsZero() {
+		rec.StartedAt = d.now()
+	}
+
 	labelsJSON, err := marshalJSONField(rec.Labels)
 	if err != nil {
 		return err
@@ -263,8 +273,12 @@ func (d *db) ListComponentStates(ctx context.Context) ([]ComponentState, error) 
 // helpers
 // ---------------------------------------------------------------------------
 
-// marshalJSONField marshals v to a JSON string, returning nil if v is nil or empty.
-func marshalJSONField(v any) ([]byte, error) {
+// marshalJSONField marshals v to a JSON TEXT string for SQLite storage.
+// Returns nil (SQL NULL) when v is nil or an empty collection.
+func marshalJSONField(v any) (*string, error) {
+	if v == nil {
+		return nil, nil
+	}
 	switch val := v.(type) {
 	case map[string]string:
 		if len(val) == 0 {
@@ -275,7 +289,12 @@ func marshalJSONField(v any) ([]byte, error) {
 			return nil, nil
 		}
 	}
-	return json.Marshal(v)
+	b, err := json.Marshal(v)
+	if err != nil {
+		return nil, err
+	}
+	s := string(b)
+	return &s, nil
 }
 
 // nullString returns a sql.NullString; empty strings are stored as NULL.

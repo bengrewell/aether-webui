@@ -822,13 +822,17 @@ List deployment state for all components. Always returns one entry per known com
 
 > **Note:** `updated_at` is Unix epoch seconds. `last_action`, `action_id`, and `updated_at` are omitted for components with no recorded history.
 
-**State values:** `not_installed`, `installed`, `failed`
+**State values:** `not_installed`, `installing`, `installed`, `uninstalling`, `failed`
 
-**State transitions** (automatic, based on action completion):
-- Install actions succeed → `installed`
-- Install actions fail → `failed`
-- Uninstall actions succeed → `not_installed`
-- Uninstall actions fail → `failed`
+**State transitions:**
+- Install action triggered → `installing`
+- Install action succeeds → `installed`
+- Install action fails → `failed`
+- Uninstall action triggered → `uninstalling`
+- Uninstall action succeeds → `not_installed`
+- Uninstall action fails → `failed`
+
+The transitional states (`installing`, `uninstalling`) are set when an action is submitted and can be used to show in-progress indicators in the frontend. Final states are set automatically when the action completes.
 
 ---
 
@@ -1255,7 +1259,7 @@ Represents the current deployment state of a component.
 | Field | Type | Description |
 |-------|------|-------------|
 | `component` | string | Component name |
-| `status` | string | Current state: `not_installed`, `installed`, `failed` |
+| `status` | string | Current state: `not_installed`, `installing`, `installed`, `uninstalling`, `failed` |
 | `last_action` | string | Most recent action executed (omitted if no history) |
 | `action_id` | string | ID of the action that set this state (omitted if no history) |
 | `updated_at` | int64 | Unix epoch seconds of last state change (omitted if no history) |

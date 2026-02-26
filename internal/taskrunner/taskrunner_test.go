@@ -379,11 +379,13 @@ func TestOnComplete_Nil(t *testing.T) {
 func TestOnComplete_PanicRecovery(t *testing.T) {
 	r := New(RunnerConfig{})
 
+	panicked := make(chan struct{})
 	view, err := r.Submit(TaskSpec{
 		Command:     "echo",
 		Args:        []string{"panic"},
 		Description: "panic callback test",
 		OnComplete: func(v TaskView) {
+			close(panicked)
 			panic("callback exploded")
 		},
 	})
@@ -392,8 +394,13 @@ func TestOnComplete_PanicRecovery(t *testing.T) {
 	}
 
 	waitForTask(t, r, view.ID, 5*time.Second)
-	// Allow time for callback to run and recover.
-	time.Sleep(50 * time.Millisecond)
+
+	// Wait for the callback to actually fire (it runs after the status is set).
+	select {
+	case <-panicked:
+	case <-time.After(5 * time.Second):
+		t.Fatal("callback not invoked within timeout")
+	}
 
 	got, _ := r.Get(view.ID)
 	if got.Status != StatusSucceeded {

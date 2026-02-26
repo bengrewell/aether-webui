@@ -13,10 +13,10 @@ CREATE TABLE IF NOT EXISTS action_history (
     finished_at INTEGER
 );
 
-CREATE INDEX idx_ah_component        ON action_history(component);
-CREATE INDEX idx_ah_component_action ON action_history(component, action);
-CREATE INDEX idx_ah_status           ON action_history(status);
-CREATE INDEX idx_ah_started_at       ON action_history(started_at);
+CREATE INDEX IF NOT EXISTS idx_ah_component        ON action_history(component);
+CREATE INDEX IF NOT EXISTS idx_ah_component_action ON action_history(component, action);
+CREATE INDEX IF NOT EXISTS idx_ah_status           ON action_history(status);
+CREATE INDEX IF NOT EXISTS idx_ah_started_at       ON action_history(started_at);
 
 -- component_state tracks the current installed state per component.
 CREATE TABLE IF NOT EXISTS component_state (

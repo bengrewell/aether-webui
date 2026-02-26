@@ -118,28 +118,15 @@ func (o *OnRamp) handleExecuteAction(ctx context.Context, in *ExecuteActionInput
 	actionID := uuid.NewString()
 	st := o.Store()
 	log := o.Log()
-
-	view, err := o.runner.Submit(taskrunner.TaskSpec{
-		Command:     "make",
-		Args:        []string{target},
-		Dir:         o.config.OnRampDir,
-		Description: fmt.Sprintf("%s/%s", in.Component, in.Action),
-		Labels: map[string]string{
-			"component": in.Component,
-			"action":    in.Action,
-			"target":    target,
-		},
-		OnComplete: buildOnComplete(st, log, actionID, in.Component, in.Action),
-	})
-	if err != nil {
-		if errors.Is(err, taskrunner.ErrConcurrencyLimit) {
-			return nil, huma.Error409Conflict("a task is already running", err)
-		}
-		return nil, huma.Error500InternalServerError("failed to start task", err)
-	}
-
-	// Record the action in persistent history.
 	now := time.Now().UTC()
+
+	// Persist the action record before submitting the task to avoid a race
+	// where a fast-completing task triggers OnComplete (UpdateActionResult)
+	// before InsertAction runs. Use a detached context so client disconnect
+	// does not cancel the write.
+	dbCtx, dbCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer dbCancel()
+
 	rec := store.ActionRecord{
 		ID:        actionID,
 		Component: in.Component,
@@ -151,7 +138,7 @@ func (o *OnRamp) handleExecuteAction(ctx context.Context, in *ExecuteActionInput
 		Tags:      tags,
 		StartedAt: now,
 	}
-	if err := st.InsertAction(ctx, rec); err != nil {
+	if err := st.InsertAction(dbCtx, rec); err != nil {
 		log.Error("failed to insert action record", "action_id", actionID, "error", err)
 	}
 
@@ -168,9 +155,38 @@ func (o *OnRamp) handleExecuteAction(ctx context.Context, in *ExecuteActionInput
 			ActionID:   actionID,
 			UpdatedAt:  now,
 		}
-		if err := st.UpsertComponentState(ctx, cs); err != nil {
+		if err := st.UpsertComponentState(dbCtx, cs); err != nil {
 			log.Error("failed to upsert component state", "component", in.Component, "error", err)
 		}
+	}
+
+	view, err := o.runner.Submit(taskrunner.TaskSpec{
+		Command:     "make",
+		Args:        []string{target},
+		Dir:         o.config.OnRampDir,
+		Description: fmt.Sprintf("%s/%s", in.Component, in.Action),
+		Labels: map[string]string{
+			"component": in.Component,
+			"action":    in.Action,
+			"target":    target,
+		},
+		OnComplete: buildOnComplete(st, log, actionID, in.Component, in.Action),
+	})
+	if err != nil {
+		// Submit failed — mark the already-inserted action as failed.
+		failResult := store.ActionResult{
+			Status:     "failed",
+			Error:      err.Error(),
+			ExitCode:   -1,
+			FinishedAt: time.Now().UTC(),
+		}
+		if updateErr := st.UpdateActionResult(dbCtx, actionID, failResult); updateErr != nil {
+			log.Error("failed to mark action as failed after submit error", "action_id", actionID, "error", updateErr)
+		}
+		if errors.Is(err, taskrunner.ErrConcurrencyLimit) {
+			return nil, huma.Error409Conflict("a task is already running", err)
+		}
+		return nil, huma.Error500InternalServerError("failed to start task", err)
 	}
 
 	return &ExecuteActionOutput{Body: toOnRampTask(view, "", 0)}, nil
