@@ -45,9 +45,9 @@ The API is organized into **providers** — modular units that each register a s
 | **meta** | `/api/v1/meta/` | Server introspection — version, build, runtime, config, providers, store health | 6 |
 | **system** | `/api/v1/system/` | Host system info — CPU, memory, disk, OS, network, metrics | 8 |
 | **nodes** | `/api/v1/nodes` | Cluster node CRUD — manage nodes with role assignments and credentials | 5 |
-| **onramp** | `/api/v1/onramp/` | Aether OnRamp operations — components, tasks, config, profiles, inventory | 14 |
+| **onramp** | `/api/v1/onramp/` | Aether OnRamp operations — components, tasks, config, profiles, inventory, deployment tracking | 18 |
 
-**Total: 33 endpoints**
+**Total: 37 endpoints**
 
 ---
 
@@ -140,7 +140,7 @@ Get active (non-secret) application configuration.
     "interval": "10s",
     "retention": "24h"
   },
-  "schema_version": 2
+  "schema_version": 4
 }
 ```
 
@@ -170,7 +170,7 @@ Get registered provider statuses.
       "name": "onramp",
       "enabled": true,
       "running": true,
-      "endpoint_count": 14
+      "endpoint_count": 18
     },
     {
       "name": "meta",
@@ -194,7 +194,7 @@ Get store health and metadata, including live diagnostics.
   "engine": "sqlite",
   "path": "/var/lib/aether-webd/app.db",
   "file_size_bytes": 524288,
-  "schema_version": 2,
+  "schema_version": 4,
   "status": "healthy",
   "diagnostics": [
     { "name": "ping", "passed": true, "latency": "0.1ms" },
@@ -724,6 +724,131 @@ const poll = async (taskId) => {
 
 ---
 
+#### Action History
+
+Persistent record of all executed actions, stored in SQLite. Enables audit trails and deployment dashboards.
+
+##### GET `/api/v1/onramp/actions`
+
+List action history with optional filtering and pagination.
+
+**Query Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `component` | string | | Filter by component name (exact match) |
+| `action` | string | | Filter by action name (exact match) |
+| `status` | string | | Filter by status (exact match) |
+| `limit` | int | `50` | Max results |
+| `offset` | int | `0` | Pagination offset |
+
+Filters combine with AND when multiple are provided. Results are ordered by `started_at` descending (newest first).
+
+**Example request:**
+```
+GET /api/v1/onramp/actions?component=k8s&status=succeeded&limit=10
+```
+
+**JavaScript:**
+```js
+const params = new URLSearchParams({ component: 'k8s', limit: '10' });
+const res = await fetch(`${BASE_URL}/onramp/actions?${params}`, { headers });
+const actions = await res.json();
+```
+
+**Response:**
+```json
+[
+  {
+    "id": "action-uuid",
+    "component": "k8s",
+    "action": "install",
+    "target": "aether-k8s-install",
+    "status": "succeeded",
+    "exit_code": 0,
+    "labels": { "profile": "gnbsim" },
+    "tags": ["automated"],
+    "started_at": 1708257600,
+    "finished_at": 1708257660
+  }
+]
+```
+
+> **Note:** `started_at` and `finished_at` are Unix epoch seconds (int64), not ISO 8601 strings. `finished_at` is omitted when the action is still running. `error`, `labels`, and `tags` are omitted when empty.
+
+---
+
+##### GET `/api/v1/onramp/actions/{id}`
+
+Get a single action record by ID.
+
+**Path Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | string | Action ID |
+
+**Response:** Single `ActionHistoryItem` (same shape as list items).
+
+**Errors:**
+- `404` — Action not found
+
+---
+
+#### Component State
+
+Tracks the current deployment state of each component. States are automatically updated when actions complete.
+
+##### GET `/api/v1/onramp/state`
+
+List deployment state for all components. Always returns one entry per known component (currently 12). Components with no deployment history appear as `"not_installed"`.
+
+**Response:**
+```json
+[
+  {
+    "component": "k8s",
+    "status": "installed",
+    "last_action": "install",
+    "action_id": "action-uuid",
+    "updated_at": 1708257660
+  },
+  {
+    "component": "5gc",
+    "status": "not_installed"
+  }
+]
+```
+
+> **Note:** `updated_at` is Unix epoch seconds. `last_action`, `action_id`, and `updated_at` are omitted for components with no recorded history.
+
+**State values:** `not_installed`, `installed`, `failed`
+
+**State transitions** (automatic, based on action completion):
+- Install actions succeed → `installed`
+- Install actions fail → `failed`
+- Uninstall actions succeed → `not_installed`
+- Uninstall actions fail → `failed`
+
+---
+
+##### GET `/api/v1/onramp/state/{component}`
+
+Get deployment state for a single component.
+
+**Path Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `component` | string | Component name (e.g. `k8s`, `5gc`) |
+
+**Response:** Single `ComponentStateItem` (same shape as list items).
+
+**Errors:**
+- `404` — Unknown component name
+
+---
+
 #### Config
 
 ##### GET `/api/v1/onramp/config`
@@ -957,7 +1082,39 @@ For a live dashboard, poll the metrics endpoint every 10–30 seconds. Use the `
 
 Static system info (CPU model, total memory, disk layout, OS info, network interfaces) changes infrequently and can be fetched once on page load.
 
-### 4. Configuration Management
+### 4. Deployment State Dashboard
+
+Component state and action history enable a deployment dashboard without client-side tracking.
+
+```
+1. GET /api/v1/onramp/state                    ← Load current state for all 12 components
+2. GET /api/v1/onramp/actions?limit=20         ← Load recent action history
+```
+
+After triggering a deploy, the state updates automatically:
+
+```js
+// 1. Start an install
+const task = await fetch(`${BASE_URL}/onramp/components/k8s/install`, {
+  method: 'POST', headers,
+}).then(r => r.json());
+
+// 2. Poll task until done (see "Deploying a Component" workflow)
+// ...
+
+// 3. Refresh state — k8s is now "installed" (or "failed")
+const states = await fetch(`${BASE_URL}/onramp/state`, { headers }).then(r => r.json());
+
+// 4. Optionally fetch history for a specific component
+const history = await fetch(
+  `${BASE_URL}/onramp/actions?component=k8s&limit=10`,
+  { headers }
+).then(r => r.json());
+```
+
+> **Note:** Timestamps in action history and component state are Unix epoch seconds (int64), not ISO 8601 strings. Convert on the frontend: `new Date(record.started_at * 1000)`.
+
+### 5. Configuration Management
 
 ```
 1. GET  /api/v1/onramp/config                    ← Read current config
@@ -969,7 +1126,7 @@ Static system info (CPU model, total memory, disk layout, OS info, network inter
 
 Profiles are preset configurations (e.g., `gnbsim`, `oai`, `srsran`). Activating a profile overwrites `vars/main.yml` entirely.
 
-### 5. Repository Management
+### 6. Repository Management
 
 ```
 1. GET  /api/v1/onramp/repo         ← Check clone status
@@ -1072,6 +1229,36 @@ Top-level config object representing the OnRamp `vars/main.yml`. All sections ar
 | `n3iwf` | object | Non-3GPP Interworking Function settings |
 
 See the full schema in `api/openapi.json` under `#/components/schemas/OnRampConfig`.
+
+### ActionHistoryItem
+
+Represents one recorded action execution.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | UUID |
+| `component` | string | Component name (e.g. `k8s`) |
+| `action` | string | Action name (e.g. `install`) |
+| `target` | string | Make target (e.g. `aether-k8s-install`) |
+| `status` | string | Execution result: `succeeded`, `failed`, `running` |
+| `exit_code` | int | Process exit code (0 = success) |
+| `error` | string | Error message (omitted when empty) |
+| `labels` | object | Arbitrary key-value metadata (omitted when empty) |
+| `tags` | string[] | Additional tags (omitted when empty) |
+| `started_at` | int64 | Unix epoch seconds |
+| `finished_at` | int64 | Unix epoch seconds (omitted while running) |
+
+### ComponentStateItem
+
+Represents the current deployment state of a component.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `component` | string | Component name |
+| `status` | string | Current state: `not_installed`, `installed`, `failed` |
+| `last_action` | string | Most recent action executed (omitted if no history) |
+| `action_id` | string | ID of the action that set this state (omitted if no history) |
+| `updated_at` | int64 | Unix epoch seconds of last state change (omitted if no history) |
 
 ### Metrics Series
 
