@@ -98,6 +98,49 @@ setup:
           echo 'aether ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/aether
           sudo chmod 0440 /etc/sudoers.d/aether
 
+  - name: "install kubectl"
+    node: test-vm
+    step:
+      type: execute
+      options:
+        command: |
+          KUBECTL_VERSION=$(curl -L -s https://dl.k8s.io/release/stable.txt)
+          curl -LO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
+          sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+          rm -f kubectl
+          kubectl version --client
+
+  - name: "configure RKE2 environment and kubeconfig helper"
+    node: test-vm
+    step:
+      type: execute
+      options:
+        command: |
+          # Set KUBECONFIG and add RKE2 bin to PATH for all users
+          cat <<'PROFILE' | sudo tee /etc/profile.d/rke2.sh
+          export KUBECONFIG=/etc/rancher/rke2/rke2.yaml
+          export PATH=$PATH:/var/lib/rancher/rke2/bin
+          PROFILE
+          sudo chmod 0644 /etc/profile.d/rke2.sh
+
+          # Helper script: copies RKE2 kubeconfig to ~/.kube/config for the calling user
+          cat <<'SCRIPT' | sudo tee /usr/local/bin/setup-kubeconfig
+          #!/bin/bash
+          set -e
+          SRC=/etc/rancher/rke2/rke2.yaml
+          if [ ! -f "$SRC" ]; then
+            echo "error: $SRC not found — is RKE2 installed?" >&2
+            exit 1
+          fi
+          DEST="${HOME}/.kube"
+          mkdir -p "$DEST"
+          sudo cp "$SRC" "${DEST}/config"
+          sudo chown "$(id -u):$(id -g)" "${DEST}/config"
+          chmod 0600 "${DEST}/config"
+          echo "kubeconfig written to ${DEST}/config"
+          SCRIPT
+          sudo chmod 0755 /usr/local/bin/setup-kubeconfig
+
   - name: "install aether-webd from github release"
     node: test-vm
     step:
