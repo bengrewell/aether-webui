@@ -87,6 +87,17 @@ setup:
       options:
         command: while [ ! -f /tmp/cloud-init.complete ]; do sleep 1; done
 
+  - name: "create aether user with sudo privileges"
+    node: test-vm
+    step:
+      type: execute
+      options:
+        command: |
+          sudo useradd -m -s /bin/bash aether
+          echo 'aether:aether' | sudo chpasswd
+          echo 'aether ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/aether
+          sudo chmod 0440 /etc/sudoers.d/aether
+
   - name: "install aether-webd from github release"
     node: test-vm
     step:
