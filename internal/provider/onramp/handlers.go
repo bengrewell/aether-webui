@@ -108,11 +108,9 @@ func (o *OnRamp) handleExecuteAction(ctx context.Context, in *ExecuteActionInput
 	}
 
 	// Extract optional labels/tags from the request body.
-	var labels map[string]string
-	var tags []string
-	if in.Body != nil {
-		labels = in.Body.Labels
-		tags = in.Body.Tags
+	labels, tags := map[string]string(nil), []string(nil)
+	if body := in.Body; body != nil {
+		labels, tags = body.Labels, body.Tags
 	}
 
 	actionID := uuid.NewString()

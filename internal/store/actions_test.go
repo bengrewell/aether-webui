@@ -1,6 +1,7 @@
 package store
 
 import (
+	"fmt"
 	"testing"
 	"time"
 )
@@ -301,7 +302,7 @@ func TestListActions_Pagination(t *testing.T) {
 	base := time.Now().UTC().Truncate(time.Second)
 	for i := range 5 {
 		r := ActionRecord{
-			ID:        "p" + string(rune('0'+i)),
+			ID:        fmt.Sprintf("p%d", i),
 			Component: "k8s",
 			Action:    "install",
 			Target:    "t",
@@ -345,7 +346,7 @@ func TestListActions_DefaultLimit(t *testing.T) {
 	base := time.Now().UTC()
 	for i := range 60 {
 		r := ActionRecord{
-			ID:        "dl" + string(rune('A'+i/26)) + string(rune('a'+i%26)),
+			ID:        fmt.Sprintf("dl%d", i),
 			Component: "k8s",
 			Action:    "install",
 			Target:    "t",
