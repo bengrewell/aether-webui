@@ -35,6 +35,9 @@ The API is organized into **providers** — modular units that each register a s
 | Provider | Prefix | Description |
 |----------|--------|-------------|
 | meta | ` + "`/api/v1/meta/`" + ` | Server introspection — version, build info, runtime, config, provider status, store health |
+| system | ` + "`/api/v1/system/`" + ` | Host system info — CPU, memory, disk, OS, network interfaces, listening ports, time-series metrics |
+| nodes | ` + "`/api/v1/nodes/`" + ` | Cluster node CRUD — manage nodes with role assignments and encrypted credentials |
+| onramp | ` + "`/api/v1/onramp/`" + ` | Aether OnRamp operations — components, tasks, action history, deployment state, config, profiles, inventory |
 
 ## Response Format
 
