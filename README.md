@@ -87,6 +87,7 @@ make run            # Build and run
 make version        # Display version info that would be injected
 make docker-build   # Build Docker image
 make docker-push    # Build and push Docker image
+make docs-install   # Install documentation site dependencies
 make docs           # Build documentation site (output in docs/build/)
 make docs-serve     # Serve documentation site locally
 ```

@@ -47,7 +47,7 @@ curl -X PATCH http://localhost:8186/api/v1/onramp/config \
   }'
 ```
 
-This updates only the `core` section's `data_iface` field. All other sections and fields remain unchanged.
+This replaces the entire `core` section with the provided object. Other top-level sections (k8s, gnbsim, etc.) are left unchanged. See [Merge behavior](#merge-behavior) below for details.
 
   </TabItem>
 </Tabs>

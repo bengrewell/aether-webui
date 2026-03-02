@@ -36,16 +36,22 @@ After a successful deployment, `k8s` and `5gc` should both show `installed`:
 [
   {
     "component": "k8s",
-    "state": "installed",
-    "updated_at": "2026-01-15T10:35:00Z"
+    "status": "installed",
+    "last_action": "install",
+    "action_id": "d290f1ee-...",
+    "updated_at": 1736935700
   },
   {
     "component": "5gc",
-    "state": "installed",
-    "updated_at": "2026-01-15T10:42:00Z"
+    "status": "installed",
+    "last_action": "install",
+    "action_id": "e3a1b2c4-...",
+    "updated_at": 1736936520
   }
 ]
 ```
+
+Note: `updated_at` is a Unix epoch timestamp (seconds). `last_action` and `action_id` are omitted for components with no deployment history.
 
   </TabItem>
 </Tabs>
@@ -85,19 +91,25 @@ This returns the most recent actions, including their component, action name, st
   {
     "component": "5gc",
     "action": "install",
+    "target": "aether-5gc-install",
     "status": "succeeded",
-    "started_at": "2026-01-15T10:38:00Z",
-    "finished_at": "2026-01-15T10:42:00Z"
+    "exit_code": 0,
+    "started_at": 1736936280,
+    "finished_at": 1736936520
   },
   {
     "component": "k8s",
     "action": "install",
+    "target": "aether-k8s-install",
     "status": "succeeded",
-    "started_at": "2026-01-15T10:30:00Z",
-    "finished_at": "2026-01-15T10:35:00Z"
+    "exit_code": 0,
+    "started_at": 1736935400,
+    "finished_at": 1736935700
   }
 ]
 ```
+
+Note: `started_at` and `finished_at` are Unix epoch timestamps (seconds).
 
   </TabItem>
 </Tabs>

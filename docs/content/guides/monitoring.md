@@ -156,7 +156,7 @@ curl "http://localhost:8186/api/v1/system/metrics?metric=system.cpu.usage_percen
 | `metric` | Yes | Metric name (e.g., `system.cpu.usage_percent`) |
 | `from` | No | Start time in RFC 3339 format. Defaults to 1 hour ago. |
 | `to` | No | End time in RFC 3339 format. Defaults to now. |
-| `labels` | No | Comma-separated `key=val` label filters (e.g., `core=total`) |
+| `labels` | No | Comma-separated `key=val` label filters (e.g., `cpu=total`) |
 | `aggregation` | No | Time bucket size: `raw`, `10s`, `1m`, `5m`, `1h` |
 
 ### Examples
@@ -164,7 +164,7 @@ curl "http://localhost:8186/api/v1/system/metrics?metric=system.cpu.usage_percen
 Total CPU usage over the last hour, aggregated to 1-minute buckets:
 
 ```bash
-curl "http://localhost:8186/api/v1/system/metrics?metric=system.cpu.usage_percent&labels=core%3Dtotal&aggregation=1m"
+curl "http://localhost:8186/api/v1/system/metrics?metric=system.cpu.usage_percent&labels=cpu%3Dtotal&aggregation=1m"
 ```
 
 Memory usage percentage over a specific time range:
@@ -186,7 +186,7 @@ curl "http://localhost:8186/api/v1/system/metrics?metric=system.net.bytes_recv&l
 
 | Metric | Labels | Unit |
 |--------|--------|------|
-| `system.cpu.usage_percent` | `core` (total + per-core) | percent |
+| `system.cpu.usage_percent` | `cpu` (total + per-core) | percent |
 | `system.memory.used_bytes` | -- | bytes |
 | `system.memory.available_bytes` | -- | bytes |
 | `system.memory.usage_percent` | -- | percent |
@@ -209,7 +209,7 @@ For a live dashboard, poll the metrics endpoint at a 10--30 second interval. Use
 # Poll every 15 seconds for the latest CPU usage
 while true; do
   FROM=$(date -u -d '30 seconds ago' +%Y-%m-%dT%H:%M:%SZ)
-  curl -s "http://localhost:8186/api/v1/system/metrics?metric=system.cpu.usage_percent&labels=core%3Dtotal&from=${FROM}&aggregation=10s"
+  curl -s "http://localhost:8186/api/v1/system/metrics?metric=system.cpu.usage_percent&labels=cpu%3Dtotal&from=${FROM}&aggregation=10s"
   sleep 15
 done
 ```

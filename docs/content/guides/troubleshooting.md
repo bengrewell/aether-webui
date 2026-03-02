@@ -167,19 +167,20 @@ Example response:
 ```json
 {
   "engine": "sqlite",
-  "path": "/var/lib/aether-webd/aether-webd.db",
+  "path": "/var/lib/aether-webd/app.db",
   "file_size_bytes": 49152,
   "schema_version": 4,
-  "diagnostics": {
-    "ping": {"ok": true, "latency_ms": 0.12},
-    "write": {"ok": true, "latency_ms": 0.45},
-    "read": {"ok": true, "latency_ms": 0.08},
-    "delete": {"ok": true, "latency_ms": 0.10}
-  }
+  "status": "healthy",
+  "diagnostics": [
+    { "name": "ping", "passed": true, "latency": "0.1ms" },
+    { "name": "write", "passed": true, "latency": "0.5ms" },
+    { "name": "read", "passed": true, "latency": "0.1ms" },
+    { "name": "delete", "passed": true, "latency": "0.1ms" }
+  ]
 }
 ```
 
-If any diagnostic step shows `"ok": false`, the database may be corrupted or the filesystem may be full.
+The `status` field is one of `healthy`, `degraded`, or `unhealthy`. If any diagnostic check shows `"passed": false`, the `error` field on that check describes the failure. A degraded or unhealthy status may indicate database corruption or a full filesystem.
 
 ## Repository issues
 
