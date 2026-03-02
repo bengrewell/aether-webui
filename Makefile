@@ -24,7 +24,10 @@ LDFLAGS := -X 'main.version=$(VERSION)' \
            -X 'main.branch=$(BRANCH)' \
            -X 'main.buildDate=$(DATE)'
 
-.PHONY: build clean test coverage coverage-html run version docker-build docker-push frontend embed-frontend all ensure-frontend init-submodules lint openapi
+# Documentation site
+DOCS_DIR := docs
+
+.PHONY: build clean test coverage coverage-html run version docker-build docker-push frontend embed-frontend all ensure-frontend init-submodules lint openapi docs docs-serve
 
 # Initialize git submodules if needed
 init-submodules:
@@ -113,3 +116,11 @@ openapi:
 docker-push: docker-build
 	docker push $(DOCKER_IMAGE):$(DOCKER_TAG)
 	docker push $(DOCKER_IMAGE):latest
+
+# Build documentation site (output in docs/build/)
+docs:
+	cd $(DOCS_DIR) && npm install && npm run build
+
+# Serve documentation site locally for development
+docs-serve:
+	cd $(DOCS_DIR) && npm install && npm start

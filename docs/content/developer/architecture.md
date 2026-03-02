@@ -1,3 +1,8 @@
+---
+sidebar_position: 2
+title: Architecture (Internal)
+---
+
 # Architecture Overview
 
 ## Project Structure

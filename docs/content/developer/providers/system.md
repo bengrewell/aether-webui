@@ -1,3 +1,8 @@
+---
+sidebar_position: 3
+title: System Provider
+---
+
 # System Provider
 
 The system provider collects host-level metrics and exposes them through REST endpoints. It provides both point-in-time system information (CPU specs, memory, disks, OS, network) and a time-series metrics query interface backed by the store.

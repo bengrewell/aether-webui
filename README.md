@@ -5,6 +5,12 @@
 
 Backend API service for the Aether WebUI. This service is responsible for executing deployment tasks, gathering system information, and monitoring the health and metrics of Aether 5G deployments. It manages SD-Core components, gNBs (such as srsRAN and OCUDU), Kubernetes clusters, and host systems.
 
+## Documentation
+
+Full documentation is available at **[bengrewell.github.io/aether-webui](https://bengrewell.github.io/aether-webui/)** — including getting started tutorials, API reference, deployment guides, and architecture concepts.
+
+For developer internals (provider framework, store layer, adding endpoints), see the [docs/content/developer/](docs/content/developer/) directory.
+
 ## Quick Install
 
 Install aether-webd as a systemd service with a single command:
@@ -81,6 +87,8 @@ make run            # Build and run
 make version        # Display version info that would be injected
 make docker-build   # Build Docker image
 make docker-push    # Build and push Docker image
+make docs           # Build documentation site (output in docs/build/)
+make docs-serve     # Serve documentation site locally
 ```
 
 ## Usage
@@ -349,6 +357,55 @@ make coverage-html
 - Use table-driven tests for multiple test cases
 - Mock external dependencies (HTTP clients, databases, etc.)
 - Test both success and error paths
+
+## End-to-End Verification
+
+These scenarios verify the deployment lifecycle for a 5G Core + srsRAN stack
+driven by this backend. Checked items have been exercised end-to-end via the API
+against real infrastructure. Unchecked items are planned verification targets.
+
+### Node Management
+- [ ] Register nodes (master, worker, srsRAN) with encrypted credentials
+- [ ] Update node credentials and role assignments
+- [ ] Remove a managed node
+- [ ] Sync node inventory to Ansible hosts.ini
+
+### Connectivity
+- [ ] Ping all cluster nodes via cluster/pingall
+
+### Configuration
+- [ ] Read and patch OnRamp configuration (vars/main.yml)
+- [ ] List, read, and activate configuration profiles
+
+### Kubernetes (RKE2)
+- [x] Deploy Kubernetes
+- [x] Remove Kubernetes
+
+### 5G Core (SD-Core)
+- [x] Deploy 5G Core
+- [x] Remove 5G Core
+- [ ] Reset 5G Core state
+- [ ] Deploy a second independent 5G Core instance
+- [ ] Remove one 5G Core from a multi-instance deployment without affecting the other
+- [ ] Add additional UPFs to a running deployment
+- [ ] Remove additional UPFs from a running deployment
+
+### srsRAN gNB
+- [ ] Deploy a single srsRAN gNB
+- [ ] Remove a single srsRAN gNB
+- [ ] Deploy multiple srsRAN gNBs against a shared 5G Core
+- [ ] Remove one srsRAN gNB without affecting other deployed gNBs
+- [ ] Start srsRAN UE simulator
+- [ ] Stop srsRAN UE simulator
+
+### Air-Gapped Deployments
+- [ ] Deploy 5G Core in air-gapped mode
+- [ ] Deploy srsRAN gNB in air-gapped mode
+
+### Deployment Tracking
+- [ ] Component state reflects correct status after install/uninstall
+- [ ] Action history records each deployment with filterable results
+- [ ] Task output streams incrementally during a running deployment
 
 ## License
 
