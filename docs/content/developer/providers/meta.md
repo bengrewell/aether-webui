@@ -1,3 +1,8 @@
+---
+sidebar_position: 1
+title: Meta Provider
+---
+
 # Meta Provider
 
 The meta provider exposes server introspection and diagnostic endpoints. It is always registered and cannot be disabled — other providers depend on it for the provider listing.
