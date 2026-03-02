@@ -3,11 +3,20 @@ sidebar_position: 8
 title: "Managing the OnRamp Repository"
 ---
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
 # Managing the OnRamp Repository
 
 Aether-webd clones and manages the [aether-onramp](https://github.com/opennetworkinglab/aether-onramp) repository locally. Component actions execute `make` targets from this repository, and configuration files (`vars/main.yml`) live inside it.
 
 ## Check repository status
+
+<Tabs>
+  <TabItem value="ui" label="Web UI" default>
+    The dashboard header shows the OnRamp repository status including the current version, commit SHA, branch name, and dirty state. A green indicator confirms a clean, cloned repository; a yellow indicator signals uncommitted changes or a missing clone.
+  </TabItem>
+  <TabItem value="api" label="API">
 
 ```bash
 curl http://localhost:8186/api/v1/onramp/repo
@@ -28,6 +37,9 @@ Example response:
 }
 ```
 
+  </TabItem>
+</Tabs>
+
 ### Status fields
 
 | Field | Description |
@@ -44,9 +56,18 @@ Example response:
 
 ## Refresh or clone the repository
 
+<Tabs>
+  <TabItem value="ui" label="Web UI" default>
+    Click **Refresh Repository** in the repository status panel. Progress is shown inline as the clone or checkout proceeds. The status indicator updates when the operation completes.
+  </TabItem>
+  <TabItem value="api" label="API">
+
 ```bash
 curl -X POST http://localhost:8186/api/v1/onramp/repo/refresh
 ```
+
+  </TabItem>
+</Tabs>
 
 This endpoint performs several steps:
 
@@ -95,7 +116,13 @@ This is useful when the repository is already cloned and managed externally, or 
 
 ## Recovery from corruption
 
-If the repository enters a bad state (e.g., interrupted clone, manual edits causing conflicts), use the refresh endpoint to recover:
+If the repository enters a bad state (e.g., interrupted clone, manual edits causing conflicts), use the refresh operation to recover.
+
+<Tabs>
+  <TabItem value="ui" label="Web UI" default>
+    If the repository shows errors, click **Refresh Repository** to re-clone and reset. The status panel updates to reflect the recovery progress. Verify that the status indicator returns to green and the `dirty` flag is cleared.
+  </TabItem>
+  <TabItem value="api" label="API">
 
 ```bash
 # Check current status
@@ -107,6 +134,9 @@ curl -X POST http://localhost:8186/api/v1/onramp/repo/refresh
 # Verify recovery
 curl http://localhost:8186/api/v1/onramp/repo
 ```
+
+  </TabItem>
+</Tabs>
 
 The `dirty` field in the status response indicates whether there are uncommitted changes. A dirty repository may produce unexpected behavior during component actions.
 

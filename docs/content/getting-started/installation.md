@@ -57,13 +57,23 @@ This returns the build version, commit hash, and build timestamp.
 
 ## Default listen address
 
-By default, `aether-webd` listens on `127.0.0.1:8186`. This means the API is only accessible from the local machine. To expose it on all interfaces, restart the service with the `--listen` flag:
+By default, `aether-webd` listens on `127.0.0.1:8186`. This means the API and Web UI are only accessible from the local machine. To expose the service on all interfaces, edit the systemd environment file and restart:
 
 ```bash
-aether-webd --listen 0.0.0.0:8186
+# Edit the environment file to set the listen address
+echo 'AETHER_WEBD_OPTS="--listen 0.0.0.0:8186"' | sudo tee /etc/aether-webd/env
+
+# Restart the service to apply
+sudo systemctl restart aether-webd
 ```
 
-Note: Exposing the API on all interfaces without authentication is not recommended for production. See the [Security guide](../guides/security) for instructions on enabling TLS and API token authentication.
+The environment file at `/etc/aether-webd/env` accepts any CLI flags via the `AETHER_WEBD_OPTS` variable. For example, you can combine `--listen` with `--tls` and `--api-token` in a single line:
+
+```bash
+echo 'AETHER_WEBD_OPTS="--listen 0.0.0.0:8186 --tls --api-token my-secret-token"' | sudo tee /etc/aether-webd/env
+```
+
+Note: Exposing the API on all interfaces should be paired with TLS and API token authentication in production. See the [Security guide](../guides/security) for setup instructions.
 
 ## Configuration options
 

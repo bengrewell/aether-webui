@@ -5,7 +5,7 @@ title: Developer Docs
 
 # Aether WebUI Developer Documentation
 
-These docs cover internal implementation details for contributors. For user-facing documentation (installation, API reference, deployment guides), see the [main documentation site](../getting-started/introduction).
+These docs cover internal implementation details for contributors. For user-facing documentation (installation, API reference, deployment guides), see the [main documentation site](/docs/getting-started/introduction).
 
 ## Architecture & Concepts
 - [Architecture Overview](architecture.md) — controller lifecycle, provider framework, request flow

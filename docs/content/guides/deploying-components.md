@@ -3,11 +3,20 @@ sidebar_position: 3
 title: "Deploying Components"
 ---
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
 # Deploying Components
 
 Component actions (install, uninstall, etc.) are executed asynchronously. A POST request starts the action and returns a task ID immediately. Poll the task endpoint to track progress and retrieve output.
 
 ## Trigger an action
+
+<Tabs>
+  <TabItem value="ui" label="Web UI" default>
+    Navigate to **Components**. Click the action button (e.g., **Install**) on the target component row. The task output panel opens automatically and begins streaming Ansible output.
+  </TabItem>
+  <TabItem value="api" label="API">
 
 ```bash
 curl -X POST http://localhost:8186/api/v1/onramp/components/k8s/install
@@ -28,7 +37,16 @@ Response:
 }
 ```
 
+  </TabItem>
+</Tabs>
+
 ## Poll for incremental output
+
+<Tabs>
+  <TabItem value="ui" label="Web UI" default>
+    The task output panel streams Ansible output in real time. The status indicator updates as the task progresses through each play and task. When the action completes, the panel displays the final status and exit code.
+  </TabItem>
+  <TabItem value="api" label="API">
 
 Use the `offset` query parameter to fetch only new output since your last read:
 
@@ -56,6 +74,9 @@ curl "http://localhost:8186/api/v1/onramp/tasks/a1b2c3d4-...?offset=1284"
 ```
 
 This returns only the output produced since byte 1284, avoiding redundant data transfer. Continue polling until the task status is no longer `running`.
+
+  </TabItem>
+</Tabs>
 
 ## Handle 409 Conflict
 
@@ -89,6 +110,12 @@ A finished task also includes `finished_at` and `exit_code` fields.
 
 ## Check deployment state
 
+<Tabs>
+  <TabItem value="ui" label="Web UI" default>
+    The **Components** page shows the current state of each component (not_installed, installing, installed, etc.) with color-coded badges. Click a component row to see its full state details including the last action timestamp.
+  </TabItem>
+  <TabItem value="api" label="API">
+
 View the current installed state of all components:
 
 ```bash
@@ -101,6 +128,9 @@ Or for a single component:
 curl http://localhost:8186/api/v1/onramp/state/5gc
 ```
 
+  </TabItem>
+</Tabs>
+
 Component state transitions:
 
 ```
@@ -111,6 +141,14 @@ installed → uninstalling → not_installed
 ```
 
 ## View action history
+
+<Tabs>
+  <TabItem value="ui" label="Web UI" default>
+    Navigate to **Action History**. Filter by component or status using the dropdowns. Click any row to see full details including timestamps, exit code, and output.
+
+    The table supports pagination and defaults to showing the 50 most recent actions.
+  </TabItem>
+  <TabItem value="api" label="API">
 
 Query past actions with optional filters:
 
@@ -123,6 +161,9 @@ curl "http://localhost:8186/api/v1/onramp/actions?status=failed"
 ```
 
 Supported query parameters: `component`, `action`, `status`, `limit` (default 50), `offset` (default 0).
+
+  </TabItem>
+</Tabs>
 
 ## Typical deployment order
 
