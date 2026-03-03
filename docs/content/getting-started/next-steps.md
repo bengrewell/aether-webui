@@ -24,6 +24,8 @@ Detailed specifications for the CLI and API:
 
 - [CLI Reference](../reference/cli) -- all command-line flags and environment variables for `aether-webd`
 - [API Overview](../reference/api-overview) -- base URL conventions, authentication, error format, and pagination
+- [Preflight API](../reference/api-preflight) -- pre-deployment checks and automated fixes
+- [Nodes API](../reference/api-nodes) -- cluster node CRUD and role management
 - [OnRamp API](../reference/api-onramp) -- full endpoint reference for components, tasks, config, and profiles
 - [System API](../reference/api-system) -- host metrics and system information endpoints
 - [Meta API](../reference/api-meta) -- version, health, config introspection, and store diagnostics
