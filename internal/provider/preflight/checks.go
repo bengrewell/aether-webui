@@ -61,12 +61,12 @@ func checkRequiredPackages() Check {
 		Description: "Checks that required build and deployment tools (make, ansible) are installed.",
 		Severity:    SeverityRequired,
 		Category:    CategoryTooling,
-		FixWarning:  "This will install system packages using the detected package manager (apt-get, dnf, or yum). On Debian/Ubuntu, the Ansible PPA is added to provide the ansible package.",
+		FixWarning:  "This will install system packages using the detected package manager (apt-get, dnf, or yum). On Debian/Ubuntu, the Ansible PPA may be added if ansible is missing.",
 		RunCheck: func(ctx context.Context, deps CheckDeps) CheckResult {
 			r := newResult("required-packages", "Required Packages",
 				"Checks that required build and deployment tools (make, ansible) are installed.",
 				SeverityRequired, CategoryTooling, true)
-			r.FixWarning = "This will install system packages using the detected package manager (apt-get, dnf, or yum). On Debian/Ubuntu, the Ansible PPA is added to provide the ansible package."
+			r.FixWarning = "This will install system packages using the detected package manager (apt-get, dnf, or yum). On Debian/Ubuntu, the Ansible PPA may be added if ansible is missing."
 
 			var found, missing []string
 			for _, bin := range requiredBinaries {
@@ -98,8 +98,14 @@ func checkRequiredPackages() Check {
 			} else if pm != "" {
 				r.Details = fmt.Sprintf("Install with: sudo %s install -y %s", pm, strings.Join(missingPkgs, " "))
 			} else {
+				debHint := "  Debian/Ubuntu: "
+				if needsAnsible {
+					debHint += "sudo apt-get install -y software-properties-common && " +
+						"sudo add-apt-repository --yes --update ppa:ansible/ansible && "
+				}
+				debHint += "sudo apt-get install -y " + strings.Join(missingPkgs, " ")
 				r.Details = "Install missing packages using your distribution's package manager:\n" +
-					"  Debian/Ubuntu: sudo add-apt-repository --yes --update ppa:ansible/ansible && sudo apt-get install -y " + strings.Join(missingPkgs, " ") + "\n" +
+					debHint + "\n" +
 					"  RHEL/Fedora:   sudo dnf install -y " + strings.Join(missingPkgs, " ")
 			}
 			return r
@@ -107,7 +113,7 @@ func checkRequiredPackages() Check {
 		RunFix: func(ctx context.Context, deps CheckDeps) FixResult {
 			r := FixResult{
 				ID:      "required-packages",
-				Warning: "This will install system packages using the detected package manager (apt-get, dnf, or yum). On Debian/Ubuntu, the Ansible PPA is added to provide the ansible package.",
+				Warning: "This will install system packages using the detected package manager (apt-get, dnf, or yum). On Debian/Ubuntu, the Ansible PPA may be added if ansible is missing.",
 			}
 
 			// Find which packages are missing.
@@ -132,7 +138,7 @@ func checkRequiredPackages() Check {
 
 			// Ansible is not in default Ubuntu/Debian repos; add the PPA first.
 			if pm == "apt-get" && containsBinary(missing, "ansible-playbook") {
-				if err := addAnsiblePPA(ctx, deps); err != nil {
+				if err := addAnsiblePPA(ctx, deps, pmPath); err != nil {
 					r.Error = fmt.Sprintf("failed to add Ansible PPA: %v", err)
 					r.Message = "fix failed — could not configure Ansible repository"
 					return r
@@ -166,10 +172,11 @@ func containsBinary(missing []string, name string) bool {
 }
 
 // addAnsiblePPA installs software-properties-common and adds the Ansible PPA
-// on Debian/Ubuntu systems. The --update flag on add-apt-repository runs
-// apt update automatically after adding the PPA.
-func addAnsiblePPA(ctx context.Context, deps CheckDeps) error {
-	if _, err := deps.RunCommand(ctx, "sudo", "apt-get", "install", "-y", "software-properties-common"); err != nil {
+// on Debian/Ubuntu systems. pmPath is the resolved path to apt-get. The
+// --update flag on add-apt-repository runs apt update automatically after
+// adding the PPA.
+func addAnsiblePPA(ctx context.Context, deps CheckDeps, pmPath string) error {
+	if _, err := deps.RunCommand(ctx, "sudo", pmPath, "install", "-y", "software-properties-common"); err != nil {
 		return fmt.Errorf("install software-properties-common: %w", err)
 	}
 	if _, err := deps.RunCommand(ctx, "sudo", "add-apt-repository", "--yes", "--update", "ppa:ansible/ansible"); err != nil {

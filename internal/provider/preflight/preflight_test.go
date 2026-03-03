@@ -269,7 +269,7 @@ func TestCheckRequiredPackages_FixWithApt_AnsiblePPA(t *testing.T) {
 	if !strings.Contains(commands[0], "software-properties-common") {
 		t.Errorf("first command should install software-properties-common, got %q", commands[0])
 	}
-	if !strings.Contains(commands[1], "add-apt-repository") && !strings.Contains(commands[1], "ppa:ansible/ansible") {
+	if !(strings.Contains(commands[1], "add-apt-repository") && strings.Contains(commands[1], "ppa:ansible/ansible")) {
 		t.Errorf("second command should add Ansible PPA, got %q", commands[1])
 	}
 	if !strings.Contains(commands[2], "ansible") {
