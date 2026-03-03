@@ -20,7 +20,7 @@ Providers are independent of each other. The **system** provider can collect met
 
 ## Built-in providers
 
-Aether WebUI ships with four providers:
+Aether WebUI ships with five providers:
 
 ### meta -- Server introspection
 
@@ -91,6 +91,23 @@ What it provides:
 
 For the full endpoint reference, see [API Reference: OnRamp](../reference/api-onramp).
 
+### preflight -- Pre-deployment checks
+
+**Path prefix:** `/api/v1/preflight`
+**Endpoints:** 3
+
+The preflight provider automates the verification of system prerequisites that a fresh Aether deployment requires. It runs checks against the local host and managed nodes, reporting which prerequisites are met and which are missing.
+
+What it provides:
+
+- **Prerequisite checks** -- verifies that required tools (make, ansible), system configuration (SSH password auth, aether user with sudo), and network connectivity (SSH to managed nodes) are in place.
+- **Aggregate status** -- runs all checks in parallel and returns a summary with pass/fail counts, enabling a UI checklist view.
+- **Automated fixes** -- some checks offer a one-click fix (e.g., enabling SSH password auth, creating the aether user). Fixes include security warnings so the operator can make an informed decision.
+
+Each check has a severity level (`required`, `warning`, `info`) and category (`tooling`, `access`, `network`) to help the UI prioritize what to display.
+
+For the full endpoint reference, see [API Reference: Preflight](../reference/api-preflight).
+
 ## Provider health and status
 
 Every provider has two status flags:
@@ -113,6 +130,7 @@ Each provider is isolated behind its own path prefix, so there is no ambiguity a
 /api/v1/system/...     →  system provider
 /api/v1/nodes/...      →  nodes provider
 /api/v1/onramp/...     →  onramp provider
+/api/v1/preflight/...  →  preflight provider
 ```
 
 This isolation means providers can be developed, tested, and reasoned about independently. A bug in the system metrics collection does not affect the onramp deployment workflow.

@@ -28,7 +28,7 @@ These paths bypass bearer-token authentication even when a token is configured:
 
 ## Providers
 
-The API is organized into four providers. Each provider groups related endpoints under a common path prefix.
+The API is organized into five providers. Each provider groups related endpoints under a common path prefix.
 
 | Provider | Path Prefix | Endpoints | Description |
 |----------|-------------|-----------|-------------|
@@ -36,7 +36,8 @@ The API is organized into four providers. Each provider groups related endpoints
 | [System](./api-system.md) | `/api/v1/system/` | 8 | CPU, memory, disk, OS, network, metrics |
 | [Nodes](./api-nodes.md) | `/api/v1/nodes` | 5 | Managed cluster node CRUD |
 | [OnRamp](./api-onramp.md) | `/api/v1/onramp/` | 18 | Components, tasks, actions, config, profiles, inventory |
-| | | **37 total** | |
+| [Preflight](./api-preflight.md) | `/api/v1/preflight` | 3 | Pre-deployment system checks with optional automated fixes |
+| | | **40 total** | |
 
 ## Authentication
 
