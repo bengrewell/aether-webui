@@ -212,20 +212,24 @@ func checkSSHConfigured() Check {
 			}
 
 			dropIn := "/etc/ssh/sshd_config.d/99-aether-password-auth.conf"
-			content := "PasswordAuthentication yes\n"
-			_, err := deps.RunCommand(ctx, "sudo", "tee", dropIn)
-			if err != nil {
-				// Use stdin pipe approach via shell.
-				cmd := fmt.Sprintf("echo '%s' | sudo tee %s > /dev/null", content, dropIn)
-				if _, err := deps.RunCommand(ctx, "bash", "-c", cmd); err != nil {
-					r.Error = fmt.Sprintf("failed to write drop-in config: %v", err)
-					r.Message = "fix failed"
-					return r
-				}
+			content := "PasswordAuthentication yes"
+			cmd := fmt.Sprintf("echo '%s' | sudo tee %s > /dev/null", content, dropIn)
+			if _, err := deps.RunCommand(ctx, "bash", "-c", cmd); err != nil {
+				r.Error = fmt.Sprintf("failed to write drop-in config: %v", err)
+				r.Message = "fix failed"
+				return r
 			}
 
-			if _, err := deps.RunCommand(ctx, "sudo", "systemctl", "restart", "sshd"); err != nil {
-				r.Error = fmt.Sprintf("wrote config but failed to restart sshd: %v", err)
+			// Try both unit names: RHEL/Fedora use "sshd", Debian/Ubuntu use "ssh".
+			restarted := false
+			for _, unit := range []string{"sshd", "ssh"} {
+				if _, err := deps.RunCommand(ctx, "sudo", "systemctl", "restart", unit); err == nil {
+					restarted = true
+					break
+				}
+			}
+			if !restarted {
+				r.Error = "wrote config but failed to restart SSH service (tried sshd and ssh units)"
 				r.Message = "partial fix — config written but sshd not restarted"
 				return r
 			}
@@ -347,22 +351,24 @@ func checkAetherUserConfigured() Check {
 				Warning: "This will create a user 'aether' with a default password of 'aether' and NOPASSWD sudo access. Change the password after initial setup.",
 			}
 
-			// Create user (ignore error if user already exists).
-			if _, err := deps.RunCommand(ctx, "sudo", "useradd", "-m", "-s", "/bin/bash", "aether"); err != nil {
-				// Check if user already exists by attempting lookup.
-				if _, lookupErr := deps.LookupUser("aether"); lookupErr != nil {
+			// Check if user already exists before attempting creation.
+			_, lookupErr := deps.LookupUser("aether")
+			userExisted := lookupErr == nil
+
+			if !userExisted {
+				if _, err := deps.RunCommand(ctx, "sudo", "useradd", "-m", "-s", "/bin/bash", "aether"); err != nil {
 					r.Error = fmt.Sprintf("failed to create user: %v", err)
 					r.Message = "fix failed"
 					return r
 				}
-			}
 
-			// Set password.
-			cmd := "echo 'aether:aether' | sudo chpasswd"
-			if _, err := deps.RunCommand(ctx, "bash", "-c", cmd); err != nil {
-				r.Error = fmt.Sprintf("failed to set password: %v", err)
-				r.Message = "user created but password not set"
-				return r
+				// Set default password only for newly created users.
+				cmd := "echo 'aether:aether' | sudo chpasswd"
+				if _, err := deps.RunCommand(ctx, "bash", "-c", cmd); err != nil {
+					r.Error = fmt.Sprintf("failed to set password: %v", err)
+					r.Message = "user created but password not set"
+					return r
+				}
 			}
 
 			// Write sudoers file.
@@ -382,7 +388,11 @@ func checkAetherUserConfigured() Check {
 			}
 
 			r.Applied = true
-			r.Message = "created user 'aether' with sudo access and default password"
+			if userExisted {
+				r.Message = "configured sudo access for existing user 'aether'"
+			} else {
+				r.Message = "created user 'aether' with sudo access and default password"
+			}
 			return r
 		},
 	}
@@ -426,12 +436,13 @@ func checkNodeSSHReachable() Check {
 
 			const dialTimeout = 5 * time.Second
 			var details []string
-			allReachable := true
+			var reachable, unreachable, skipped int
 
 			for _, node := range nodes {
 				host := node.AnsibleHost
 				if host == "" {
 					details = append(details, fmt.Sprintf("  %s: SKIP (no ansible_host)", node.Name))
+					skipped++
 					continue
 				}
 
@@ -439,19 +450,28 @@ func checkNodeSSHReachable() Check {
 				conn, err := deps.DialTimeout("tcp", addr, dialTimeout)
 				if err != nil {
 					details = append(details, fmt.Sprintf("  %s (%s): UNREACHABLE — %v", node.Name, addr, err))
-					allReachable = false
+					unreachable++
 				} else {
 					conn.Close()
 					details = append(details, fmt.Sprintf("  %s (%s): OK", node.Name, addr))
+					reachable++
 				}
 			}
 
 			r.Details = strings.Join(details, "\n")
-			if allReachable {
+			checked := reachable + unreachable
+			if unreachable == 0 && checked > 0 {
 				r.Passed = true
-				r.Message = fmt.Sprintf("all %d node(s) reachable on port 22", len(nodes))
+				if skipped > 0 {
+					r.Message = fmt.Sprintf("%d node(s) reachable on port 22 (%d skipped, no ansible_host)", reachable, skipped)
+				} else {
+					r.Message = fmt.Sprintf("all %d node(s) reachable on port 22", reachable)
+				}
+			} else if checked == 0 {
+				r.Passed = true
+				r.Message = fmt.Sprintf("all %d node(s) skipped (no ansible_host configured)", skipped)
 			} else {
-				r.Message = "one or more nodes unreachable on port 22"
+				r.Message = fmt.Sprintf("%d of %d node(s) unreachable on port 22", unreachable, checked)
 			}
 			return r
 		},

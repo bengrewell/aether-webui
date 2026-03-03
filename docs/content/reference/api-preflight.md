@@ -57,7 +57,7 @@ Runs a single check and returns its result.
 
 ## POST `/api/v1/preflight/{id}/fix`
 
-Executes the automated fix for a check. Fixes run synchronously and return immediately.
+Executes the automated fix for a check. The fix runs inline and the response is returned only after it completes.
 
 | Parameter | Type | In | Description |
 |-----------|------|----|-------------|

@@ -659,6 +659,9 @@ func TestCheckNodeSSHReachable_SomeUnreachable(t *testing.T) {
 	if !strings.Contains(r.Details, "UNREACHABLE") {
 		t.Errorf("details = %q, expected 'UNREACHABLE'", r.Details)
 	}
+	if !strings.Contains(r.Message, "1 of 2") {
+		t.Errorf("message = %q, expected '1 of 2' node count", r.Message)
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -679,6 +682,40 @@ func TestFixAetherUser_Success(t *testing.T) {
 
 	if !r.Applied {
 		t.Errorf("expected Applied=true, error=%q, message=%q", r.Error, r.Message)
+	}
+}
+
+func TestFixAetherUser_ExistingUser(t *testing.T) {
+	deps := testDeps(t)
+	deps.LookupUser = func(name string) (*user.User, error) {
+		if name == "aether" {
+			return &user.User{Uid: "1001", Username: "aether"}, nil
+		}
+		return nil, errors.New("not found")
+	}
+	var commands []string
+	deps.RunCommand = func(ctx context.Context, name string, args ...string) ([]byte, error) {
+		commands = append(commands, name+" "+strings.Join(args, " "))
+		return []byte("ok"), nil
+	}
+
+	check := checkAetherUserConfigured()
+	r := check.RunFix(t.Context(), deps)
+
+	if !r.Applied {
+		t.Errorf("expected Applied=true, error=%q", r.Error)
+	}
+	if !strings.Contains(r.Message, "existing user") {
+		t.Errorf("message = %q, expected mention of existing user", r.Message)
+	}
+	// Verify no useradd or chpasswd commands were run.
+	for _, cmd := range commands {
+		if strings.Contains(cmd, "useradd") {
+			t.Errorf("should not run useradd for existing user, got %q", cmd)
+		}
+		if strings.Contains(cmd, "chpasswd") {
+			t.Errorf("should not reset password for existing user, got %q", cmd)
+		}
 	}
 }
 
@@ -719,7 +756,7 @@ func TestFixSSHConfigured_Success(t *testing.T) {
 func TestFixSSHConfigured_RestartFails(t *testing.T) {
 	deps := testDeps(t)
 	deps.RunCommand = func(ctx context.Context, name string, args ...string) ([]byte, error) {
-		// First call (tee) succeeds, second call (systemctl restart) fails.
+		// Write succeeds, all systemctl restart attempts fail.
 		if name == "sudo" && len(args) > 0 && args[0] == "systemctl" {
 			return nil, errors.New("systemctl failed")
 		}
@@ -732,8 +769,34 @@ func TestFixSSHConfigured_RestartFails(t *testing.T) {
 	if r.Applied {
 		t.Error("expected Applied=false on restart failure")
 	}
-	if !strings.Contains(r.Error, "restart sshd") {
-		t.Errorf("error = %q, expected restart sshd mention", r.Error)
+	if !strings.Contains(r.Error, "tried sshd and ssh") {
+		t.Errorf("error = %q, expected mention of both unit names", r.Error)
+	}
+}
+
+func TestFixSSHConfigured_FallbackToSSHUnit(t *testing.T) {
+	deps := testDeps(t)
+	var restartedUnit string
+	deps.RunCommand = func(ctx context.Context, name string, args ...string) ([]byte, error) {
+		// "sshd" unit fails (Debian/Ubuntu), "ssh" unit succeeds.
+		if name == "sudo" && len(args) >= 3 && args[0] == "systemctl" && args[1] == "restart" {
+			if args[2] == "sshd" {
+				return nil, errors.New("unit sshd not found")
+			}
+			restartedUnit = args[2]
+			return []byte("ok"), nil
+		}
+		return []byte("ok"), nil
+	}
+
+	check := checkSSHConfigured()
+	r := check.RunFix(t.Context(), deps)
+
+	if !r.Applied {
+		t.Errorf("expected Applied=true, error=%q", r.Error)
+	}
+	if restartedUnit != "ssh" {
+		t.Errorf("expected fallback to 'ssh' unit, got %q", restartedUnit)
 	}
 }
 
