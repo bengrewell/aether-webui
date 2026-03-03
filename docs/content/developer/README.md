@@ -14,4 +14,5 @@ These docs cover internal implementation details for contributors. For user-faci
 ## Providers
 - [Meta](providers/meta.md) — server introspection and diagnostics
 - [OnRamp](providers/onramp.md) — Aether OnRamp lifecycle management
+- [Preflight](providers/preflight.md) — pre-deployment system checks and fixes
 - [System](providers/system.md) — host system metrics

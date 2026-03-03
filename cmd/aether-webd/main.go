@@ -12,6 +12,7 @@ import (
 	"github.com/bengrewell/aether-webui/internal/provider/meta"
 	"github.com/bengrewell/aether-webui/internal/provider/nodes"
 	"github.com/bengrewell/aether-webui/internal/provider/onramp"
+	"github.com/bengrewell/aether-webui/internal/provider/preflight"
 	"github.com/bengrewell/aether-webui/internal/provider/system"
 	"github.com/bengrewell/aether-webui/internal/store"
 	"github.com/bgrewell/usage"
@@ -136,6 +137,9 @@ func main() {
 		}),
 		controller.WithProvider("nodes", true, func(_ context.Context, _ store.Client, opts []provider.Option) (provider.Provider, error) {
 			return nodes.NewProvider(opts...), nil
+		}),
+		controller.WithProvider("preflight", true, func(_ context.Context, _ store.Client, opts []provider.Option) (provider.Provider, error) {
+			return preflight.NewProvider(opts...), nil
 		}),
 		controller.WithProvider("onramp", true, func(_ context.Context, _ store.Client, opts []provider.Option) (provider.Provider, error) {
 			dir := *flagOnRampDir

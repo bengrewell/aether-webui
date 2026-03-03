@@ -17,7 +17,9 @@ internal/
   logging/             Structured logging (tint) + request middleware
   provider/            Provider framework (base, registration, options)
     meta/              Introspection provider (version, config, health)
+    nodes/             Cluster node CRUD (manage nodes, roles, credentials)
     onramp/            Aether OnRamp provider (repo, components, tasks, config, profiles)
+    preflight/         Pre-deployment checks (system prerequisites, automated fixes)
     system/            System metrics provider (CPU, memory, disk, NIC)
   security/            TLS/mTLS configuration and self-signed cert generation
   store/               Persistence layer (SQLite)
@@ -80,7 +82,9 @@ provider.Register(p.Base, endpoint.Endpoint[struct{}, VersionOutput]{
 | Provider | Package | Documentation | Description |
 |----------|---------|---------------|-------------|
 | `meta` | `internal/provider/meta` | [providers/meta.md](providers/meta.md) | Server introspection — version, build, runtime, config, provider list, store diagnostics |
+| `nodes` | `internal/provider/nodes` | — | Cluster node CRUD — manage nodes with role assignments and credentials |
 | `onramp` | `internal/provider/onramp` | [providers/onramp.md](providers/onramp.md) | Aether OnRamp lifecycle — repo management, component deployment, task tracking, config/profile editing |
+| `preflight` | `internal/provider/preflight` | [providers/preflight.md](providers/preflight.md) | Pre-deployment checks — verify system prerequisites with optional automated fixes |
 | `system` | `internal/provider/system` | [providers/system.md](providers/system.md) | Host system metrics — CPU, memory, disk, NIC sampling |
 
 ### Adding a Provider

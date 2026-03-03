@@ -46,8 +46,9 @@ The API is organized into **providers** — modular units that each register a s
 | **system** | `/api/v1/system/` | Host system info — CPU, memory, disk, OS, network, metrics | 8 |
 | **nodes** | `/api/v1/nodes` | Cluster node CRUD — manage nodes with role assignments and credentials | 5 |
 | **onramp** | `/api/v1/onramp/` | Aether OnRamp operations — components, tasks, config, profiles, inventory, deployment tracking | 18 |
+| **preflight** | `/api/v1/preflight` | Pre-deployment system checks — verify prerequisites with optional automated fixes | 3 |
 
-**Total: 37 endpoints**
+**Total: 40 endpoints**
 
 ---
 
@@ -532,6 +533,109 @@ Delete a node and its role assignments.
 
 ---
 
+### Preflight Provider
+
+Pre-deployment system checks with optional automated fixes. Designed for the UI to show a checklist with "Fix" buttons next to failed items.
+
+#### GET `/api/v1/preflight`
+
+Run all preflight checks and return aggregate results.
+
+**Response:**
+```json
+{
+  "passed": 2,
+  "failed": 2,
+  "total": 4,
+  "results": [
+    {
+      "id": "required-packages",
+      "name": "Required Packages",
+      "description": "Checks that required build and deployment tools (make, ansible) are installed.",
+      "severity": "required",
+      "category": "tooling",
+      "passed": true,
+      "message": "all required packages found: make (/usr/bin/make), ansible-playbook (/usr/bin/ansible-playbook)",
+      "can_fix": true,
+      "fix_warning": "This will install system packages using the detected package manager (apt-get, dnf, or yum)."
+    },
+    {
+      "id": "ssh-configured",
+      "name": "SSH Configuration",
+      "description": "Checks that SSH password authentication is enabled on this host.",
+      "severity": "required",
+      "category": "access",
+      "passed": false,
+      "message": "PasswordAuthentication is disabled (set in /etc/ssh/sshd_config)",
+      "details": "SSH password authentication must be enabled for Aether node provisioning.",
+      "can_fix": true,
+      "fix_warning": "Enabling SSH password authentication allows any user to log in with a password. Consider using key-based authentication for production environments."
+    }
+  ]
+}
+```
+
+**JavaScript:**
+```js
+const res = await fetch(`${BASE_URL}/preflight`, { headers });
+const summary = await res.json();
+// summary.results contains all check results
+```
+
+---
+
+#### GET `/api/v1/preflight/{id}`
+
+Run a single preflight check by ID.
+
+**Path Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | string | Check ID (e.g. `required-packages`, `ssh-configured`) |
+
+**Response:** Single `CheckResult` (same shape as items in the list response).
+
+**Errors:**
+- `404` — Check not found
+
+---
+
+#### POST `/api/v1/preflight/{id}/fix`
+
+Execute the automated fix for a preflight check.
+
+**Path Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | string | Check ID |
+
+**Response:**
+```json
+{
+  "id": "ssh-configured",
+  "applied": true,
+  "message": "wrote /etc/ssh/sshd_config.d/99-aether-password-auth.conf and restarted sshd",
+  "warning": "Enabling SSH password authentication allows any user to log in with a password. Consider using key-based authentication for production environments."
+}
+```
+
+**Errors:**
+- `404` — Check not found
+- `422` — Check has no automated fix available
+
+**Available checks:**
+
+| ID | Category | Severity | Has Fix | Description |
+|----|----------|----------|---------|-------------|
+| `required-packages` | tooling | required | Yes | Checks that `make` and `ansible-playbook` are installed |
+| `ssh-configured` | access | required | Yes | Checks sshd PasswordAuthentication setting |
+| `aether-user-configured` | access | required | Yes | Checks for `aether` user with sudo access |
+| `node-ssh-reachable` | network | info | No | TCP dial port 22 on all managed nodes |
+
+---
+
 ### OnRamp Provider
 
 Manages the Aether OnRamp deployment toolchain. Endpoints are organized into sub-groups: repo, components, tasks, config, profiles, and inventory.
@@ -991,7 +1095,41 @@ Generate `hosts.ini` from managed nodes in the database and write it to disk.
 
 ## Workflows
 
-### 1. Deploying a Component
+### 1. Preflight Checks
+
+Verify system prerequisites before deploying, and fix any issues.
+
+```
+1. GET /api/v1/preflight                         ← Run all checks
+2. Review results — any items with passed=false?
+3. POST /api/v1/preflight/{id}/fix               ← Fix items with can_fix=true
+4. GET /api/v1/preflight                         ← Re-run to verify fixes
+```
+
+**Frontend implementation:**
+```js
+async function runPreflightChecks() {
+  const res = await fetch(`${BASE_URL}/preflight`, { headers });
+  const summary = await res.json();
+
+  for (const check of summary.results) {
+    if (!check.passed && check.can_fix) {
+      // Show fix button with check.fix_warning
+    }
+  }
+  return summary;
+}
+
+async function applyFix(checkId) {
+  const res = await fetch(`${BASE_URL}/preflight/${checkId}/fix`, {
+    method: 'POST',
+    headers,
+  });
+  return await res.json();
+}
+```
+
+### 2. Deploying a Component
 
 Multi-step flow: trigger an action, receive a task ID, poll for completion.
 
@@ -1046,7 +1184,7 @@ async function deployComponent(component, action) {
 }
 ```
 
-### 2. Managing Nodes
+### 3. Managing Nodes
 
 CRUD workflow for cluster nodes, followed by inventory sync.
 
@@ -1061,7 +1199,7 @@ CRUD workflow for cluster nodes, followed by inventory sync.
 
 After creating/updating nodes, always call inventory sync before running OnRamp actions so that `hosts.ini` reflects the current state.
 
-### 3. Monitoring System Metrics
+### 4. Monitoring System Metrics
 
 Poll metrics endpoints for live dashboard data.
 
@@ -1086,7 +1224,7 @@ For a live dashboard, poll the metrics endpoint every 10–30 seconds. Use the `
 
 Static system info (CPU model, total memory, disk layout, OS info, network interfaces) changes infrequently and can be fetched once on page load.
 
-### 4. Deployment State Dashboard
+### 5. Deployment State Dashboard
 
 Component state and action history enable a deployment dashboard without client-side tracking.
 
@@ -1118,7 +1256,7 @@ const history = await fetch(
 
 > **Note:** Timestamps in action history and component state are Unix epoch seconds (int64), not ISO 8601 strings. Convert on the frontend: `new Date(record.started_at * 1000)`.
 
-### 5. Configuration Management
+### 6. Configuration Management
 
 ```
 1. GET  /api/v1/onramp/config                    ← Read current config
@@ -1130,7 +1268,7 @@ const history = await fetch(
 
 Profiles are preset configurations (e.g., `gnbsim`, `oai`, `srsran`). Activating a profile overwrites `vars/main.yml` entirely.
 
-### 6. Repository Management
+### 7. Repository Management
 
 ```
 1. GET  /api/v1/onramp/repo         ← Check clone status
@@ -1143,6 +1281,47 @@ The OnRamp repo is automatically cloned on server start. Use refresh to recover 
 ---
 
 ## Data Models
+
+### CheckResult
+
+Result of running a single preflight check.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | Check identifier |
+| `name` | string | Human-readable check name |
+| `description` | string | What the check verifies |
+| `severity` | string | `required`, `warning`, or `info` |
+| `category` | string | `tooling`, `access`, or `network` |
+| `passed` | bool | Whether the check passed |
+| `message` | string | Summary of the result |
+| `details` | string | Additional details (omitted when empty) |
+| `can_fix` | bool | Whether an automated fix is available |
+| `fix_warning` | string | Security warning for the fix (omitted when empty) |
+| `error` | string | Error message if the check failed to run (omitted when empty) |
+
+### FixResult
+
+Result of running an automated fix.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | Check identifier |
+| `applied` | bool | Whether the fix was applied |
+| `message` | string | Summary of what happened |
+| `warning` | string | Security warning (omitted when empty) |
+| `error` | string | Error message if the fix failed (omitted when empty) |
+
+### PreflightSummary
+
+Aggregate result of running all preflight checks.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `passed` | int | Number of checks that passed |
+| `failed` | int | Number of checks that failed |
+| `total` | int | Total number of checks |
+| `results` | CheckResult[] | Individual check results |
 
 ### ManagedNode
 
