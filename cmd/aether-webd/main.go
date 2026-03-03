@@ -24,6 +24,32 @@ var (
 	commitHash string = "unknown"
 )
 
+// envOr returns the value of the named environment variable, or fallback if
+// the variable is empty or unset.
+func envOr(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
+}
+
+// envBool returns the boolean value of the named environment variable, or
+// fallback if the variable is empty, unset, or not a recognised boolean.
+func envBool(key string, fallback bool) bool {
+	v := os.Getenv(key)
+	if v == "" {
+		return fallback
+	}
+	switch v {
+	case "true", "1", "yes":
+		return true
+	case "false", "0", "no":
+		return false
+	default:
+		return fallback
+	}
+}
+
 func main() {
 
 	// Setup usage and command-line options
@@ -37,36 +63,36 @@ func main() {
 	)
 
 	flagVersion := u.AddBooleanOption("v", "version", false, "Print version information and exit", "", nil)
-	flagDebug := u.AddBooleanOption("d", "debug", false, "Enable debug mode for verbose logging and diagnostic output", "", nil)
-	flagListen := u.AddStringOption("l", "listen", "127.0.0.1:8186", "Address and port the API server will listen on (e.g., 0.0.0.0:8186 for all interfaces)", "", nil)
+	flagDebug := u.AddBooleanOption("d", "debug", envBool("AETHER_DEBUG", false), "Enable debug mode for verbose logging and diagnostic output (env: AETHER_DEBUG)", "", nil)
+	flagListen := u.AddStringOption("l", "listen", envOr("AETHER_LISTEN", "127.0.0.1:8186"), "Address and port the API server will listen on (env: AETHER_LISTEN)", "", nil)
 
 	secOptions := u.AddGroup(2, "Security Options", "Options that control security settings")
-	flagTLS := u.AddBooleanOption("", "tls", false, "Enable TLS. Auto-generates a self-signed certificate if --tls-cert and --tls-key are not provided.", "", secOptions)
-	flagTLSCert := u.AddStringOption("t", "tls-cert", "", "Path to the TLS certificate file for HTTPS. When provided with --tls-key, the server will use HTTPS instead of HTTP.", "", secOptions)
-	flagTLSKey := u.AddStringOption("k", "tls-key", "", "Path to the TLS private key file for HTTPS. Required when --tls-cert is specified.", "", secOptions)
-	flagMTLSCACert := u.AddStringOption("m", "mtls-ca-cert", "", "Path to the CA certificate file for verifying client certificates. Enables mutual TLS (mTLS) authentication when specified.", "", secOptions)
-	flagAPIToken := u.AddStringOption("", "api-token", "", "Bearer token for API authentication. Falls back to AETHER_API_TOKEN env var. When set, all /api/* requests require Authorization: Bearer <token>.", "", secOptions)
-	flagEnableRBAC := u.AddBooleanOption("r", "enable-rbac", false, "Enable role-based access control (RBAC) authentication and authorization middleware.", "", secOptions)
+	flagTLS := u.AddBooleanOption("", "tls", envBool("AETHER_TLS", false), "Enable TLS; auto-generates a self-signed certificate if --tls-cert and --tls-key are not provided (env: AETHER_TLS)", "", secOptions)
+	flagTLSCert := u.AddStringOption("t", "tls-cert", envOr("AETHER_TLS_CERT", ""), "Path to the TLS certificate file for HTTPS (env: AETHER_TLS_CERT)", "", secOptions)
+	flagTLSKey := u.AddStringOption("k", "tls-key", envOr("AETHER_TLS_KEY", ""), "Path to the TLS private key file for HTTPS (env: AETHER_TLS_KEY)", "", secOptions)
+	flagMTLSCACert := u.AddStringOption("m", "mtls-ca-cert", envOr("AETHER_MTLS_CA_CERT", ""), "Path to the CA certificate file for client verification; enables mTLS (env: AETHER_MTLS_CA_CERT)", "", secOptions)
+	flagAPIToken := u.AddStringOption("", "api-token", envOr("AETHER_API_TOKEN", ""), "Bearer token for API authentication; all /api/* requests require Authorization: Bearer <token> (env: AETHER_API_TOKEN)", "", secOptions)
+	flagEnableRBAC := u.AddBooleanOption("r", "enable-rbac", envBool("AETHER_ENABLE_RBAC", false), "Enable role-based access control (RBAC) authentication and authorization middleware (env: AETHER_ENABLE_RBAC)", "", secOptions)
 
 	exeOptions := u.AddGroup(1, "Execution Options", "Options that control API command execution")
-	_ = u.AddStringOption("u", "exec-user", "", "User account under which API commands will be executed", "", exeOptions)
-	_ = u.AddStringOption("e", "exec-env", "", "Environment variables to pass to the command execution context", "", exeOptions)
+	_ = u.AddStringOption("u", "exec-user", envOr("AETHER_EXEC_USER", ""), "User account under which API commands will be executed (env: AETHER_EXEC_USER)", "", exeOptions)
+	_ = u.AddStringOption("e", "exec-env", envOr("AETHER_EXEC_ENV", ""), "Environment variables to pass to the command execution context (env: AETHER_EXEC_ENV)", "", exeOptions)
 
 	onrampOptions := u.AddGroup(6, "OnRamp Options", "Options that control the Aether OnRamp provider")
-	flagOnRampDir := u.AddStringOption("", "onramp-dir", "", "Path to aether-onramp repo (default: {data-dir}/aether-onramp)", "", onrampOptions)
-	flagOnRampVersion := u.AddStringOption("", "onramp-version", "main", "Tag, branch, or commit to pin aether-onramp to", "", onrampOptions)
+	flagOnRampDir := u.AddStringOption("", "onramp-dir", envOr("AETHER_ONRAMP_DIR", ""), "Path to aether-onramp repo; default: {data-dir}/aether-onramp (env: AETHER_ONRAMP_DIR)", "", onrampOptions)
+	flagOnRampVersion := u.AddStringOption("", "onramp-version", envOr("AETHER_ONRAMP_VERSION", "main"), "Tag, branch, or commit to pin aether-onramp to (env: AETHER_ONRAMP_VERSION)", "", onrampOptions)
 
 	frontendOptions := u.AddGroup(3, "Frontend Options", "Options that control frontend serving")
-	flagServeFrontend := u.AddBooleanOption("f", "serve-frontend", true, "Enable serving frontend static files from embedded or custom directory", "", frontendOptions)
-	flagFrontendDir := u.AddStringOption("", "frontend-dir", "", "Override embedded frontend with files from this directory (for development)", "", frontendOptions)
+	flagServeFrontend := u.AddBooleanOption("f", "serve-frontend", envBool("AETHER_SERVE_FRONTEND", true), "Enable serving frontend static files from embedded or custom directory (env: AETHER_SERVE_FRONTEND)", "", frontendOptions)
+	flagFrontendDir := u.AddStringOption("", "frontend-dir", envOr("AETHER_FRONTEND_DIR", ""), "Override embedded frontend with files from this directory (env: AETHER_FRONTEND_DIR)", "", frontendOptions)
 
 	storageOptions := u.AddGroup(4, "Storage Options", "Options that control persistent state storage")
-	flagDataDir := u.AddStringOption("", "data-dir", "/var/lib/aether-webd", "Directory for persistent state database", "", storageOptions)
-	flagEncryptionKey := u.AddStringOption("", "encryption-key", "", "32-byte encryption key for node passwords. Falls back to AETHER_ENCRYPTION_KEY env var. Auto-generated if neither is provided.", "", secOptions)
+	flagDataDir := u.AddStringOption("", "data-dir", envOr("AETHER_DATA_DIR", "/var/lib/aether-webd"), "Directory for persistent state database (env: AETHER_DATA_DIR)", "", storageOptions)
+	flagEncryptionKey := u.AddStringOption("", "encryption-key", envOr("AETHER_ENCRYPTION_KEY", ""), "32-byte encryption key for node passwords; auto-generated if not provided (env: AETHER_ENCRYPTION_KEY)", "", secOptions)
 
 	metricsOptions := u.AddGroup(5, "Metrics Options", "Options that control metrics collection")
-	flagMetricsInterval := u.AddStringOption("", "metrics-interval", "10s", "How often to collect system metrics (e.g., '10s', '30s', '1m')", "", metricsOptions)
-	flagMetricsRetention := u.AddStringOption("", "metrics-retention", "24h", "How long to retain historical metrics data (e.g., '24h', '7d')", "", metricsOptions)
+	flagMetricsInterval := u.AddStringOption("", "metrics-interval", envOr("AETHER_METRICS_INTERVAL", "10s"), "How often to collect system metrics, e.g. 10s, 30s, 1m (env: AETHER_METRICS_INTERVAL)", "", metricsOptions)
+	flagMetricsRetention := u.AddStringOption("", "metrics-retention", envOr("AETHER_METRICS_RETENTION", "24h"), "How long to retain historical metrics data, e.g. 24h, 7d (env: AETHER_METRICS_RETENTION)", "", metricsOptions)
 
 	parsed := u.Parse()
 

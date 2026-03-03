@@ -26,7 +26,6 @@ import (
 // ctx is cancelled or an OS signal triggers shutdown.
 func (c *Controller) Run(ctx context.Context) error {
 	c.setupLogging()
-	c.resolveAPIToken()
 
 	c.log.Info("aether-webd starting",
 		"version", c.versionInfo.Version,
@@ -96,13 +95,6 @@ func (c *Controller) setupLogging() {
 		AddSource: c.debug,
 	})
 	c.log = slog.Default()
-}
-
-// resolveAPIToken falls back to AETHER_API_TOKEN env var when the flag is empty.
-func (c *Controller) resolveAPIToken() {
-	if c.apiToken == "" {
-		c.apiToken = os.Getenv("AETHER_API_TOKEN")
-	}
 }
 
 // buildTLS resolves TLS configuration from the controller's TLS fields.

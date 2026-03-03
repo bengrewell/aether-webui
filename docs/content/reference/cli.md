@@ -15,64 +15,82 @@ aether-webd [options]
 
 ### General
 
-| Flag | Description | Default |
-|------|-------------|---------|
-| `-v, --version` | Print version information and exit | `false` |
-| `-d, --debug` | Enable debug mode for verbose logging | `false` |
-| `-l, --listen` | Address and port to listen on | `127.0.0.1:8186` |
+| Flag | Env Var | Description | Default |
+|------|---------|-------------|---------|
+| `-v, --version` | - | Print version information and exit | `false` |
+| `-d, --debug` | `AETHER_DEBUG` | Enable debug mode for verbose logging | `false` |
+| `-l, --listen` | `AETHER_LISTEN` | Address and port to listen on | `127.0.0.1:8186` |
 
 ### Security
 
-| Flag | Description | Default |
-|------|-------------|---------|
-| `--tls` | Enable TLS (auto-generates a self-signed cert if `--tls-cert`/`--tls-key` are not provided) | `false` |
-| `-t, --tls-cert` | TLS certificate file for HTTPS | - |
-| `-k, --tls-key` | TLS private key file for HTTPS | - |
-| `-m, --mtls-ca-cert` | CA certificate for client verification (mTLS) | - |
-| `--api-token` | Bearer token for API authentication (falls back to `AETHER_API_TOKEN` env var) | - |
-| `--encryption-key` | 32-byte encryption key for node passwords (falls back to `AETHER_ENCRYPTION_KEY` env var; auto-generated if neither is provided) | - |
-| `-r, --enable-rbac` | Enable RBAC authentication/authorization | `false` |
+| Flag | Env Var | Description | Default |
+|------|---------|-------------|---------|
+| `--tls` | `AETHER_TLS` | Enable TLS (auto-generates a self-signed cert if `--tls-cert`/`--tls-key` are not provided) | `false` |
+| `-t, --tls-cert` | `AETHER_TLS_CERT` | TLS certificate file for HTTPS | - |
+| `-k, --tls-key` | `AETHER_TLS_KEY` | TLS private key file for HTTPS | - |
+| `-m, --mtls-ca-cert` | `AETHER_MTLS_CA_CERT` | CA certificate for client verification (mTLS) | - |
+| `--api-token` | `AETHER_API_TOKEN` | Bearer token for API authentication | - |
+| `--encryption-key` | `AETHER_ENCRYPTION_KEY` | 32-byte encryption key for node passwords (auto-generated if not provided) | - |
+| `-r, --enable-rbac` | `AETHER_ENABLE_RBAC` | Enable RBAC authentication/authorization | `false` |
 
 ### Execution
 
-| Flag | Description | Default |
-|------|-------------|---------|
-| `-u, --exec-user` | User for command execution | - |
-| `-e, --exec-env` | Environment variables for execution | - |
+| Flag | Env Var | Description | Default |
+|------|---------|-------------|---------|
+| `-u, --exec-user` | `AETHER_EXEC_USER` | User for command execution | - |
+| `-e, --exec-env` | `AETHER_EXEC_ENV` | Environment variables for execution | - |
 
 ### OnRamp
 
-| Flag | Description | Default |
-|------|-------------|---------|
-| `--onramp-dir` | Path to the aether-onramp repository on disk | `{data-dir}/aether-onramp` |
-| `--onramp-version` | Tag, branch, or commit to pin aether-onramp to | `main` |
+| Flag | Env Var | Description | Default |
+|------|---------|-------------|---------|
+| `--onramp-dir` | `AETHER_ONRAMP_DIR` | Path to the aether-onramp repository on disk | `{data-dir}/aether-onramp` |
+| `--onramp-version` | `AETHER_ONRAMP_VERSION` | Tag, branch, or commit to pin aether-onramp to | `main` |
 
 ### Frontend
 
-| Flag | Description | Default |
-|------|-------------|---------|
-| `-f, --serve-frontend` | Enable serving frontend static files | `true` |
-| `--frontend-dir` | Override embedded frontend with files from this directory | - |
+| Flag | Env Var | Description | Default |
+|------|---------|-------------|---------|
+| `-f, --serve-frontend` | `AETHER_SERVE_FRONTEND` | Enable serving frontend static files | `true` |
+| `--frontend-dir` | `AETHER_FRONTEND_DIR` | Override embedded frontend with files from this directory | - |
 
 ### Storage
 
-| Flag | Description | Default |
-|------|-------------|---------|
-| `--data-dir` | Directory for persistent state database | `/var/lib/aether-webd` |
+| Flag | Env Var | Description | Default |
+|------|---------|-------------|---------|
+| `--data-dir` | `AETHER_DATA_DIR` | Directory for persistent state database | `/var/lib/aether-webd` |
 
 ### Metrics
 
-| Flag | Description | Default |
-|------|-------------|---------|
-| `--metrics-interval` | How often to collect system metrics (e.g., `10s`, `30s`, `1m`) | `10s` |
-| `--metrics-retention` | How long to retain historical metrics data (e.g., `24h`, `7d`) | `24h` |
+| Flag | Env Var | Description | Default |
+|------|---------|-------------|---------|
+| `--metrics-interval` | `AETHER_METRICS_INTERVAL` | How often to collect system metrics (e.g., `10s`, `30s`, `1m`) | `10s` |
+| `--metrics-retention` | `AETHER_METRICS_RETENTION` | How long to retain historical metrics data (e.g., `24h`, `7d`) | `24h` |
 
 ## Environment Variables
 
+Every CLI flag (except `--version`) has a corresponding `AETHER_*` environment variable. The precedence order is: **CLI flag > environment variable > hardcoded default**.
+
 | Variable | Description | Corresponding Flag |
 |----------|-------------|-------------------|
-| `AETHER_API_TOKEN` | Bearer token for API authentication. Used when `--api-token` is not set on the command line. | `--api-token` |
-| `AETHER_ENCRYPTION_KEY` | 32-byte hex-encoded key for encrypting node passwords at rest (AES-256-GCM). Used when `--encryption-key` is not set. If neither the flag nor the env var is provided, a random key is generated at startup (secrets will not survive restarts). | `--encryption-key` |
+| `AETHER_LISTEN` | Address and port to listen on | `--listen` |
+| `AETHER_DEBUG` | Enable debug logging (`true`, `1`, `yes`) | `--debug` |
+| `AETHER_TLS` | Enable TLS (`true`, `1`, `yes`) | `--tls` |
+| `AETHER_TLS_CERT` | Path to TLS certificate file | `--tls-cert` |
+| `AETHER_TLS_KEY` | Path to TLS private key file | `--tls-key` |
+| `AETHER_MTLS_CA_CERT` | Path to CA certificate for mTLS | `--mtls-ca-cert` |
+| `AETHER_API_TOKEN` | Bearer token for API authentication | `--api-token` |
+| `AETHER_ENCRYPTION_KEY` | 32-byte hex-encoded key for encrypting node passwords at rest (AES-256-GCM). If neither the flag nor the env var is provided, a random key is generated at startup (secrets will not survive restarts). | `--encryption-key` |
+| `AETHER_ENABLE_RBAC` | Enable RBAC (`true`, `1`, `yes`) | `--enable-rbac` |
+| `AETHER_DATA_DIR` | Directory for persistent state database | `--data-dir` |
+| `AETHER_ONRAMP_DIR` | Path to aether-onramp repository | `--onramp-dir` |
+| `AETHER_ONRAMP_VERSION` | Tag, branch, or commit to pin aether-onramp to | `--onramp-version` |
+| `AETHER_SERVE_FRONTEND` | Enable frontend serving (`true`, `1`, `yes`) | `--serve-frontend` |
+| `AETHER_FRONTEND_DIR` | Override embedded frontend directory | `--frontend-dir` |
+| `AETHER_METRICS_INTERVAL` | Metrics collection interval (e.g., `10s`) | `--metrics-interval` |
+| `AETHER_METRICS_RETENTION` | Metrics retention duration (e.g., `24h`) | `--metrics-retention` |
+| `AETHER_EXEC_USER` | User for command execution | `--exec-user` |
+| `AETHER_EXEC_ENV` | Environment variables for execution | `--exec-env` |
 
 ## Examples
 

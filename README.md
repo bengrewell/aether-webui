@@ -108,15 +108,15 @@ aether-webd [options]
 
 ### Security Options
 
-| Flag | Description | Default |
-|------|-------------|---------|
-| `--tls` | Enable TLS (auto-generates a self-signed cert if `--tls-cert`/`--tls-key` are not provided) | `false` |
-| `-t, --tls-cert` | TLS certificate file for HTTPS | - |
-| `-k, --tls-key` | TLS private key file for HTTPS | - |
-| `-m, --mtls-ca-cert` | CA certificate for client verification (mTLS) | - |
-| `--api-token` | Bearer token for API authentication (falls back to `AETHER_API_TOKEN` env var) | - |
-| `--encryption-key` | 32-byte encryption key for node passwords (falls back to `AETHER_ENCRYPTION_KEY` env var; auto-generated if neither is provided) | - |
-| `-r, --enable-rbac` | Enable RBAC authentication/authorization | `false` |
+| Flag | Env Var | Description | Default |
+|------|---------|-------------|---------|
+| `--tls` | `AETHER_TLS` | Enable TLS (auto-generates a self-signed cert if `--tls-cert`/`--tls-key` are not provided) | `false` |
+| `-t, --tls-cert` | `AETHER_TLS_CERT` | TLS certificate file for HTTPS | - |
+| `-k, --tls-key` | `AETHER_TLS_KEY` | TLS private key file for HTTPS | - |
+| `-m, --mtls-ca-cert` | `AETHER_MTLS_CA_CERT` | CA certificate for client verification (mTLS) | - |
+| `--api-token` | `AETHER_API_TOKEN` | Bearer token for API authentication | - |
+| `--encryption-key` | `AETHER_ENCRYPTION_KEY` | 32-byte encryption key for node passwords (auto-generated if not provided) | - |
+| `-r, --enable-rbac` | `AETHER_ENABLE_RBAC` | Enable RBAC authentication/authorization | `false` |
 
 ### Execution Options
 
@@ -269,9 +269,9 @@ sudo chmod +x /usr/local/bin/aether-webd
 # Install service file
 sudo cp deploy/systemd/aether-webd.service /etc/systemd/system/
 
-# Create config directory (optional)
+# Create config directory and environment file (optional)
 sudo mkdir -p /etc/aether-webd
-echo 'AETHER_WEBD_OPTS="--listen 0.0.0.0:8186"' | sudo tee /etc/aether-webd/env
+echo 'AETHER_LISTEN=0.0.0.0:8186' | sudo tee /etc/aether-webd/env
 
 # Enable and start
 sudo systemctl daemon-reload

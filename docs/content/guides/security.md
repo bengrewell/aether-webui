@@ -13,6 +13,12 @@ This guide covers enabling TLS, mutual TLS (mTLS), and token authentication for 
 aether-webd --tls
 ```
 
+Or via the systemd environment file (`/etc/aether-webd/env`):
+
+```
+AETHER_TLS=true
+```
+
 On first run, this generates a local CA and CA-signed server certificate under `{data-dir}/certs/` (default: `/var/lib/aether-webd/certs/`). The generated files are reused on subsequent starts.
 
 | File | Description |
@@ -103,6 +109,12 @@ export AETHER_API_TOKEN=mysecrettoken
 aether-webd
 ```
 
+Via the systemd environment file (`/etc/aether-webd/env`):
+
+```
+AETHER_API_TOKEN=mysecrettoken
+```
+
 ### Make authenticated requests
 
 ```bash
@@ -150,7 +162,7 @@ Unauthorized requests receive a `401` JSON response:
 - Use certificates from a trusted CA (e.g., Let's Encrypt) rather than the auto-generated self-signed certs.
 - Enable mTLS for machine-to-machine communication between services.
 - Generate strong, random API tokens: `openssl rand -hex 32`.
-- Set the token via the `AETHER_API_TOKEN` environment variable to keep it out of process listings.
+- Set the token via the `AETHER_API_TOKEN` environment variable (or in `/etc/aether-webd/env` for systemd) to keep it out of process listings.
 - Place aether-webd behind a reverse proxy (e.g., Caddy, nginx) for TLS termination in production.
 - Minimum TLS version is 1.2; TLS 1.0 and 1.1 are not supported.
 
