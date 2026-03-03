@@ -64,7 +64,9 @@ check_conflict() {
     fi
 }
 
-# Verify build dependencies for source builds (git, make, go >= 1.25)
+# Verify build dependencies for source builds (git, make, go >= 1.25).
+# Note: node/npm may be needed for very old refs where the embedded frontend
+# dist is not checked in. For recent refs this is not required.
 check_build_deps() {
     local missing=()
     for cmd in git make go; do
@@ -76,10 +78,10 @@ check_build_deps() {
         log_error "Source build requires: ${missing[*]}"
         exit 1
     fi
-    local go_version
-    go_version=$(go version | grep -oP 'go\K[0-9]+\.[0-9]+')
-    # go_version is major.minor (e.g. "1.25"); compare with awk
-    if awk "BEGIN{exit(!($go_version < 1.25))}"; then
+    local go_version go_major go_minor
+    go_version=$(go env GOVERSION | sed 's/^go//; s/\([0-9]*\.[0-9]*\).*/\1/')
+    IFS='.' read -r go_major go_minor <<< "$go_version"
+    if (( go_major < 1 )) || { (( go_major == 1 )) && (( go_minor < 25 )); }; then
         log_error "Go >= 1.25 required (found go${go_version})"
         exit 1
     fi
@@ -113,6 +115,9 @@ build_from_source() {
     fi
 
     log_info "Building from source (CGO_ENABLED=0)..."
+    if [[ "$(id -u)" -eq 0 ]]; then
+        log_warn "Running 'make build' as root. Consider building as an unprivileged user and using root only for the install step."
+    fi
     CGO_ENABLED=0 make build
 
     local binary_path="bin/${BINARY_NAME}"
