@@ -6,7 +6,8 @@
 #   curl -fsSL https://raw.githubusercontent.com/bengrewell/aether-webui/main/scripts/install.sh | sudo bash
 #
 # Options (via environment variables):
-#   VERSION=v1.0.0  - Install a specific version (default: latest)
+#   VERSION=v1.0.0  - Install a specific release version (default: latest)
+#   REF=main        - Build from source at a git ref (tag, branch, or commit)
 #
 set -euo pipefail
 
@@ -53,6 +54,83 @@ check_os() {
         exit 1
     fi
     log_info "Operating system: Linux"
+}
+
+# VERSION and REF are mutually exclusive
+check_conflict() {
+    if [[ -n "${VERSION:-}" && -n "${REF:-}" ]]; then
+        log_error "VERSION and REF are mutually exclusive. Set one or neither."
+        exit 1
+    fi
+}
+
+# Verify build dependencies for source builds (git, make, go >= 1.25)
+check_build_deps() {
+    local missing=()
+    for cmd in git make go; do
+        if ! command -v "$cmd" &>/dev/null; then
+            missing+=("$cmd")
+        fi
+    done
+    if [[ ${#missing[@]} -gt 0 ]]; then
+        log_error "Source build requires: ${missing[*]}"
+        exit 1
+    fi
+    local go_version
+    go_version=$(go version | grep -oP 'go\K[0-9]+\.[0-9]+')
+    # go_version is major.minor (e.g. "1.25"); compare with awk
+    if awk "BEGIN{exit(!($go_version < 1.25))}"; then
+        log_error "Go >= 1.25 required (found go${go_version})"
+        exit 1
+    fi
+    log_info "Build dependencies satisfied (go${go_version})"
+}
+
+# Clone the repository, checkout the requested ref, build, and install
+build_from_source() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    # shellcheck disable=SC2064 # Intentional: expand tmp_dir now, not at signal time
+    trap "rm -rf '$tmp_dir'" EXIT
+
+    log_info "Cloning repository..."
+    if ! git clone --depth 50 "https://github.com/${GITHUB_REPO}.git" "${tmp_dir}/src"; then
+        log_error "Failed to clone repository"
+        exit 1
+    fi
+
+    cd "${tmp_dir}/src"
+
+    log_info "Checking out ref: ${REF}"
+    if ! git checkout "${REF}" 2>/dev/null; then
+        # Ref may be outside shallow depth — unshallow and retry
+        log_info "Ref not in shallow clone, fetching full history..."
+        git fetch --unshallow
+        if ! git checkout "${REF}"; then
+            log_error "Failed to checkout ref: ${REF}"
+            exit 1
+        fi
+    fi
+
+    log_info "Building from source (CGO_ENABLED=0)..."
+    CGO_ENABLED=0 make build
+
+    local binary_path="bin/${BINARY_NAME}"
+    if [[ ! -f "$binary_path" ]]; then
+        log_error "Build did not produce expected binary at ${binary_path}"
+        exit 1
+    fi
+
+    log_info "Installing binary to ${INSTALL_DIR}/${BINARY_NAME}"
+    install -m 755 "$binary_path" "${INSTALL_DIR}/${BINARY_NAME}"
+
+    if ! "${INSTALL_DIR}/${BINARY_NAME}" --version &>/dev/null; then
+        log_warn "Binary installed but version check failed"
+    else
+        log_info "Binary verified: $(${INSTALL_DIR}/${BINARY_NAME} --version 2>&1 | head -1)"
+    fi
+
+    cd /
 }
 
 # Detect system architecture
@@ -114,7 +192,8 @@ download_binary() {
     log_info "Downloading from: $download_url"
 
     tmp_dir=$(mktemp -d)
-    trap "rm -rf $tmp_dir" EXIT
+    # shellcheck disable=SC2064 # Intentional: expand tmp_dir now, not at signal time
+    trap "rm -rf '$tmp_dir'" EXIT
 
     if ! curl -fsSL -o "${tmp_dir}/${archive_name}" "$download_url"; then
         log_error "Failed to download release archive"
@@ -263,9 +342,17 @@ main() {
 
     check_root
     check_os
-    detect_arch
-    determine_version
-    download_binary
+    check_conflict
+
+    if [[ -n "${REF:-}" ]]; then
+        check_build_deps
+        build_from_source
+    else
+        detect_arch
+        determine_version
+        download_binary
+    fi
+
     create_user
     install_service
     create_config_dir
