@@ -44,7 +44,8 @@ The response includes a summary and individual results for each check:
       "message": "missing required packages: make, ansible-playbook",
       "can_fix": true,
       "fix_warning": "This will install system packages using the detected package manager (apt-get, dnf, or yum)."
-    }
+    },
+    ...
   ]
 }
 ```

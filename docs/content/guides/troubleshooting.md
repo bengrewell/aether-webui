@@ -70,7 +70,7 @@ Fixes that modify system state (installing packages, creating users, writing con
 
 | Check | Common cause | Resolution |
 |-------|-------------|------------|
-| `required-packages` | Fresh host without build tools | Apply the automated fix, or manually install `make` and `ansible` |
+| `required-packages` | Fresh host without build tools | Apply the automated fix, or manually install `make` and the `ansible` package (which provides `ansible-playbook`) |
 | `ssh-configured` | Cloud images disable password auth by default | Apply the automated fix, which writes an sshd drop-in config |
 | `aether-user-configured` | User not yet created | Apply the automated fix to create the `aether` user with sudo |
 | `node-ssh-reachable` | Firewall blocking port 22, incorrect `ansible_host` | Check node configuration and network connectivity |

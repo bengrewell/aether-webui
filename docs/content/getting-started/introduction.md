@@ -40,7 +40,7 @@ Before starting, ensure your environment meets the following requirements:
 - **Networking:** Outbound internet connectivity (the installer downloads binaries and container images)
 - **Hardware:** At minimum, 4 CPU cores, 8 GB RAM, and 50 GB disk (a single-node lab deployment)
 
-After installation, the [preflight checks](first-deployment#step-1-run-preflight-checks) automatically verify that the host has the required tools (`make`, `ansible`), SSH configuration, and user accounts. Any missing prerequisites can be fixed with a single API call.
+After installation, the [preflight checks](first-deployment#step-1-run-preflight-checks) automatically verify that the host has the required tools (`make`, `ansible-playbook`), SSH configuration, and user accounts. Any missing prerequisites can be fixed with a single API call.
 
 ## How the tutorial is structured
 
