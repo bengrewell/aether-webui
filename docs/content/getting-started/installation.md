@@ -33,7 +33,7 @@ journalctl -u aether-webd --no-pager -n 50
 
 ## Check the health endpoint
 
-The service exposes a health endpoint that returns `"healthy"` when the server is ready to accept requests:
+The service exposes a health endpoint that returns a JSON object when the server is ready to accept requests:
 
 ```bash
 curl http://localhost:8186/healthz
@@ -42,8 +42,10 @@ curl http://localhost:8186/healthz
 Expected response:
 
 ```json
-"healthy"
+{"status":"healthy","version":"0.0.9","uptime":"1m39s"}
 ```
+
+The `version` and `uptime` fields will vary based on the installed release and how long the service has been running.
 
 ## Check the version
 

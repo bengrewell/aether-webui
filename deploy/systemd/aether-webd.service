@@ -12,11 +12,15 @@ Group=aether-webd
 # State directory for persistent data (database)
 StateDirectory=aether-webd
 
-# Binary location
-ExecStart=/usr/local/bin/aether-webd --listen 0.0.0.0:8186
-
-# Environment file for additional configuration
+# Environment file for additional configuration (must come before ExecStart)
 EnvironmentFile=-/etc/aether-webd/env
+
+# Set HOME to the state directory so git does not attempt to read
+# /home/aether-webd/.config/git/* (blocked by ProtectHome=true).
+Environment=HOME=/var/lib/aether-webd
+
+# Binary location — extra flags come from AETHER_WEBD_OPTS in the env file
+ExecStart=/usr/local/bin/aether-webd $AETHER_WEBD_OPTS
 
 # Restart policy
 Restart=on-failure
