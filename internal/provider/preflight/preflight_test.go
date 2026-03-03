@@ -237,6 +237,73 @@ func TestCheckRequiredPackages_FixWithApt(t *testing.T) {
 	}
 }
 
+func TestCheckRequiredPackages_FixWithApt_AnsiblePPA(t *testing.T) {
+	deps := testDeps(t)
+	// ansible-playbook is missing, apt-get is the package manager.
+	deps.LookPath = func(name string) (string, error) {
+		switch name {
+		case "make":
+			return "/usr/bin/make", nil
+		case "apt-get":
+			return "/usr/bin/apt-get", nil
+		}
+		return "", errors.New("not found")
+	}
+	var commands []string
+	deps.RunCommand = func(ctx context.Context, name string, args ...string) ([]byte, error) {
+		commands = append(commands, name+" "+strings.Join(args, " "))
+		return []byte("ok"), nil
+	}
+
+	check := checkRequiredPackages()
+	r := check.RunFix(t.Context(), deps)
+
+	if !r.Applied {
+		t.Errorf("expected Applied=true, error=%q, message=%q", r.Error, r.Message)
+	}
+
+	// Verify PPA setup ran before the install.
+	if len(commands) < 3 {
+		t.Fatalf("expected at least 3 commands (software-properties-common, add-apt-repository, install), got %d: %v", len(commands), commands)
+	}
+	if !strings.Contains(commands[0], "software-properties-common") {
+		t.Errorf("first command should install software-properties-common, got %q", commands[0])
+	}
+	if !strings.Contains(commands[1], "add-apt-repository") && !strings.Contains(commands[1], "ppa:ansible/ansible") {
+		t.Errorf("second command should add Ansible PPA, got %q", commands[1])
+	}
+	if !strings.Contains(commands[2], "ansible") {
+		t.Errorf("third command should install ansible, got %q", commands[2])
+	}
+}
+
+func TestCheckRequiredPackages_FixWithApt_PPAFails(t *testing.T) {
+	deps := testDeps(t)
+	deps.LookPath = func(name string) (string, error) {
+		if name == "apt-get" {
+			return "/usr/bin/apt-get", nil
+		}
+		return "", errors.New("not found")
+	}
+	deps.RunCommand = func(ctx context.Context, name string, args ...string) ([]byte, error) {
+		// add-apt-repository fails.
+		if name == "sudo" && len(args) > 0 && args[0] == "add-apt-repository" {
+			return nil, errors.New("add-apt-repository not found")
+		}
+		return []byte("ok"), nil
+	}
+
+	check := checkRequiredPackages()
+	r := check.RunFix(t.Context(), deps)
+
+	if r.Applied {
+		t.Error("expected Applied=false when PPA setup fails")
+	}
+	if !strings.Contains(r.Error, "Ansible PPA") {
+		t.Errorf("error = %q, expected mention of Ansible PPA", r.Error)
+	}
+}
+
 func TestCheckRequiredPackages_FixWithDnf(t *testing.T) {
 	deps := testDeps(t)
 	deps.LookPath = func(name string) (string, error) {
