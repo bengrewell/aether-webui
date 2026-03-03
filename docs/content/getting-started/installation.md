@@ -89,4 +89,4 @@ The `aether-webd` binary accepts several flags for customizing behavior, includi
 
 ## Next step
 
-With the service running, proceed to [First Deployment](first-deployment) to deploy Kubernetes and the 5G Core.
+With the service running, proceed to [First Deployment](first-deployment) to run preflight checks and deploy Kubernetes and the 5G Core.

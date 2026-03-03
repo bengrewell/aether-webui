@@ -40,6 +40,41 @@ The data directory (default `/var/lib/aether-webd`) must be writable by the aeth
 ls -la /var/lib/aether-webd
 ```
 
+## Preflight checks failing
+
+### Run all checks
+
+The preflight endpoint verifies system prerequisites and reports which are passing or failing:
+
+```bash
+curl http://localhost:8186/api/v1/preflight
+```
+
+Review the `results` array. Each item has `passed`, `message`, and `can_fix` fields.
+
+### Apply automated fixes
+
+For checks with `"can_fix": true`, apply the fix and re-run:
+
+```bash
+# Fix a specific check
+curl -X POST http://localhost:8186/api/v1/preflight/required-packages/fix
+
+# Re-run to verify
+curl http://localhost:8186/api/v1/preflight/required-packages
+```
+
+Fixes that modify system state (installing packages, creating users, writing config files) run via `sudo`. Review the `fix_warning` field before applying.
+
+### Common preflight failures
+
+| Check | Common cause | Resolution |
+|-------|-------------|------------|
+| `required-packages` | Fresh host without build tools | Apply the automated fix, or manually install `make` and the `ansible` package (which provides `ansible-playbook`) |
+| `ssh-configured` | Cloud images disable password auth by default | Apply the automated fix, which writes an sshd drop-in config |
+| `aether-user-configured` | User not yet created | Apply the automated fix to create the `aether` user with sudo |
+| `node-ssh-reachable` | Firewall blocking port 22, incorrect `ansible_host` | Check node configuration and network connectivity |
+
 ## Task fails
 
 ### Check task output
@@ -152,7 +187,13 @@ Forgetting this step causes Ansible to target a stale host list.
 
 ### Network reachability
 
-Ensure the aether-webd host can reach all nodes on the SSH port (default 22). Firewalls, security groups, or network segmentation may block access.
+Ensure the aether-webd host can reach all nodes on the SSH port (default 22). The preflight `node-ssh-reachable` check can verify this:
+
+```bash
+curl http://localhost:8186/api/v1/preflight/node-ssh-reachable
+```
+
+Firewalls, security groups, or network segmentation may block access.
 
 ## Store diagnostics
 

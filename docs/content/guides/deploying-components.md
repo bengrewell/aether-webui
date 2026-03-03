@@ -167,8 +167,9 @@ Supported query parameters: `component`, `action`, `status`, `limit` (default 50
 
 ## Typical deployment order
 
-Install components in dependency order:
+Run preflight checks first, then install components in dependency order:
 
+0. `GET /api/v1/preflight` -- verify all prerequisites pass (fix any failures before proceeding)
 1. `k8s install` -- Kubernetes cluster
 2. `5gc install` -- 5G core network
 3. `gnbsim install` or `srsran gnb-install` -- RAN simulator
@@ -182,6 +183,15 @@ Uninstall in reverse order:
 ## Complete deployment example
 
 ```bash
+# Run preflight checks first
+PREFLIGHT=$(curl -s http://localhost:8186/api/v1/preflight)
+FAILED=$(echo "$PREFLIGHT" | jq '.failed')
+if [ "$FAILED" -gt 0 ]; then
+  echo "Preflight checks failed — fix issues before deploying"
+  echo "$PREFLIGHT" | jq '.results[] | select(.passed == false)'
+  exit 1
+fi
+
 # Install Kubernetes
 TASK_ID=$(curl -s -X POST http://localhost:8186/api/v1/onramp/components/k8s/install | jq -r '.id')
 

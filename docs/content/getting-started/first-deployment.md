@@ -10,9 +10,75 @@ import TabItem from '@theme/TabItem';
 
 This page walks through deploying a Kubernetes cluster and the 5G Core network on a single node using the Aether WebUI. By the end you will have both components installed and running.
 
-## Step 1: Check the OnRamp repository status
+## Step 1: Run preflight checks
 
-Before deploying anything, verify that the Aether OnRamp repository has been cloned and is ready:
+Before deploying anything, run the preflight checks to verify that the host meets all prerequisites. These checks verify that required tools are installed, SSH password authentication is enabled, and the `aether` service user exists with the correct permissions.
+
+<Tabs>
+  <TabItem value="ui" label="Web UI" default>
+
+Open the Web UI. The **Preflight** page shows a checklist of system prerequisites. Each check displays a pass/fail status and, where applicable, a **Fix** button to automatically resolve the issue.
+
+Review all checks. If any required checks are failing, click **Fix** to apply the automated fix, then re-run the checks to confirm they pass.
+
+  </TabItem>
+  <TabItem value="api" label="API">
+
+```bash
+curl http://localhost:8186/api/v1/preflight
+```
+
+The response includes a summary and individual results for each check:
+
+```json
+{
+  "passed": 2,
+  "failed": 2,
+  "total": 4,
+  "results": [
+    {
+      "id": "required-packages",
+      "name": "Required Packages",
+      "severity": "required",
+      "passed": false,
+      "message": "missing required packages: make, ansible-playbook",
+      "can_fix": true,
+      "fix_warning": "This will install system packages using the detected package manager (apt-get, dnf, or yum)."
+    },
+    ...
+  ]
+}
+```
+
+For any failed check that has `"can_fix": true`, apply the fix:
+
+```bash
+curl -X POST http://localhost:8186/api/v1/preflight/required-packages/fix
+```
+
+After fixing, re-run the checks to confirm everything passes:
+
+```bash
+curl http://localhost:8186/api/v1/preflight
+```
+
+  </TabItem>
+</Tabs>
+
+**Preflight checks:**
+
+| Check | What it verifies | Auto-fix |
+|-------|------------------|----------|
+| Required Packages | `make` and `ansible-playbook` are installed | Yes -- installs via apt-get, dnf, or yum |
+| SSH Configuration | SSH password authentication is enabled | Yes -- writes sshd drop-in config and restarts sshd |
+| Aether User | `aether` user exists with passwordless sudo | Yes -- creates user with sudo access |
+| Node SSH Reachability | All managed nodes are reachable on port 22 | No |
+
+All required checks must pass before proceeding. The node reachability check is informational and only relevant for multi-node deployments.
+
+## Step 2: Check the OnRamp repository status
+
+Verify that the Aether OnRamp repository has been cloned and is ready:
 
 <Tabs>
   <TabItem value="ui" label="Web UI" default>
@@ -51,7 +117,7 @@ curl -X POST http://localhost:8186/api/v1/onramp/repo/refresh
   </TabItem>
 </Tabs>
 
-## Step 2: Deploy Kubernetes
+## Step 3: Deploy Kubernetes
 
 Deploy the Kubernetes (RKE2) cluster:
 
@@ -85,7 +151,7 @@ The response contains a task object with an `id` field. Save this ID -- you will
   </TabItem>
 </Tabs>
 
-## Step 3: Poll the task for output
+## Step 4: Poll the task for output
 
 Tasks run asynchronously. Wait for the Kubernetes install to finish before continuing.
 
@@ -128,7 +194,7 @@ The `output_offset` field in the response tells you the byte position to use as 
 
 Keep polling until `status` is `succeeded`. The Kubernetes install typically takes several minutes.
 
-## Step 4: Deploy the 5G Core
+## Step 5: Deploy the 5G Core
 
 Once Kubernetes is running, deploy the 5G Core network (SD-Core):
 
@@ -149,7 +215,7 @@ Save the task ID from the response.
   </TabItem>
 </Tabs>
 
-## Step 5: Poll for completion
+## Step 6: Poll for completion
 
 Wait for the 5G Core deployment to finish:
 
