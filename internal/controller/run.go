@@ -26,7 +26,6 @@ import (
 // ctx is cancelled or an OS signal triggers shutdown.
 func (c *Controller) Run(ctx context.Context) error {
 	c.setupLogging()
-	c.resolveAPIToken()
 
 	c.log.Info("aether-webd starting",
 		"version", c.versionInfo.Version,
@@ -96,13 +95,6 @@ func (c *Controller) setupLogging() {
 		AddSource: c.debug,
 	})
 	c.log = slog.Default()
-}
-
-// resolveAPIToken falls back to AETHER_API_TOKEN env var when the flag is empty.
-func (c *Controller) resolveAPIToken() {
-	if c.apiToken == "" {
-		c.apiToken = os.Getenv("AETHER_API_TOKEN")
-	}
 }
 
 // buildTLS resolves TLS configuration from the controller's TLS fields.
@@ -344,13 +336,17 @@ func (c *Controller) mountFrontend(transport Transport) {
 }
 
 // awaitShutdown blocks until ctx is cancelled or an OS signal triggers shutdown.
-// The double-Ctrl+C pattern is preserved: first press warns, second press shuts down.
+// SIGTERM always triggers immediate shutdown (systemd sends this on stop).
+// SIGINT uses a double-press confirmation: first press warns, second shuts down.
 func (c *Controller) awaitShutdown(ctx context.Context, serverErr <-chan error) error {
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-	defer signal.Stop(sigChan)
+	intChan := make(chan os.Signal, 1)
+	termChan := make(chan os.Signal, 1)
+	signal.Notify(intChan, syscall.SIGINT)
+	signal.Notify(termChan, syscall.SIGTERM)
+	defer signal.Stop(intChan)
+	defer signal.Stop(termChan)
 
-	var lastSignal time.Time
+	var lastInterrupt time.Time
 	confirmWindow := 3 * time.Second
 
 	for {
@@ -359,12 +355,15 @@ func (c *Controller) awaitShutdown(ctx context.Context, serverErr <-chan error) 
 			return err
 		case <-ctx.Done():
 			return c.shutdown()
-		case <-sigChan:
+		case <-termChan:
+			c.log.Info("SIGTERM received, shutting down")
+			return c.shutdown()
+		case <-intChan:
 			now := time.Now()
-			if now.Sub(lastSignal) <= confirmWindow {
+			if now.Sub(lastInterrupt) <= confirmWindow {
 				return c.shutdown()
 			}
-			lastSignal = now
+			lastInterrupt = now
 			c.log.Warn("interrupt received, press Ctrl+C again within 3 seconds to quit")
 		}
 	}

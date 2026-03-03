@@ -181,8 +181,16 @@ create_config_dir() {
         log_info "Creating default environment file"
         cat > "${CONFIG_DIR}/env" << 'EOF'
 # Aether WebUI daemon configuration
-# Add command-line options here
-# AETHER_WEBD_OPTS="--listen 0.0.0.0:8186"
+# Uncomment and set values to configure the service.
+# CLI flags override these values when both are set.
+#
+# AETHER_LISTEN=0.0.0.0:8186
+# AETHER_TLS=true
+# AETHER_API_TOKEN=
+# AETHER_ENCRYPTION_KEY=
+# AETHER_DATA_DIR=/var/lib/aether-webd
+# AETHER_METRICS_INTERVAL=10s
+# AETHER_METRICS_RETENTION=24h
 EOF
     fi
 

@@ -33,7 +33,7 @@ journalctl -u aether-webd --no-pager -n 50
 
 ## Check the health endpoint
 
-The service exposes a health endpoint that returns `"healthy"` when the server is ready to accept requests:
+The service exposes a health endpoint that returns a JSON object when the server is ready to accept requests:
 
 ```bash
 curl http://localhost:8186/healthz
@@ -42,8 +42,10 @@ curl http://localhost:8186/healthz
 Expected response:
 
 ```json
-"healthy"
+{"status":"healthy","version":"0.0.9","uptime":"1m39s"}
 ```
+
+The `version` and `uptime` fields will vary based on the installed release and how long the service has been running.
 
 ## Check the version
 
@@ -57,21 +59,27 @@ This returns the build version, commit hash, and build timestamp.
 
 ## Default listen address
 
-By default, `aether-webd` listens on `127.0.0.1:8186`. This means the API and Web UI are only accessible from the local machine. To expose the service on all interfaces, edit the systemd environment file and restart:
+By default, `aether-webd` listens on `127.0.0.1:8186`. This means the API and Web UI are only accessible from the local machine. To expose the service on all interfaces, set the `AETHER_LISTEN` variable in the systemd environment file and restart:
 
 ```bash
 # Edit the environment file to set the listen address
-echo 'AETHER_WEBD_OPTS="--listen 0.0.0.0:8186"' | sudo tee /etc/aether-webd/env
+echo 'AETHER_LISTEN=0.0.0.0:8186' | sudo tee /etc/aether-webd/env
 
 # Restart the service to apply
 sudo systemctl restart aether-webd
 ```
 
-The environment file at `/etc/aether-webd/env` accepts any CLI flags via the `AETHER_WEBD_OPTS` variable. For example, you can combine `--listen` with `--tls` and `--api-token` in a single line:
+The environment file at `/etc/aether-webd/env` accepts one variable per line. Every CLI flag has a corresponding `AETHER_*` environment variable. For example, to enable TLS and token auth alongside the listen address:
 
 ```bash
-echo 'AETHER_WEBD_OPTS="--listen 0.0.0.0:8186 --tls --api-token my-secret-token"' | sudo tee /etc/aether-webd/env
+cat <<'EOF' | sudo tee /etc/aether-webd/env
+AETHER_LISTEN=0.0.0.0:8186
+AETHER_TLS=true
+AETHER_API_TOKEN=my-secret-token
+EOF
 ```
+
+CLI flags override environment variables when both are set. See the [CLI Reference](../reference/cli) for the full mapping.
 
 Note: Exposing the API on all interfaces should be paired with TLS and API token authentication in production. See the [Security guide](../guides/security) for setup instructions.
 
