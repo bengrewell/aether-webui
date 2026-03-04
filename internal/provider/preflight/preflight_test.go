@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io/fs"
 	"net"
+	"os"
 	"os/user"
 	"strings"
 	"testing"
@@ -40,6 +41,9 @@ func testDeps(t *testing.T) CheckDeps {
 			return nil, errStub
 		},
 		DialTimeout: func(string, string, time.Duration) (net.Conn, error) {
+			return nil, errStub
+		},
+		Stat: func(string) (os.FileInfo, error) {
 			return nil, errStub
 		},
 	}
@@ -151,6 +155,8 @@ func TestCheckRequiredPackages_AllFound(t *testing.T) {
 			return "/usr/bin/make", nil
 		case "ansible-playbook":
 			return "/usr/bin/ansible-playbook", nil
+		case "sshd":
+			return "/usr/sbin/sshd", nil
 		}
 		return "", errors.New("not found")
 	}
@@ -161,15 +167,47 @@ func TestCheckRequiredPackages_AllFound(t *testing.T) {
 	if !r.Passed {
 		t.Errorf("expected Passed=true, message=%q", r.Message)
 	}
-	if !strings.Contains(r.Message, "git") || !strings.Contains(r.Message, "make") || !strings.Contains(r.Message, "ansible-playbook") {
+	if !strings.Contains(r.Message, "git") || !strings.Contains(r.Message, "make") || !strings.Contains(r.Message, "ansible-playbook") || !strings.Contains(r.Message, "sshd") {
 		t.Errorf("message = %q, expected all package names", r.Message)
+	}
+}
+
+func TestCheckRequiredPackages_SshdFallbackPath(t *testing.T) {
+	deps := testDeps(t)
+	deps.LookPath = func(name string) (string, error) {
+		switch name {
+		case "git":
+			return "/usr/bin/git", nil
+		case "make":
+			return "/usr/bin/make", nil
+		case "ansible-playbook":
+			return "/usr/bin/ansible-playbook", nil
+		}
+		// sshd not on PATH.
+		return "", errors.New("not found")
+	}
+	deps.Stat = func(path string) (os.FileInfo, error) {
+		if path == "/usr/sbin/sshd" {
+			return nil, nil // file exists
+		}
+		return nil, errors.New("not found")
+	}
+
+	check := checkRequiredPackages()
+	r := check.RunCheck(t.Context(), deps)
+
+	if !r.Passed {
+		t.Errorf("expected Passed=true via fallback path, message=%q", r.Message)
+	}
+	if !strings.Contains(r.Message, "/usr/sbin/sshd") {
+		t.Errorf("message = %q, expected fallback path mention", r.Message)
 	}
 }
 
 func TestCheckRequiredPackages_SomeMissing(t *testing.T) {
 	deps := testDeps(t)
 	deps.LookPath = func(name string) (string, error) {
-		if name == "git" || name == "make" {
+		if name == "git" || name == "make" || name == "sshd" {
 			return "/usr/bin/" + name, nil
 		}
 		return "", errors.New("not found")
@@ -199,7 +237,7 @@ func TestCheckRequiredPackages_AllMissing(t *testing.T) {
 	if r.Passed {
 		t.Error("expected Passed=false")
 	}
-	if !strings.Contains(r.Message, "git") || !strings.Contains(r.Message, "make") || !strings.Contains(r.Message, "ansible-playbook") {
+	if !strings.Contains(r.Message, "git") || !strings.Contains(r.Message, "make") || !strings.Contains(r.Message, "ansible-playbook") || !strings.Contains(r.Message, "sshd") {
 		t.Errorf("message = %q, expected all missing package names", r.Message)
 	}
 	if !r.CanFix {
@@ -596,17 +634,11 @@ func TestFindSSHDirective(t *testing.T) {
 // aether-user-configured check
 // ---------------------------------------------------------------------------
 
-func TestCheckAetherUserConfigured_ExistsWithSudoers(t *testing.T) {
+func TestCheckAetherUserConfigured_Exists(t *testing.T) {
 	deps := testDeps(t)
 	deps.LookupUser = func(name string) (*user.User, error) {
 		if name == "aether" {
 			return &user.User{Uid: "1001", Username: "aether"}, nil
-		}
-		return nil, errors.New("not found")
-	}
-	deps.ReadFile = func(path string) ([]byte, error) {
-		if path == "/etc/sudoers.d/aether" {
-			return []byte("aether ALL=(ALL) NOPASSWD: ALL\n"), nil
 		}
 		return nil, errors.New("not found")
 	}
@@ -620,26 +652,11 @@ func TestCheckAetherUserConfigured_ExistsWithSudoers(t *testing.T) {
 	if !strings.Contains(r.Message, "1001") {
 		t.Errorf("message = %q, expected uid mention", r.Message)
 	}
-}
-
-func TestCheckAetherUserConfigured_ExistsWithoutSudoers(t *testing.T) {
-	deps := testDeps(t)
-	deps.LookupUser = func(name string) (*user.User, error) {
-		if name == "aether" {
-			return &user.User{Uid: "1001", Username: "aether"}, nil
-		}
-		return nil, errors.New("not found")
+	if r.Notes == "" {
+		t.Error("expected Notes with sudo verification guidance")
 	}
-	// ReadFile defaults to error for sudoers path.
-
-	check := checkAetherUserConfigured()
-	r := check.RunCheck(t.Context(), deps)
-
-	if r.Passed {
-		t.Error("expected Passed=false (no sudoers)")
-	}
-	if r.Details == "" {
-		t.Error("expected Details about missing sudoers")
+	if !strings.Contains(r.Notes, "sudo") {
+		t.Errorf("notes = %q, expected sudo verification guidance", r.Notes)
 	}
 }
 

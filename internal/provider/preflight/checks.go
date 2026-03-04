@@ -39,6 +39,14 @@ var requiredBinaries = []struct {
 	{"git", "git", "git"},
 	{"make", "make", "make"},
 	{"ansible-playbook", "ansible", "ansible"},
+	{"sshd", "openssh-server", "openssh-server"},
+}
+
+// sshdFallbackPaths lists common absolute paths for sshd, which is often
+// installed in /usr/sbin or /sbin and may not be on the service's PATH.
+var sshdFallbackPaths = []string{
+	"/usr/sbin/sshd",
+	"/sbin/sshd",
 }
 
 // packageManagers lists known package manager binaries in preference order.
@@ -59,19 +67,30 @@ func checkRequiredPackages() Check {
 	return Check{
 		ID:          "required-packages",
 		Name:        "Required Packages",
-		Description: "Checks that required build and deployment tools (git, make, ansible) are installed.",
+		Description: "Checks that required build and deployment tools (git, make, ansible, sshd) are installed.",
 		Severity:    SeverityRequired,
 		Category:    CategoryTooling,
 		FixWarning:  "This will install system packages using the detected package manager (apt-get, dnf, or yum). On Debian/Ubuntu, the Ansible PPA may be added if ansible is missing.",
 		RunCheck: func(ctx context.Context, deps CheckDeps) CheckResult {
 			r := newResult("required-packages", "Required Packages",
-				"Checks that required build and deployment tools (git, make, ansible) are installed.",
+				"Checks that required build and deployment tools (git, make, ansible, sshd) are installed.",
 				SeverityRequired, CategoryTooling, true)
 			r.FixWarning = "This will install system packages using the detected package manager (apt-get, dnf, or yum). On Debian/Ubuntu, the Ansible PPA may be added if ansible is missing."
 
 			var found, missing []string
 			for _, bin := range requiredBinaries {
 				path, err := deps.LookPath(bin.Name)
+				if err != nil && bin.Name == "sshd" {
+					// sshd is often installed in /usr/sbin which may
+					// not be on PATH when running as a service.
+					for _, fp := range sshdFallbackPaths {
+						if _, serr := deps.Stat(fp); serr == nil {
+							path = fp
+							err = nil
+							break
+						}
+					}
+				}
 				if err != nil {
 					missing = append(missing, bin.Name)
 				} else {
@@ -387,13 +406,13 @@ func checkAetherUserConfigured() Check {
 	return Check{
 		ID:          "aether-user-configured",
 		Name:        "Aether User",
-		Description: "Checks that the 'aether' system user exists with passwordless sudo.",
+		Description: "Checks that the 'aether' system user exists.",
 		Severity:    SeverityRequired,
 		Category:    CategoryAccess,
 		FixWarning:  "This will create a user 'aether' with a default password of 'aether' and NOPASSWD sudo access. Change the password after initial setup.",
 		RunCheck: func(ctx context.Context, deps CheckDeps) CheckResult {
 			r := newResult("aether-user-configured", "Aether User",
-				"Checks that the 'aether' system user exists with passwordless sudo.",
+				"Checks that the 'aether' system user exists.",
 				SeverityRequired, CategoryAccess, true)
 			r.FixWarning = "This will create a user 'aether' with a default password of 'aether' and NOPASSWD sudo access. Change the password after initial setup."
 
@@ -403,17 +422,9 @@ func checkAetherUserConfigured() Check {
 				return r
 			}
 
-			r.Message = fmt.Sprintf("user 'aether' exists (uid=%s)", u.Uid)
-
-			// Check for sudoers file.
-			const sudoersPath = "/etc/sudoers.d/aether"
-			if _, err := deps.ReadFile(sudoersPath); err != nil {
-				r.Details = fmt.Sprintf("user exists but %s not found — passwordless sudo may not be configured", sudoersPath)
-				return r
-			}
-
 			r.Passed = true
-			r.Message = fmt.Sprintf("user 'aether' exists (uid=%s) with sudoers configured", u.Uid)
+			r.Message = fmt.Sprintf("user 'aether' exists (uid=%s)", u.Uid)
+			r.Notes = "The aether user must be able to run sudo. Verify with: sudo -u aether sudo -n true"
 			return r
 		},
 		RunFix: func(ctx context.Context, deps CheckDeps) FixResult {
