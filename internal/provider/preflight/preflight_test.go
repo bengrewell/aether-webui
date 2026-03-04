@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io/fs"
 	"net"
+	"os"
 	"os/user"
 	"strings"
 	"testing"
@@ -40,6 +41,9 @@ func testDeps(t *testing.T) CheckDeps {
 			return nil, errStub
 		},
 		DialTimeout: func(string, string, time.Duration) (net.Conn, error) {
+			return nil, errStub
+		},
+		Stat: func(string) (os.FileInfo, error) {
 			return nil, errStub
 		},
 	}
@@ -165,6 +169,38 @@ func TestCheckRequiredPackages_AllFound(t *testing.T) {
 	}
 	if !strings.Contains(r.Message, "git") || !strings.Contains(r.Message, "make") || !strings.Contains(r.Message, "ansible-playbook") || !strings.Contains(r.Message, "sshd") {
 		t.Errorf("message = %q, expected all package names", r.Message)
+	}
+}
+
+func TestCheckRequiredPackages_SshdFallbackPath(t *testing.T) {
+	deps := testDeps(t)
+	deps.LookPath = func(name string) (string, error) {
+		switch name {
+		case "git":
+			return "/usr/bin/git", nil
+		case "make":
+			return "/usr/bin/make", nil
+		case "ansible-playbook":
+			return "/usr/bin/ansible-playbook", nil
+		}
+		// sshd not on PATH.
+		return "", errors.New("not found")
+	}
+	deps.Stat = func(path string) (os.FileInfo, error) {
+		if path == "/usr/sbin/sshd" {
+			return nil, nil // file exists
+		}
+		return nil, errors.New("not found")
+	}
+
+	check := checkRequiredPackages()
+	r := check.RunCheck(t.Context(), deps)
+
+	if !r.Passed {
+		t.Errorf("expected Passed=true via fallback path, message=%q", r.Message)
+	}
+	if !strings.Contains(r.Message, "/usr/sbin/sshd") {
+		t.Errorf("message = %q, expected fallback path mention", r.Message)
 	}
 }
 

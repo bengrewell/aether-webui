@@ -42,6 +42,13 @@ var requiredBinaries = []struct {
 	{"sshd", "openssh-server", "openssh-server"},
 }
 
+// sshdFallbackPaths lists common absolute paths for sshd, which is often
+// installed in /usr/sbin or /sbin and may not be on the service's PATH.
+var sshdFallbackPaths = []string{
+	"/usr/sbin/sshd",
+	"/sbin/sshd",
+}
+
 // packageManagers lists known package manager binaries in preference order.
 var packageManagers = []struct {
 	Binary  string // binary name to look up
@@ -73,6 +80,17 @@ func checkRequiredPackages() Check {
 			var found, missing []string
 			for _, bin := range requiredBinaries {
 				path, err := deps.LookPath(bin.Name)
+				if err != nil && bin.Name == "sshd" {
+					// sshd is often installed in /usr/sbin which may
+					// not be on PATH when running as a service.
+					for _, fp := range sshdFallbackPaths {
+						if _, serr := deps.Stat(fp); serr == nil {
+							path = fp
+							err = nil
+							break
+						}
+					}
+				}
 				if err != nil {
 					missing = append(missing, bin.Name)
 				} else {
@@ -388,13 +406,13 @@ func checkAetherUserConfigured() Check {
 	return Check{
 		ID:          "aether-user-configured",
 		Name:        "Aether User",
-		Description: "Checks that the 'aether' system user exists with passwordless sudo.",
+		Description: "Checks that the 'aether' system user exists.",
 		Severity:    SeverityRequired,
 		Category:    CategoryAccess,
 		FixWarning:  "This will create a user 'aether' with a default password of 'aether' and NOPASSWD sudo access. Change the password after initial setup.",
 		RunCheck: func(ctx context.Context, deps CheckDeps) CheckResult {
 			r := newResult("aether-user-configured", "Aether User",
-				"Checks that the 'aether' system user exists with passwordless sudo.",
+				"Checks that the 'aether' system user exists.",
 				SeverityRequired, CategoryAccess, true)
 			r.FixWarning = "This will create a user 'aether' with a default password of 'aether' and NOPASSWD sudo access. Change the password after initial setup."
 

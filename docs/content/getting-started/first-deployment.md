@@ -12,7 +12,7 @@ This page walks through deploying a Kubernetes cluster and the 5G Core network o
 
 ## Step 1: Run preflight checks
 
-Before deploying anything, run the preflight checks to verify that the host meets all prerequisites. These checks verify that required tools are installed, SSH password authentication is enabled, and the `aether` service user exists with the correct permissions.
+Before deploying anything, run the preflight checks to verify that the host meets all prerequisites. These checks verify that required tools are installed, SSH password authentication is enabled, and the `aether` service user exists.
 
 <Tabs>
   <TabItem value="ui" label="Web UI" default>
@@ -71,7 +71,7 @@ curl http://localhost:8186/api/v1/preflight
 |-------|------------------|----------|
 | Required Packages | `git`, `make`, `ansible-playbook`, and `sshd` are installed | Yes -- installs via apt-get, dnf, or yum |
 | SSH Configuration | SSH password authentication is enabled | Yes -- writes sshd drop-in config and restarts sshd |
-| Aether User | `aether` user exists with passwordless sudo | Yes -- creates user with sudo access |
+| Aether User | `aether` user exists (check notes for sudo verification guidance) | Yes -- creates user with sudo access |
 | Node SSH Reachability | All managed nodes are reachable on port 22 | No |
 
 All required checks must pass before proceeding. The node reachability check is informational and only relevant for multi-node deployments.

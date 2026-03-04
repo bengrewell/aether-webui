@@ -41,6 +41,7 @@ type CheckDeps struct {
 	LookupUser  func(string) (*user.User, error)
 	RunCommand  func(ctx context.Context, name string, args ...string) ([]byte, error)
 	DialTimeout func(network, addr string, timeout time.Duration) (net.Conn, error)
+	Stat        func(string) (os.FileInfo, error)
 }
 
 // DefaultDeps returns production-wired dependencies.
@@ -56,6 +57,7 @@ func DefaultDeps(st store.Client, log *slog.Logger) CheckDeps {
 			return exec.CommandContext(ctx, name, args...).CombinedOutput()
 		},
 		DialTimeout: net.DialTimeout,
+		Stat:        os.Stat,
 	}
 }
 
