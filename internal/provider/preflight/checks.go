@@ -36,6 +36,7 @@ var requiredBinaries = []struct {
 	AptPkg string // Debian/Ubuntu package name
 	YumPkg string // RHEL/Fedora package name
 }{
+	{"git", "git", "git"},
 	{"make", "make", "make"},
 	{"ansible-playbook", "ansible", "ansible"},
 }
@@ -58,13 +59,13 @@ func checkRequiredPackages() Check {
 	return Check{
 		ID:          "required-packages",
 		Name:        "Required Packages",
-		Description: "Checks that required build and deployment tools (make, ansible) are installed.",
+		Description: "Checks that required build and deployment tools (git, make, ansible) are installed.",
 		Severity:    SeverityRequired,
 		Category:    CategoryTooling,
 		FixWarning:  "This will install system packages using the detected package manager (apt-get, dnf, or yum). On Debian/Ubuntu, the Ansible PPA may be added if ansible is missing.",
 		RunCheck: func(ctx context.Context, deps CheckDeps) CheckResult {
 			r := newResult("required-packages", "Required Packages",
-				"Checks that required build and deployment tools (make, ansible) are installed.",
+				"Checks that required build and deployment tools (git, make, ansible) are installed.",
 				SeverityRequired, CategoryTooling, true)
 			r.FixWarning = "This will install system packages using the detected package manager (apt-get, dnf, or yum). On Debian/Ubuntu, the Ansible PPA may be added if ansible is missing."
 
@@ -136,6 +137,11 @@ func checkRequiredPackages() Check {
 				return r
 			}
 
+			// Check if we can elevate privileges.
+			if !canSudo(ctx, deps) {
+				return noSudoResult("required-packages", packageFixCommands(missing, pm, pmPath))
+			}
+
 			// Ansible is not in default Ubuntu/Debian repos; add the PPA first.
 			if pm == "apt-get" && containsBinary(missing, "ansible-playbook") {
 				if err := addAnsiblePPA(ctx, deps, pmPath); err != nil {
@@ -145,11 +151,27 @@ func checkRequiredPackages() Check {
 				}
 			}
 
+			// On Debian/Ubuntu, update package lists before installing.
+			if pm == "apt-get" {
+				if output, err := deps.RunCommand(ctx, "sudo", "bash", "-c",
+					fmt.Sprintf("DEBIAN_FRONTEND=noninteractive %s update", pmPath)); err != nil {
+					r.Error = fmt.Sprintf("failed to update package lists: %v\noutput: %s", err, strings.TrimSpace(string(output)))
+					r.Message = "fix failed — apt-get update failed"
+					return r
+				}
+			}
+
 			pkgs := missingPackageNames(missing, pm)
-			args := []string{pmPath, "install", "-y"}
-			args = append(args, pkgs...)
-			if _, err := deps.RunCommand(ctx, "sudo", args...); err != nil {
-				r.Error = fmt.Sprintf("failed to install packages: %v", err)
+			var args []string
+			if pm == "apt-get" {
+				args = []string{"bash", "-c",
+					fmt.Sprintf("DEBIAN_FRONTEND=noninteractive %s install -y %s", pmPath, strings.Join(pkgs, " "))}
+			} else {
+				args = []string{pmPath, "install", "-y"}
+				args = append(args, pkgs...)
+			}
+			if output, err := deps.RunCommand(ctx, "sudo", args...); err != nil {
+				r.Error = fmt.Sprintf("failed to install packages: %v\noutput: %s", err, strings.TrimSpace(string(output)))
 				r.Message = fmt.Sprintf("fix failed — sudo %s install -y %s", pm, strings.Join(pkgs, " "))
 				return r
 			}
@@ -176,11 +198,11 @@ func containsBinary(missing []string, name string) bool {
 // --update flag on add-apt-repository runs apt update automatically after
 // adding the PPA.
 func addAnsiblePPA(ctx context.Context, deps CheckDeps, pmPath string) error {
-	if _, err := deps.RunCommand(ctx, "sudo", pmPath, "install", "-y", "software-properties-common"); err != nil {
-		return fmt.Errorf("install software-properties-common: %w", err)
+	if output, err := deps.RunCommand(ctx, "sudo", pmPath, "install", "-y", "software-properties-common"); err != nil {
+		return fmt.Errorf("install software-properties-common: %w\noutput: %s", err, strings.TrimSpace(string(output)))
 	}
-	if _, err := deps.RunCommand(ctx, "sudo", "add-apt-repository", "--yes", "--update", "ppa:ansible/ansible"); err != nil {
-		return fmt.Errorf("add-apt-repository: %w", err)
+	if output, err := deps.RunCommand(ctx, "sudo", "add-apt-repository", "--yes", "--update", "ppa:ansible/ansible"); err != nil {
+		return fmt.Errorf("add-apt-repository: %w\noutput: %s", err, strings.TrimSpace(string(output)))
 	}
 	return nil
 }
@@ -256,11 +278,15 @@ func checkSSHConfigured() Check {
 				Warning: "Enabling SSH password authentication allows any user to log in with a password. Consider using key-based authentication for production environments.",
 			}
 
+			if !canSudo(ctx, deps) {
+				return noSudoResult("ssh-configured", sshFixCommands())
+			}
+
 			dropIn := "/etc/ssh/sshd_config.d/99-aether-password-auth.conf"
 			content := "PasswordAuthentication yes"
 			cmd := fmt.Sprintf("echo '%s' | sudo tee %s > /dev/null", content, dropIn)
-			if _, err := deps.RunCommand(ctx, "bash", "-c", cmd); err != nil {
-				r.Error = fmt.Sprintf("failed to write drop-in config: %v", err)
+			if output, err := deps.RunCommand(ctx, "bash", "-c", cmd); err != nil {
+				r.Error = fmt.Sprintf("failed to write drop-in config: %v\noutput: %s", err, strings.TrimSpace(string(output)))
 				r.Message = "fix failed"
 				return r
 			}
@@ -400,17 +426,21 @@ func checkAetherUserConfigured() Check {
 			_, lookupErr := deps.LookupUser("aether")
 			userExisted := lookupErr == nil
 
+			if !canSudo(ctx, deps) {
+				return noSudoResult("aether-user-configured", aetherUserFixCommands(userExisted))
+			}
+
 			if !userExisted {
-				if _, err := deps.RunCommand(ctx, "sudo", "useradd", "-m", "-s", "/bin/bash", "aether"); err != nil {
-					r.Error = fmt.Sprintf("failed to create user: %v", err)
+				if output, err := deps.RunCommand(ctx, "sudo", "useradd", "-m", "-s", "/bin/bash", "aether"); err != nil {
+					r.Error = fmt.Sprintf("failed to create user: %v\noutput: %s", err, strings.TrimSpace(string(output)))
 					r.Message = "fix failed"
 					return r
 				}
 
 				// Set default password only for newly created users.
 				cmd := "echo 'aether:aether' | sudo chpasswd"
-				if _, err := deps.RunCommand(ctx, "bash", "-c", cmd); err != nil {
-					r.Error = fmt.Sprintf("failed to set password: %v", err)
+				if output, err := deps.RunCommand(ctx, "bash", "-c", cmd); err != nil {
+					r.Error = fmt.Sprintf("failed to set password: %v\noutput: %s", err, strings.TrimSpace(string(output)))
 					r.Message = "user created but password not set"
 					return r
 				}
@@ -419,15 +449,15 @@ func checkAetherUserConfigured() Check {
 			// Write sudoers file.
 			sudoersContent := "aether ALL=(ALL) NOPASSWD: ALL"
 			sudoersCmd := fmt.Sprintf("echo '%s' | sudo tee /etc/sudoers.d/aether > /dev/null", sudoersContent)
-			if _, err := deps.RunCommand(ctx, "bash", "-c", sudoersCmd); err != nil {
-				r.Error = fmt.Sprintf("failed to write sudoers file: %v", err)
+			if output, err := deps.RunCommand(ctx, "bash", "-c", sudoersCmd); err != nil {
+				r.Error = fmt.Sprintf("failed to write sudoers file: %v\noutput: %s", err, strings.TrimSpace(string(output)))
 				r.Message = "user created but sudoers not configured"
 				return r
 			}
 
 			// Set permissions.
-			if _, err := deps.RunCommand(ctx, "sudo", "chmod", "0440", "/etc/sudoers.d/aether"); err != nil {
-				r.Error = fmt.Sprintf("failed to set sudoers permissions: %v", err)
+			if output, err := deps.RunCommand(ctx, "sudo", "chmod", "0440", "/etc/sudoers.d/aether"); err != nil {
+				r.Error = fmt.Sprintf("failed to set sudoers permissions: %v\noutput: %s", err, strings.TrimSpace(string(output)))
 				r.Message = "user and sudoers created but permissions not set"
 				return r
 			}
@@ -452,12 +482,12 @@ func checkNodeSSHReachable() Check {
 		ID:          "node-ssh-reachable",
 		Name:        "Node SSH Reachability",
 		Description: "Checks that all managed nodes are reachable via SSH (TCP port 22).",
-		Severity:    SeverityInfo,
+		Severity:    SeverityWarning,
 		Category:    CategoryNetwork,
 		RunCheck: func(ctx context.Context, deps CheckDeps) CheckResult {
 			r := newResult("node-ssh-reachable", "Node SSH Reachability",
 				"Checks that all managed nodes are reachable via SSH (TCP port 22).",
-				SeverityInfo, CategoryNetwork, false)
+				SeverityWarning, CategoryNetwork, false)
 
 			// Empty path means no store was configured.
 			if deps.Store.Path() == "" {
@@ -474,8 +504,8 @@ func checkNodeSSHReachable() Check {
 			}
 
 			if len(nodes) == 0 {
-				r.Passed = true
-				r.Message = "no managed nodes registered"
+				r.Passed = false
+				r.Message = "no managed nodes registered — deployment requires at least one node"
 				return r
 			}
 
@@ -536,4 +566,72 @@ func newResult(id, name, description string, severity Severity, category Categor
 		Category:    category,
 		CanFix:      canFix,
 	}
+}
+
+// canSudo probes whether the current process can execute sudo without a
+// password prompt (e.g. NOPASSWD sudoers or root). Returns false when running
+// under systemd's NoNewPrivileges or without sudoers access.
+func canSudo(ctx context.Context, deps CheckDeps) bool {
+	_, err := deps.RunCommand(ctx, "sudo", "-n", "true")
+	return err == nil
+}
+
+// noSudoResult returns a FixResult explaining that auto-fix cannot run and
+// providing manual instructions the operator can copy-paste.
+func noSudoResult(id string, manualCmds []string) FixResult {
+	return FixResult{
+		ID:      id,
+		Applied: false,
+		Error:   "cannot elevate privileges (NoNewPrivileges=yes or missing sudoers entry)",
+		Message: "Run the following commands manually as root or with sudo:\n  " + strings.Join(manualCmds, "\n  "),
+	}
+}
+
+// packageFixCommands returns the shell commands needed to install missing
+// packages, suitable for both auto-fix execution and manual instructions.
+func packageFixCommands(missing []string, pm, pmPath string) []string {
+	needsAnsible := containsBinary(missing, "ansible-playbook")
+	pkgs := missingPackageNames(missing, pm)
+
+	var cmds []string
+	if pm == "apt-get" && needsAnsible {
+		cmds = append(cmds,
+			fmt.Sprintf("sudo %s install -y software-properties-common", pmPath),
+			"sudo add-apt-repository --yes --update ppa:ansible/ansible",
+		)
+	}
+	if pm == "apt-get" {
+		cmds = append(cmds, fmt.Sprintf("sudo env DEBIAN_FRONTEND=noninteractive %s update", pmPath))
+		cmds = append(cmds, fmt.Sprintf("sudo env DEBIAN_FRONTEND=noninteractive %s install -y %s", pmPath, strings.Join(pkgs, " ")))
+	} else {
+		cmds = append(cmds, fmt.Sprintf("sudo %s install -y %s", pmPath, strings.Join(pkgs, " ")))
+	}
+	return cmds
+}
+
+// sshFixCommands returns the shell commands needed to enable SSH password
+// authentication.
+func sshFixCommands() []string {
+	dropIn := "/etc/ssh/sshd_config.d/99-aether-password-auth.conf"
+	return []string{
+		fmt.Sprintf("echo 'PasswordAuthentication yes' | sudo tee %s > /dev/null", dropIn),
+		"sudo systemctl restart sshd || sudo systemctl restart ssh",
+	}
+}
+
+// aetherUserFixCommands returns the shell commands needed to create and
+// configure the aether user.
+func aetherUserFixCommands(userExists bool) []string {
+	var cmds []string
+	if !userExists {
+		cmds = append(cmds,
+			"sudo useradd -m -s /bin/bash aether",
+			"echo 'aether:aether' | sudo chpasswd",
+		)
+	}
+	cmds = append(cmds,
+		"echo 'aether ALL=(ALL) NOPASSWD: ALL' | sudo tee /etc/sudoers.d/aether > /dev/null",
+		"sudo chmod 0440 /etc/sudoers.d/aether",
+	)
+	return cmds
 }
