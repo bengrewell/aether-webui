@@ -1,6 +1,8 @@
 package onramp
 
 import (
+	"fmt"
+
 	"github.com/bengrewell/aether-webui/internal/endpoint"
 	"github.com/bengrewell/aether-webui/internal/provider"
 	"github.com/bengrewell/aether-webui/internal/taskrunner"
@@ -280,6 +282,7 @@ func (o *OnRamp) Start() error {
 	log := o.Log()
 	if err := ensureRepo(o.config, log); err != nil {
 		log.Error("onramp repo setup failed; provider starting in degraded mode", "error", err)
+		o.SetDegraded(fmt.Sprintf("repo setup: %v", err))
 	}
 	o.SetRunning(true)
 	return nil

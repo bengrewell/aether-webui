@@ -1149,6 +1149,14 @@ func TestStartStop(t *testing.T) {
 		t.Error("expected Running=true after Start")
 	}
 
+	// Provider should be degraded because the repo doesn't exist.
+	if !status.Degraded {
+		t.Error("expected Degraded=true after Start with invalid repo")
+	}
+	if status.DegradedReason == "" {
+		t.Error("expected non-empty DegradedReason after Start with invalid repo")
+	}
+
 	if err := p.Stop(); err != nil {
 		t.Fatalf("Stop: %v", err)
 	}

@@ -334,6 +334,81 @@ func TestRun_HealthzEndpoint(t *testing.T) {
 	}
 }
 
+func TestRun_HealthzDegradedProvider(t *testing.T) {
+	addr := ephemeralAddr(t)
+	createdCh := make(chan *mockProvider, 1)
+
+	factory := func(_ context.Context, _ store.Client, opts []provider.Option) (provider.Provider, error) {
+		m := &mockProvider{Base: provider.New("test-degraded", opts...)}
+		m.Base.SetDegraded("repo setup: git not found")
+		createdCh <- m
+		return m, nil
+	}
+
+	ctrl, err := New(
+		WithListenAddr(addr),
+		WithDataDir(t.TempDir()),
+		WithFrontend(false, ""),
+		WithVersion(meta.VersionInfo{Version: "1.0.0"}),
+		WithProvider("test-degraded", true, factory),
+	)
+	if err != nil {
+		t.Fatalf("New() error: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan error, 1)
+	go func() { done <- ctrl.Run(ctx) }()
+
+	select {
+	case <-createdCh:
+	case <-time.After(5 * time.Second):
+		t.Fatal("provider factory was not called within 5 seconds")
+	}
+
+	waitForServer(t, addr)
+
+	resp, err := http.Get("http://" + addr + "/healthz")
+	if err != nil {
+		t.Fatalf("GET /healthz error: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("status code = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	var body struct {
+		Status  string   `json:"status"`
+		Version string   `json:"version"`
+		Uptime  string   `json:"uptime"`
+		Issues  []string `json:"issues"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("decode error: %v", err)
+	}
+
+	if body.Status != "degraded" {
+		t.Errorf("status = %q, want %q", body.Status, "degraded")
+	}
+	if len(body.Issues) != 1 {
+		t.Fatalf("issues count = %d, want 1", len(body.Issues))
+	}
+	if body.Issues[0] != "test-degraded: repo setup: git not found" {
+		t.Errorf("issues[0] = %q, want %q", body.Issues[0], "test-degraded: repo setup: git not found")
+	}
+
+	cancel()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Errorf("Run() returned error: %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Run() did not exit within 5 seconds")
+	}
+}
+
 func TestRun_ProviderFactoryError(t *testing.T) {
 	factory := func(_ context.Context, _ store.Client, _ []provider.Option) (provider.Provider, error) {
 		return nil, fmt.Errorf("factory failed")
