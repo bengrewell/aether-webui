@@ -81,6 +81,7 @@ type CheckResult struct {
 	Passed      bool     `json:"passed"`
 	Message     string   `json:"message"`
 	Details     string   `json:"details,omitempty"`
+	Notes       string   `json:"notes,omitempty"`
 	CanFix      bool     `json:"can_fix"`
 	FixWarning  string   `json:"fix_warning,omitempty"`
 	Error       string   `json:"error,omitempty"`

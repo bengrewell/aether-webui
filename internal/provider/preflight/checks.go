@@ -39,6 +39,7 @@ var requiredBinaries = []struct {
 	{"git", "git", "git"},
 	{"make", "make", "make"},
 	{"ansible-playbook", "ansible", "ansible"},
+	{"sshd", "openssh-server", "openssh-server"},
 }
 
 // packageManagers lists known package manager binaries in preference order.
@@ -59,13 +60,13 @@ func checkRequiredPackages() Check {
 	return Check{
 		ID:          "required-packages",
 		Name:        "Required Packages",
-		Description: "Checks that required build and deployment tools (git, make, ansible) are installed.",
+		Description: "Checks that required build and deployment tools (git, make, ansible, sshd) are installed.",
 		Severity:    SeverityRequired,
 		Category:    CategoryTooling,
 		FixWarning:  "This will install system packages using the detected package manager (apt-get, dnf, or yum). On Debian/Ubuntu, the Ansible PPA may be added if ansible is missing.",
 		RunCheck: func(ctx context.Context, deps CheckDeps) CheckResult {
 			r := newResult("required-packages", "Required Packages",
-				"Checks that required build and deployment tools (git, make, ansible) are installed.",
+				"Checks that required build and deployment tools (git, make, ansible, sshd) are installed.",
 				SeverityRequired, CategoryTooling, true)
 			r.FixWarning = "This will install system packages using the detected package manager (apt-get, dnf, or yum). On Debian/Ubuntu, the Ansible PPA may be added if ansible is missing."
 
@@ -403,17 +404,9 @@ func checkAetherUserConfigured() Check {
 				return r
 			}
 
-			r.Message = fmt.Sprintf("user 'aether' exists (uid=%s)", u.Uid)
-
-			// Check for sudoers file.
-			const sudoersPath = "/etc/sudoers.d/aether"
-			if _, err := deps.ReadFile(sudoersPath); err != nil {
-				r.Details = fmt.Sprintf("user exists but %s not found — passwordless sudo may not be configured", sudoersPath)
-				return r
-			}
-
 			r.Passed = true
-			r.Message = fmt.Sprintf("user 'aether' exists (uid=%s) with sudoers configured", u.Uid)
+			r.Message = fmt.Sprintf("user 'aether' exists (uid=%s)", u.Uid)
+			r.Notes = "The aether user must be able to run sudo. Verify with: sudo -u aether sudo -n true"
 			return r
 		},
 		RunFix: func(ctx context.Context, deps CheckDeps) FixResult {
