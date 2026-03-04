@@ -283,6 +283,8 @@ func (o *OnRamp) Start() error {
 	if err := ensureRepo(o.config, log); err != nil {
 		log.Error("onramp repo setup failed; provider starting in degraded mode", "error", err)
 		o.SetDegraded(fmt.Sprintf("repo setup: %v", err))
+	} else {
+		o.ClearDegraded()
 	}
 	o.SetRunning(true)
 	return nil
