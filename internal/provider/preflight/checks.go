@@ -601,8 +601,8 @@ func packageFixCommands(missing []string, pm, pmPath string) []string {
 		)
 	}
 	if pm == "apt-get" {
-		cmds = append(cmds, fmt.Sprintf("sudo DEBIAN_FRONTEND=noninteractive %s update", pmPath))
-		cmds = append(cmds, fmt.Sprintf("sudo DEBIAN_FRONTEND=noninteractive %s install -y %s", pmPath, strings.Join(pkgs, " ")))
+		cmds = append(cmds, fmt.Sprintf("sudo env DEBIAN_FRONTEND=noninteractive %s update", pmPath))
+		cmds = append(cmds, fmt.Sprintf("sudo env DEBIAN_FRONTEND=noninteractive %s install -y %s", pmPath, strings.Join(pkgs, " ")))
 	} else {
 		cmds = append(cmds, fmt.Sprintf("sudo %s install -y %s", pmPath, strings.Join(pkgs, " ")))
 	}
