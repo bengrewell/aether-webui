@@ -398,6 +398,40 @@ func TestRun_HealthzDegradedProvider(t *testing.T) {
 		t.Errorf("issues[0] = %q, want %q", body.Issues[0], "test-degraded: repo setup: git not found")
 	}
 
+	// Also verify the meta providers endpoint propagates degraded state.
+	provResp, err := http.Get("http://" + addr + "/api/v1/meta/providers")
+	if err != nil {
+		t.Fatalf("GET /api/v1/meta/providers error: %v", err)
+	}
+	defer provResp.Body.Close()
+
+	var provBody struct {
+		Providers []struct {
+			Name           string `json:"name"`
+			Degraded       bool   `json:"degraded"`
+			DegradedReason string `json:"degraded_reason"`
+		} `json:"providers"`
+	}
+	if err := json.NewDecoder(provResp.Body).Decode(&provBody); err != nil {
+		t.Fatalf("decode providers error: %v", err)
+	}
+
+	var found bool
+	for _, p := range provBody.Providers {
+		if p.Name == "test-degraded" {
+			found = true
+			if !p.Degraded {
+				t.Error("meta providers: expected Degraded=true for test-degraded")
+			}
+			if p.DegradedReason != "repo setup: git not found" {
+				t.Errorf("meta providers: DegradedReason = %q, want %q", p.DegradedReason, "repo setup: git not found")
+			}
+		}
+	}
+	if !found {
+		t.Error("meta providers: test-degraded provider not found")
+	}
+
 	cancel()
 	select {
 	case err := <-done:
