@@ -242,10 +242,12 @@ func (c *Controller) createMetaProvider(transport *rest.Transport) *meta.Meta {
 		for i, p := range c.providers {
 			si := p.(statusInfoer).StatusInfo()
 			out[i] = meta.ProviderStatus{
-				Name:          p.Name(),
-				Enabled:       si.Enabled,
-				Running:       si.Running,
-				EndpointCount: si.EndpointCount,
+				Name:           p.Name(),
+				Enabled:        si.Enabled,
+				Running:        si.Running,
+				EndpointCount:  si.EndpointCount,
+				Degraded:       si.Degraded,
+				DegradedReason: si.DegradedReason,
 			}
 		}
 		return out

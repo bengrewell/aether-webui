@@ -713,6 +713,34 @@ func TestHandleGetRepoStatus_DirtyRepo(t *testing.T) {
 	}
 }
 
+func TestHandleRefreshRepo_Success(t *testing.T) {
+	p := newTestProvider(t, testMainYML)
+	initGitRepo(t, p.config.OnRampDir)
+	// ensureRepo also validates Makefile exists.
+	if err := os.WriteFile(filepath.Join(p.config.OnRampDir, "Makefile"), []byte("all:\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	// Pre-set degraded state to verify ClearDegraded is called on success.
+	p.SetDegraded("previous failure")
+
+	out, err := p.handleRefreshRepo(t.Context(), nil)
+	if err != nil {
+		t.Fatalf("handleRefreshRepo: %v", err)
+	}
+	if out.Body.Error != "" {
+		t.Errorf("expected no error, got %q", out.Body.Error)
+	}
+
+	si := p.StatusInfo()
+	if si.Degraded {
+		t.Error("expected Degraded=false after successful refresh")
+	}
+	if si.DegradedReason != "" {
+		t.Errorf("expected empty DegradedReason, got %q", si.DegradedReason)
+	}
+}
+
 func TestHandleRefreshRepo_InvalidDir(t *testing.T) {
 	// Refresh with a non-clonable URL returns a status with an error message
 	// rather than a handler error (degraded mode).
@@ -1147,6 +1175,14 @@ func TestStartStop(t *testing.T) {
 	status := p.StatusInfo()
 	if !status.Running {
 		t.Error("expected Running=true after Start")
+	}
+
+	// Provider should be degraded because the repo doesn't exist.
+	if !status.Degraded {
+		t.Error("expected Degraded=true after Start with invalid repo")
+	}
+	if status.DegradedReason == "" {
+		t.Error("expected non-empty DegradedReason after Start with invalid repo")
 	}
 
 	if err := p.Stop(); err != nil {

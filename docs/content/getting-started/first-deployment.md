@@ -12,7 +12,7 @@ This page walks through deploying a Kubernetes cluster and the 5G Core network o
 
 ## Step 1: Run preflight checks
 
-Before deploying anything, run the preflight checks to verify that the host meets all prerequisites. These checks verify that required tools are installed, SSH password authentication is enabled, and the `aether` service user exists with the correct permissions.
+Before deploying anything, run the preflight checks to verify that the host meets all prerequisites. These checks verify that required tools are installed, SSH password authentication is enabled, and the `aether` service user exists.
 
 If you already ran the preflight setup script during [Installation](installation#prepare-the-host), all fixable checks should already pass. You can skip ahead to verifying the results or proceed directly to Step 2.
 
@@ -88,9 +88,9 @@ curl http://localhost:8186/api/v1/preflight
 
 | Check | What it verifies | Auto-fix |
 |-------|------------------|----------|
-| Required Packages | `make` and `ansible-playbook` are installed | Yes -- installs via apt-get, dnf, or yum |
+| Required Packages | `git`, `make`, `ansible-playbook`, and `sshd` are installed | Yes -- installs via apt-get, dnf, or yum |
 | SSH Configuration | SSH password authentication is enabled | Yes -- writes sshd drop-in config and restarts sshd |
-| Aether User | `aether` user exists with passwordless sudo | Yes -- creates user with sudo access |
+| Aether User | `aether` user exists (check notes for sudo verification guidance) | Yes -- creates user with sudo access |
 | Node SSH Reachability | All managed nodes are reachable on port 22 | No |
 
 All required checks must pass before proceeding. The node reachability check is informational and only relevant for multi-node deployments.
@@ -136,7 +136,81 @@ curl -X POST http://localhost:8186/api/v1/onramp/repo/refresh
   </TabItem>
 </Tabs>
 
-## Step 3: Deploy Kubernetes
+## Step 3: Add the localhost node and sync inventory
+
+Before deploying, you must register the local machine as a managed node and sync the Ansible inventory.
+
+<Tabs>
+  <TabItem value="ui" label="Web UI" default>
+
+Navigate to **Nodes** and click **Add Node**. Fill in the following:
+
+- **Name:** `localhost`
+- **Host:** `localhost`
+- **Roles:** select `master`
+
+Click **Save**, then click **Sync Inventory** to write the updated inventory to disk.
+
+  </TabItem>
+  <TabItem value="api" label="API">
+
+Register the localhost node:
+
+```bash
+curl -X POST http://localhost:8186/api/v1/nodes \
+  -H "Content-Type: application/json" \
+  -d '{"name": "localhost", "ansible_host": "localhost", "roles": ["master"]}'
+```
+
+Then sync the inventory so the Ansible hosts file is written:
+
+```bash
+curl -X POST http://localhost:8186/api/v1/onramp/inventory/sync
+```
+
+  </TabItem>
+</Tabs>
+
+## Step 4: Configure the data interface
+
+Aether needs to know which network interface to use for the data plane. On a single-node deployment you can auto-detect the subnet from the data interface by leaving `ran_subnet` empty.
+
+<Tabs>
+  <TabItem value="ui" label="Web UI" default>
+
+Navigate to **Configuration**. Set the **Data Interface** field to the name of your primary network interface (the one with a default route). You can find it by running:
+
+```bash
+ip route get 8.8.8.8 | awk '{print $5; exit}'
+```
+
+Leave **RAN Subnet** empty to auto-detect from the data interface.
+
+Click **Save** to apply the configuration.
+
+  </TabItem>
+  <TabItem value="api" label="API">
+
+Determine your data interface:
+
+```bash
+ip route get 8.8.8.8 | awk '{print $5; exit}'
+```
+
+Then patch the OnRamp configuration (replace `<iface>` with the interface name from above):
+
+```bash
+curl -X PATCH http://localhost:8186/api/v1/onramp/config \
+  -H "Content-Type: application/json" \
+  -d '{"core": {"data_iface": "<iface>", "ran_subnet": ""}}'
+```
+
+An empty `ran_subnet` tells Aether to auto-detect the subnet from the data interface.
+
+  </TabItem>
+</Tabs>
+
+## Step 5: Deploy Kubernetes
 
 Deploy the Kubernetes (RKE2) cluster:
 
@@ -170,7 +244,7 @@ The response contains a task object with an `id` field. Save this ID -- you will
   </TabItem>
 </Tabs>
 
-## Step 4: Poll the task for output
+## Step 6: Poll the task for output
 
 Tasks run asynchronously. Wait for the Kubernetes install to finish before continuing.
 
@@ -213,7 +287,7 @@ The `output_offset` field in the response tells you the byte position to use as 
 
 Keep polling until `status` is `succeeded`. The Kubernetes install typically takes several minutes.
 
-## Step 5: Deploy the 5G Core
+## Step 7: Deploy the 5G Core
 
 Once Kubernetes is running, deploy the 5G Core network (SD-Core):
 
@@ -234,7 +308,7 @@ Save the task ID from the response.
   </TabItem>
 </Tabs>
 
-## Step 6: Poll for completion
+## Step 8: Poll for completion
 
 Wait for the 5G Core deployment to finish:
 
