@@ -2,6 +2,7 @@ package onramp
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -348,12 +349,15 @@ func (o *OnRamp) handlePatchConfig(_ context.Context, in *ConfigPatchInput) (*Co
 		return nil, huma.Error500InternalServerError("failed to read current config", err)
 	}
 
-	mergeConfig(&base, &in.Body)
+	merged, err := deepMergeConfig(&base, &in.Body)
+	if err != nil {
+		return nil, huma.Error500InternalServerError("failed to merge config", err)
+	}
 
-	if err := o.writeVarsFile(mainYML, &base); err != nil {
+	if err := o.writeVarsFile(mainYML, &merged); err != nil {
 		return nil, huma.Error500InternalServerError("failed to write config", err)
 	}
-	return &ConfigPatchOutput{Body: base}, nil
+	return &ConfigPatchOutput{Body: merged}, nil
 }
 
 // ---------------------------------------------------------------------------
@@ -446,33 +450,63 @@ func (o *OnRamp) writeVarsFile(path string, cfg *OnRampConfig) error {
 // Config merge
 // ---------------------------------------------------------------------------
 
-// mergeConfig overwrites non-nil fields in base with values from patch.
-func mergeConfig(base, patch *OnRampConfig) {
-	if patch.K8s != nil {
-		base.K8s = patch.K8s
+// deepMergeConfig performs a recursive deep merge of patch into base. Only
+// fields present in the patch (non-zero after JSON omitempty) overwrite the
+// corresponding base fields; all other base fields are preserved.
+func deepMergeConfig(base, patch *OnRampConfig) (OnRampConfig, error) {
+	baseMap, err := structToMap(base)
+	if err != nil {
+		return OnRampConfig{}, fmt.Errorf("marshal base: %w", err)
 	}
-	if patch.Core != nil {
-		base.Core = patch.Core
+	patchMap, err := structToMap(patch)
+	if err != nil {
+		return OnRampConfig{}, fmt.Errorf("marshal patch: %w", err)
 	}
-	if patch.GNBSim != nil {
-		base.GNBSim = patch.GNBSim
+
+	deepMergeMaps(baseMap, patchMap)
+
+	data, err := json.Marshal(baseMap)
+	if err != nil {
+		return OnRampConfig{}, fmt.Errorf("marshal merged: %w", err)
 	}
-	if patch.AMP != nil {
-		base.AMP = patch.AMP
+	var result OnRampConfig
+	if err := json.Unmarshal(data, &result); err != nil {
+		return OnRampConfig{}, fmt.Errorf("unmarshal merged: %w", err)
 	}
-	if patch.SDRAN != nil {
-		base.SDRAN = patch.SDRAN
+	return result, nil
+}
+
+// structToMap converts a struct to map[string]any via JSON round-trip.
+// Fields tagged omitempty are excluded when zero-valued, which ensures only
+// caller-provided fields appear in the resulting map.
+func structToMap(v any) (map[string]any, error) {
+	data, err := json.Marshal(v)
+	if err != nil {
+		return nil, err
 	}
-	if patch.UERANSIM != nil {
-		base.UERANSIM = patch.UERANSIM
+	var m map[string]any
+	if err := json.Unmarshal(data, &m); err != nil {
+		return nil, err
 	}
-	if patch.OAI != nil {
-		base.OAI = patch.OAI
-	}
-	if patch.SRSRan != nil {
-		base.SRSRan = patch.SRSRan
-	}
-	if patch.N3IWF != nil {
-		base.N3IWF = patch.N3IWF
+	return m, nil
+}
+
+// deepMergeMaps recursively merges patch into base. When both sides have a
+// nested map for the same key, the maps are merged recursively. Otherwise the
+// patch value overwrites the base value.
+func deepMergeMaps(base, patch map[string]any) {
+	for k, pv := range patch {
+		bv, exists := base[k]
+		if !exists {
+			base[k] = pv
+			continue
+		}
+		bm, bok := bv.(map[string]any)
+		pm, pok := pv.(map[string]any)
+		if bok && pok {
+			deepMergeMaps(bm, pm)
+		} else {
+			base[k] = pv
+		}
 	}
 }
