@@ -6,7 +6,11 @@
 # enabling SSH password authentication, and creating the aether service user.
 #
 # Usage:
-#   sudo bash scripts/preflight-setup.sh
+#   sudo bash scripts/preflight-setup.sh [--yes]
+#
+#   --yes   Skip the interactive confirmation prompt and apply all changes
+#           automatically. Required when running non-interactively (e.g. via
+#           curl | sudo bash).
 #
 set -euo pipefail
 
@@ -32,6 +36,9 @@ log_error() {
 SUMMARY_PACKAGES="skipped"
 SUMMARY_SSH="skipped"
 SUMMARY_USER="skipped"
+
+# Set to true when --yes flag is passed.
+AUTO_CONFIRM=false
 
 # Check if running as root
 check_root() {
@@ -184,6 +191,49 @@ configure_ssh() {
     SUMMARY_SSH="enabled PasswordAuthentication via ${drop_in}"
 }
 
+# Print the security-critical changes this script will make and require
+# explicit confirmation before proceeding.
+confirm_changes() {
+    echo ""
+    echo "=============================================="
+    echo -e "${YELLOW}  SECURITY WARNING${NC}"
+    echo "=============================================="
+    echo ""
+    echo "  This script will make the following security-sensitive changes:"
+    echo ""
+    echo "  1. Enable SSH password authentication"
+    echo "     (allows any user to log in with a password)"
+    echo "  2. Create the 'aether' OS user with the default"
+    echo "     password 'aether' (you must change this after setup)"
+    echo "  3. Grant the 'aether' user passwordless sudo (NOPASSWD: ALL)"
+    echo ""
+
+    if [[ "$AUTO_CONFIRM" == "true" ]]; then
+        log_info "Auto-confirmed via --yes flag"
+        return
+    fi
+
+    # Guard against non-interactive environments (e.g. curl | sudo bash).
+    if [[ ! -t 0 ]]; then
+        log_error "stdin is not a terminal. Re-run the script interactively or"
+        log_error "pass --yes to confirm the security changes non-interactively:"
+        log_error ""
+        log_error "  sudo bash preflight-setup.sh --yes"
+        exit 1
+    fi
+
+    read -r -t 60 -p "  Type 'yes' to confirm and continue: " answer || {
+        echo ""
+        log_error "Timed out waiting for confirmation. Aborting."
+        exit 1
+    }
+    echo ""
+    if [[ "$answer" != "yes" ]]; then
+        log_error "Confirmation not given. Aborting."
+        exit 1
+    fi
+}
+
 # Create the aether user with default password and NOPASSWD sudo.
 configure_aether_user() {
     local user_existed=false
@@ -228,6 +278,21 @@ print_summary() {
 
 # Main flow
 main() {
+    # Parse arguments.
+    for arg in "$@"; do
+        case "$arg" in
+            --yes)
+                # Idempotent — setting this flag more than once is harmless.
+                AUTO_CONFIRM=true
+                ;;
+            *)
+                log_error "Unknown argument: ${arg}"
+                echo "Usage: sudo bash preflight-setup.sh [--yes]"
+                exit 1
+                ;;
+        esac
+    done
+
     echo ""
     echo "=============================================="
     echo "  Aether Preflight Setup"
@@ -236,6 +301,7 @@ main() {
 
     check_root
     check_os
+    confirm_changes
     install_packages
     configure_ssh
     configure_aether_user
