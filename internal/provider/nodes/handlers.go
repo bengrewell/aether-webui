@@ -40,6 +40,15 @@ func (n *Nodes) handleCreate(ctx context.Context, in *NodeCreateInput) (*NodeCre
 	if in.Body.AnsibleHost == "" {
 		return nil, huma.Error422UnprocessableEntity("ansible_host is required")
 	}
+	if in.Body.AnsibleUser == "" {
+		return nil, huma.Error422UnprocessableEntity("ansible_user is required")
+	}
+	if in.Body.Password == "" {
+		return nil, huma.Error422UnprocessableEntity("password is required")
+	}
+	if in.Body.SudoPassword == "" {
+		return nil, huma.Error422UnprocessableEntity("sudo_password is required")
+	}
 	if err := validateRoles(in.Body.Roles); err != nil {
 		return nil, err
 	}

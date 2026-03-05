@@ -147,6 +147,9 @@ Navigate to **Nodes** and click **Add Node**. Fill in the following:
 
 - **Name:** `localhost`
 - **Host:** `localhost`
+- **User:** `aether`
+- **Password:** `aether` (or the password you set for the aether user)
+- **Sudo Password:** `aether` (or the sudo password for the aether user)
 - **Roles:** select `master`
 
 Click **Save**, then click **Sync Inventory** to write the updated inventory to disk.
@@ -159,7 +162,14 @@ Register the localhost node:
 ```bash
 curl -X POST http://localhost:8186/api/v1/nodes \
   -H "Content-Type: application/json" \
-  -d '{"name": "localhost", "ansible_host": "localhost", "roles": ["master"]}'
+  -d '{
+    "name": "localhost",
+    "ansible_host": "localhost",
+    "ansible_user": "aether",
+    "password": "aether",
+    "sudo_password": "aether",
+    "roles": ["master"]
+  }'
 ```
 
 Then sync the inventory so the Ansible hosts file is written:
