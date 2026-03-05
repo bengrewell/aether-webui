@@ -74,6 +74,7 @@ install_packages() {
 
     if [[ ${#missing[@]} -eq 0 ]]; then
         log_info "Required packages already installed (make, ansible)"
+        SUMMARY_PACKAGES="already installed (make, ansible)"
         return
     fi
 
