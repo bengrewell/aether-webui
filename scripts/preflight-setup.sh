@@ -156,6 +156,7 @@ configure_ssh() {
 
     if [[ "${enabled,,}" == "yes" ]]; then
         log_info "SSH PasswordAuthentication already enabled (set in ${source})"
+        SUMMARY_SSH="already enabled (set in ${source})"
         return
     fi
 
