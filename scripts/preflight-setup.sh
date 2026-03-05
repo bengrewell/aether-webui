@@ -69,19 +69,25 @@ detect_package_manager() {
     return 1
 }
 
-# Install required packages (make, ansible) if missing.
+# Install required packages (git, make, ansible, sshd) if missing.
 install_packages() {
     local missing=()
 
-    for bin in make ansible-playbook; do
+    for bin in git make ansible-playbook sshd; do
         if ! command -v "$bin" &>/dev/null; then
+            # sshd is often in /usr/sbin which may not be on PATH.
+            if [[ "$bin" == "sshd" ]]; then
+                if [[ -x /usr/sbin/sshd ]] || [[ -x /sbin/sshd ]]; then
+                    continue
+                fi
+            fi
             missing+=("$bin")
         fi
     done
 
     if [[ ${#missing[@]} -eq 0 ]]; then
-        log_info "Required packages already installed (make, ansible)"
-        SUMMARY_PACKAGES="already installed (make, ansible)"
+        log_info "Required packages already installed (git, make, ansible, sshd)"
+        SUMMARY_PACKAGES="already installed (git, make, ansible, sshd)"
         return
     fi
 
@@ -122,11 +128,17 @@ install_packages() {
     local pkgs=()
     for m in "${missing[@]}"; do
         case "$m" in
+            git)
+                pkgs+=("git")
+                ;;
             make)
                 pkgs+=("make")
                 ;;
             ansible-playbook)
                 pkgs+=("ansible")
+                ;;
+            sshd)
+                pkgs+=("openssh-server")
                 ;;
         esac
     done
@@ -142,32 +154,40 @@ install_packages() {
 configure_ssh() {
     local main_config="/etc/ssh/sshd_config"
     local drop_in_dir="/etc/ssh/sshd_config.d"
-    local drop_in="${drop_in_dir}/99-aether-password-auth.conf"
+    local drop_in="${drop_in_dir}/01-aether-password-auth.conf"
 
     # Determine effective PasswordAuthentication value.
-    # Last directive wins, matching sshd behavior.
-    local enabled="yes" # OpenSSH default
-    local source="default"
+    # sshd uses first-match-wins: drop-ins are processed in lexicographic
+    # order before the main config, so the earliest match takes effect.
+    local enabled=""
+    local source=""
 
-    if [[ -f "$main_config" ]]; then
+    if [[ -d "$drop_in_dir" ]]; then
+        for conf in "$drop_in_dir"/*.conf; do
+            [[ -f "$conf" ]] || continue
+            local dval
+            dval=$(grep -i '^[[:space:]]*PasswordAuthentication[[:space:]]' "$conf" | head -1 | awk '{print $2}') || true
+            if [[ -n "$dval" ]]; then
+                enabled="$dval"
+                source="$conf"
+                break # first match wins
+            fi
+        done
+    fi
+
+    if [[ -z "$enabled" ]] && [[ -f "$main_config" ]]; then
         local val
-        val=$(grep -i '^[[:space:]]*PasswordAuthentication[[:space:]]' "$main_config" | tail -1 | awk '{print $2}') || true
+        val=$(grep -i '^[[:space:]]*PasswordAuthentication[[:space:]]' "$main_config" | head -1 | awk '{print $2}') || true
         if [[ -n "$val" ]]; then
             enabled="$val"
             source="$main_config"
         fi
     fi
 
-    if [[ -d "$drop_in_dir" ]]; then
-        for conf in "$drop_in_dir"/*.conf; do
-            [[ -f "$conf" ]] || continue
-            local dval
-            dval=$(grep -i '^[[:space:]]*PasswordAuthentication[[:space:]]' "$conf" | tail -1 | awk '{print $2}') || true
-            if [[ -n "$dval" ]]; then
-                enabled="$dval"
-                source="$conf"
-            fi
-        done
+    # OpenSSH defaults to yes if no directive is found.
+    if [[ -z "$enabled" ]]; then
+        enabled="yes"
+        source="default"
     fi
 
     if [[ "${enabled,,}" == "yes" ]]; then

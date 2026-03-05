@@ -581,10 +581,10 @@ func TestFindSSHDirective(t *testing.T) {
 			wantFound: true,
 		},
 		{
-			name:      "last directive wins",
+			name:      "first directive wins",
 			data:      "PasswordAuthentication yes\nPasswordAuthentication no",
 			directive: "PasswordAuthentication",
-			wantVal:   "no",
+			wantVal:   "yes",
 			wantFound: true,
 		},
 		{

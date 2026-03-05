@@ -301,7 +301,7 @@ func checkSSHConfigured() Check {
 				return noSudoResult("ssh-configured", sshFixCommands())
 			}
 
-			dropIn := "/etc/ssh/sshd_config.d/99-aether-password-auth.conf"
+			dropIn := "/etc/ssh/sshd_config.d/01-aether-password-auth.conf"
 			content := "PasswordAuthentication yes"
 			cmd := fmt.Sprintf("echo '%s' | sudo tee %s > /dev/null", content, dropIn)
 			if output, err := deps.RunCommand(ctx, "bash", "-c", cmd); err != nil {
@@ -331,58 +331,51 @@ func checkSSHConfigured() Check {
 	}
 }
 
-// parseSSHDPasswordAuth reads the main sshd_config and any drop-in files to
+// parseSSHDPasswordAuth reads sshd drop-in files and the main sshd_config to
 // determine the effective PasswordAuthentication setting. Returns (enabled, source_file, error).
+// sshd uses first-match-wins: drop-ins are processed in lexicographic order
+// before the main config, so the earliest match takes effect.
 // If no directive is found, defaults to yes (OpenSSH default) with source "default".
 func parseSSHDPasswordAuth(deps CheckDeps) (bool, string, error) {
 	const mainConfig = "/etc/ssh/sshd_config"
+	const dropInDir = "/etc/ssh/sshd_config.d"
 
-	// Start with OpenSSH default.
-	enabled := true
-	source := "default"
+	// Check drop-in files first (lexicographic order, first match wins).
+	entries, err := deps.ReadDir(dropInDir)
+	if err == nil {
+		for _, entry := range entries {
+			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".conf") {
+				continue
+			}
+			path := filepath.Join(dropInDir, entry.Name())
+			dropInData, readErr := deps.ReadFile(path)
+			if readErr != nil {
+				continue
+			}
+			if val, found := findSSHDirective(dropInData, "PasswordAuthentication"); found {
+				return strings.EqualFold(val, "yes"), path, nil
+			}
+		}
+	}
 
-	// Parse main config.
+	// Fall back to main config.
 	data, err := deps.ReadFile(mainConfig)
 	if err != nil {
 		return false, "", fmt.Errorf("read %s: %w", mainConfig, err)
 	}
 
 	if val, found := findSSHDirective(data, "PasswordAuthentication"); found {
-		enabled = strings.EqualFold(val, "yes")
-		source = mainConfig
+		return strings.EqualFold(val, "yes"), mainConfig, nil
 	}
 
-	// Parse drop-in files (last directive wins, matching sshd behavior).
-	const dropInDir = "/etc/ssh/sshd_config.d"
-	entries, err := deps.ReadDir(dropInDir)
-	if err != nil {
-		// Drop-in directory may not exist; that's fine.
-		return enabled, source, nil
-	}
-
-	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".conf") {
-			continue
-		}
-		path := filepath.Join(dropInDir, entry.Name())
-		dropInData, err := deps.ReadFile(path)
-		if err != nil {
-			continue
-		}
-		if val, found := findSSHDirective(dropInData, "PasswordAuthentication"); found {
-			enabled = strings.EqualFold(val, "yes")
-			source = path
-		}
-	}
-
-	return enabled, source, nil
+	// OpenSSH defaults to yes if no directive is found.
+	return true, "default", nil
 }
 
-// findSSHDirective scans sshd_config content for the last occurrence of a
+// findSSHDirective scans sshd_config content for the first occurrence of a
 // directive (case-insensitive), ignoring comments and blank lines.
+// sshd uses first-match-wins within each file.
 func findSSHDirective(data []byte, directive string) (string, bool) {
-	var lastVal string
-	found := false
 	scanner := bufio.NewScanner(bytes.NewReader(data))
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
@@ -391,11 +384,10 @@ func findSSHDirective(data []byte, directive string) (string, bool) {
 		}
 		fields := strings.Fields(line)
 		if len(fields) >= 2 && strings.EqualFold(fields[0], directive) {
-			lastVal = fields[1]
-			found = true
+			return fields[1], true
 		}
 	}
-	return lastVal, found
+	return "", false
 }
 
 // ---------------------------------------------------------------------------
@@ -623,7 +615,7 @@ func packageFixCommands(missing []string, pm, pmPath string) []string {
 // sshFixCommands returns the shell commands needed to enable SSH password
 // authentication.
 func sshFixCommands() []string {
-	dropIn := "/etc/ssh/sshd_config.d/99-aether-password-auth.conf"
+	dropIn := "/etc/ssh/sshd_config.d/01-aether-password-auth.conf"
 	return []string{
 		fmt.Sprintf("echo 'PasswordAuthentication yes' | sudo tee %s > /dev/null", dropIn),
 		"sudo systemctl restart sshd || sudo systemctl restart ssh",
