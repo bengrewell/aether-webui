@@ -73,15 +73,15 @@ detect_package_manager() {
 install_packages() {
     local missing=()
 
-    for bin in make ansible-playbook; do
+    for bin in git make ansible-playbook; do
         if ! command -v "$bin" &>/dev/null; then
             missing+=("$bin")
         fi
     done
 
     if [[ ${#missing[@]} -eq 0 ]]; then
-        log_info "Required packages already installed (make, ansible)"
-        SUMMARY_PACKAGES="already installed (make, ansible)"
+        log_info "Required packages already installed (git, make, ansible)"
+        SUMMARY_PACKAGES="already installed (git, make, ansible)"
         return
     fi
 
@@ -122,6 +122,9 @@ install_packages() {
     local pkgs=()
     for m in "${missing[@]}"; do
         case "$m" in
+            git)
+                pkgs+=("git")
+                ;;
             make)
                 pkgs+=("make")
                 ;;
