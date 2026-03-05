@@ -490,17 +490,14 @@ func TestHandleGetConfig_MissingFile(t *testing.T) {
 func TestHandlePatchConfig(t *testing.T) {
 	p := newTestProvider(t, testMainYML)
 
-	newDataIface := "ens20"
 	out, err := p.handlePatchConfig(t.Context(), &ConfigPatchInput{
-		Body: OnRampConfig{
-			Core: &CoreConfig{DataIface: newDataIface},
-		},
+		RawBody: []byte(`{"core": {"data_iface": "ens20"}}`),
 	})
 	if err != nil {
 		t.Fatalf("handlePatchConfig: %v", err)
 	}
-	if out.Body.Core.DataIface != newDataIface {
-		t.Errorf("data_iface = %q, want %q", out.Body.Core.DataIface, newDataIface)
+	if out.Body.Core.DataIface != "ens20" {
+		t.Errorf("data_iface = %q, want %q", out.Body.Core.DataIface, "ens20")
 	}
 	// K8s should be preserved from the original config.
 	if out.Body.K8s == nil || out.Body.K8s.RKE2 == nil {
@@ -514,11 +511,8 @@ func TestHandlePatchConfig(t *testing.T) {
 func TestHandlePatchConfig_PersistsToDisk(t *testing.T) {
 	p := newTestProvider(t, testMainYML)
 
-	newDataIface := "ens20"
 	_, err := p.handlePatchConfig(t.Context(), &ConfigPatchInput{
-		Body: OnRampConfig{
-			Core: &CoreConfig{DataIface: newDataIface},
-		},
+		RawBody: []byte(`{"core": {"data_iface": "ens20"}}`),
 	})
 	if err != nil {
 		t.Fatalf("handlePatchConfig: %v", err)
@@ -529,17 +523,17 @@ func TestHandlePatchConfig_PersistsToDisk(t *testing.T) {
 	if err != nil {
 		t.Fatalf("handleGetConfig: %v", err)
 	}
-	if out.Body.Core.DataIface != newDataIface {
-		t.Errorf("persisted data_iface = %q, want %q", out.Body.Core.DataIface, newDataIface)
+	if out.Body.Core.DataIface != "ens20" {
+		t.Errorf("persisted data_iface = %q, want %q", out.Body.Core.DataIface, "ens20")
 	}
 }
 
 func TestHandlePatchConfig_NilFieldsPreserved(t *testing.T) {
 	p := newTestProvider(t, testMainYML)
 
-	// Patch with only a nil-irrelevant field — all existing sections should survive.
+	// Empty patch — all existing sections should survive.
 	out, err := p.handlePatchConfig(t.Context(), &ConfigPatchInput{
-		Body: OnRampConfig{}, // all nil
+		RawBody: []byte(`{}`),
 	})
 	if err != nil {
 		t.Fatalf("handlePatchConfig: %v", err)
@@ -795,87 +789,182 @@ func TestValidateRepo_MissingVarsFile(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// mergeConfig
+// deepMergeConfig
 // ---------------------------------------------------------------------------
 
-func TestMergeConfig_NilFieldsPreserved(t *testing.T) {
+func TestDeepMergeConfig_NilFieldsPreserved(t *testing.T) {
 	base := OnRampConfig{
 		K8s:  &K8sConfig{RKE2: &RKE2Config{Version: "v1"}},
 		Core: &CoreConfig{DataIface: "ens18"},
 	}
-	patch := OnRampConfig{} // all nil
 
-	mergeConfig(&base, &patch)
-
-	if base.K8s == nil || base.K8s.RKE2.Version != "v1" {
-		t.Error("K8s should be preserved when patch.K8s is nil")
+	merged, err := deepMergeConfig(&base, []byte(`{}`))
+	if err != nil {
+		t.Fatal(err)
 	}
-	if base.Core == nil || base.Core.DataIface != "ens18" {
-		t.Error("Core should be preserved when patch.Core is nil")
+
+	if merged.K8s == nil || merged.K8s.RKE2.Version != "v1" {
+		t.Error("K8s should be preserved when patch is empty")
+	}
+	if merged.Core == nil || merged.Core.DataIface != "ens18" {
+		t.Error("Core should be preserved when patch is empty")
 	}
 }
 
-func TestMergeConfig_NonNilFieldsOverwrite(t *testing.T) {
+func TestDeepMergeConfig_NonNilFieldsOverwrite(t *testing.T) {
 	base := OnRampConfig{
 		K8s:  &K8sConfig{RKE2: &RKE2Config{Version: "v1"}},
 		Core: &CoreConfig{DataIface: "ens18"},
 	}
-	patch := OnRampConfig{
-		Core: &CoreConfig{DataIface: "ens20"},
+
+	merged, err := deepMergeConfig(&base, []byte(`{"core": {"data_iface": "ens20"}}`))
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	mergeConfig(&base, &patch)
-
-	if base.Core.DataIface != "ens20" {
-		t.Errorf("data_iface = %q, want %q", base.Core.DataIface, "ens20")
+	if merged.Core.DataIface != "ens20" {
+		t.Errorf("data_iface = %q, want %q", merged.Core.DataIface, "ens20")
 	}
-	// K8s should be untouched.
-	if base.K8s == nil || base.K8s.RKE2.Version != "v1" {
-		t.Error("K8s should be preserved when patch.K8s is nil")
+	if merged.K8s == nil || merged.K8s.RKE2.Version != "v1" {
+		t.Error("K8s should be preserved when not in patch")
 	}
 }
 
-func TestMergeConfig_AllSections(t *testing.T) {
+func TestDeepMergeConfig_PreservesSiblingFields(t *testing.T) {
+	standalone := true
+	base := OnRampConfig{
+		Core: &CoreConfig{
+			Standalone: &standalone,
+			DataIface:  "ens18",
+			ValuesFile: "deps/5gc/roles/core/templates/sdcore-5g-values.yaml",
+			RANSubnet:  "172.20.0.0/16",
+			Helm:       &HelmRef{ChartRef: "aether/sd-core"},
+		},
+	}
+
+	merged, err := deepMergeConfig(&base, []byte(`{"core": {"data_iface": "enp5s0"}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if merged.Core.DataIface != "enp5s0" {
+		t.Errorf("data_iface = %q, want %q", merged.Core.DataIface, "enp5s0")
+	}
+	if merged.Core.ValuesFile != "deps/5gc/roles/core/templates/sdcore-5g-values.yaml" {
+		t.Errorf("values_file lost: got %q", merged.Core.ValuesFile)
+	}
+	if merged.Core.RANSubnet != "172.20.0.0/16" {
+		t.Errorf("ran_subnet lost: got %q", merged.Core.RANSubnet)
+	}
+	if merged.Core.Standalone == nil || !*merged.Core.Standalone {
+		t.Error("standalone lost")
+	}
+	if merged.Core.Helm == nil || merged.Core.Helm.ChartRef != "aether/sd-core" {
+		t.Error("helm lost")
+	}
+}
+
+func TestDeepMergeConfig_ZeroValueOverwrite(t *testing.T) {
+	base := OnRampConfig{
+		Core: &CoreConfig{
+			DataIface: "ens18",
+			RANSubnet: "172.20.0.0/16",
+		},
+	}
+
+	// Explicitly set ran_subnet to empty string.
+	merged, err := deepMergeConfig(&base, []byte(`{"core": {"data_iface": "enp5s0", "ran_subnet": ""}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if merged.Core.DataIface != "enp5s0" {
+		t.Errorf("data_iface = %q, want %q", merged.Core.DataIface, "enp5s0")
+	}
+	if merged.Core.RANSubnet != "" {
+		t.Errorf("ran_subnet = %q, want empty string", merged.Core.RANSubnet)
+	}
+}
+
+func TestDeepMergeConfig_NestedOverwrite(t *testing.T) {
+	base := OnRampConfig{
+		K8s: &K8sConfig{
+			RKE2: &RKE2Config{Version: "v1.24", Config: &RKE2Inner{Token: "secret", Port: 9345}},
+			Helm: &HelmRef{Version: "v3.17.0"},
+		},
+	}
+
+	merged, err := deepMergeConfig(&base, []byte(`{"k8s": {"rke2": {"version": "v1.25"}}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if merged.K8s.RKE2.Version != "v1.25" {
+		t.Errorf("rke2 version = %q, want %q", merged.K8s.RKE2.Version, "v1.25")
+	}
+	// Nested siblings within rke2 should be preserved.
+	if merged.K8s.RKE2.Config == nil {
+		t.Fatal("rke2 config lost")
+	}
+	if merged.K8s.RKE2.Config.Token != "secret" {
+		t.Errorf("rke2 config token = %q, want %q", merged.K8s.RKE2.Config.Token, "secret")
+	}
+	if merged.K8s.RKE2.Config.Port != 9345 {
+		t.Errorf("rke2 config port = %d, want %d", merged.K8s.RKE2.Config.Port, 9345)
+	}
+	// Helm should be preserved — not part of the patch.
+	if merged.K8s.Helm == nil || merged.K8s.Helm.Version != "v3.17.0" {
+		t.Error("helm should be preserved when not in patch")
+	}
+}
+
+func TestDeepMergeConfig_AllSections(t *testing.T) {
 	base := OnRampConfig{}
-	patch := OnRampConfig{
-		K8s:      &K8sConfig{},
-		Core:     &CoreConfig{},
-		GNBSim:   &GNBSimConfig{},
-		AMP:      &AMPConfig{},
-		SDRAN:    &SDRANConfig{},
-		UERANSIM: &UERANSIMConfig{},
-		OAI:      &OAIConfig{},
-		SRSRan:   &SRSRanConfig{},
-		N3IWF:    &N3IWFConfig{},
+	patch := []byte(`{
+		"k8s": {},
+		"core": {"data_iface": "eth0"},
+		"gnbsim": {},
+		"amp": {},
+		"sdran": {},
+		"ueransim": {},
+		"oai": {},
+		"srsran": {},
+		"n3iwf": {}
+	}`)
+
+	merged, err := deepMergeConfig(&base, patch)
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	mergeConfig(&base, &patch)
-
-	if base.K8s == nil {
+	if merged.K8s == nil {
 		t.Error("K8s should be set")
 	}
-	if base.Core == nil {
+	if merged.Core == nil {
 		t.Error("Core should be set")
 	}
-	if base.GNBSim == nil {
+	if merged.Core.DataIface != "eth0" {
+		t.Errorf("Core.DataIface = %q, want %q", merged.Core.DataIface, "eth0")
+	}
+	if merged.GNBSim == nil {
 		t.Error("GNBSim should be set")
 	}
-	if base.AMP == nil {
+	if merged.AMP == nil {
 		t.Error("AMP should be set")
 	}
-	if base.SDRAN == nil {
+	if merged.SDRAN == nil {
 		t.Error("SDRAN should be set")
 	}
-	if base.UERANSIM == nil {
+	if merged.UERANSIM == nil {
 		t.Error("UERANSIM should be set")
 	}
-	if base.OAI == nil {
+	if merged.OAI == nil {
 		t.Error("OAI should be set")
 	}
-	if base.SRSRan == nil {
+	if merged.SRSRan == nil {
 		t.Error("SRSRan should be set")
 	}
-	if base.N3IWF == nil {
+	if merged.N3IWF == nil {
 		t.Error("N3IWF should be set")
 	}
 }
