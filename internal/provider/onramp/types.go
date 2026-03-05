@@ -190,33 +190,33 @@ func toOnRampTask(view taskrunner.TaskView, output string, outputOffset int) OnR
 
 // OnRampConfig is the superset of all vars file sections.
 type OnRampConfig struct {
-	K8s      *K8sConfig      `json:"k8s,omitempty"      yaml:"k8s,omitempty"`
-	Core     *CoreConfig     `json:"core,omitempty"      yaml:"core,omitempty"`
-	GNBSim   *GNBSimConfig   `json:"gnbsim,omitempty"    yaml:"gnbsim,omitempty"`
-	AMP      *AMPConfig      `json:"amp,omitempty"       yaml:"amp,omitempty"`
-	SDRAN    *SDRANConfig    `json:"sdran,omitempty"     yaml:"sdran,omitempty"`
-	UERANSIM *UERANSIMConfig `json:"ueransim,omitempty"  yaml:"ueransim,omitempty"`
-	OAI      *OAIConfig      `json:"oai,omitempty"       yaml:"oai,omitempty"`
-	SRSRan   *SRSRanConfig   `json:"srsran,omitempty"    yaml:"srsran,omitempty"`
-	N3IWF    *N3IWFConfig    `json:"n3iwf,omitempty"     yaml:"n3iwf,omitempty"`
+	K8s      *K8sConfig      `json:"k8s"      yaml:"k8s,omitempty"`
+	Core     *CoreConfig     `json:"core"      yaml:"core,omitempty"`
+	GNBSim   *GNBSimConfig   `json:"gnbsim"    yaml:"gnbsim,omitempty"`
+	AMP      *AMPConfig      `json:"amp"       yaml:"amp,omitempty"`
+	SDRAN    *SDRANConfig    `json:"sdran"     yaml:"sdran,omitempty"`
+	UERANSIM *UERANSIMConfig `json:"ueransim"  yaml:"ueransim,omitempty"`
+	OAI      *OAIConfig      `json:"oai"       yaml:"oai,omitempty"`
+	SRSRan   *SRSRanConfig   `json:"srsran"    yaml:"srsran,omitempty"`
+	N3IWF    *N3IWFConfig    `json:"n3iwf"     yaml:"n3iwf,omitempty"`
 }
 
 // --- K8s ---
 
 type K8sConfig struct {
-	RKE2 *RKE2Config `json:"rke2,omitempty" yaml:"rke2,omitempty"`
-	Helm *HelmRef    `json:"helm,omitempty" yaml:"helm,omitempty"`
+	RKE2 *RKE2Config `json:"rke2" yaml:"rke2,omitempty"`
+	Helm *HelmRef    `json:"helm" yaml:"helm,omitempty"`
 }
 
 type RKE2Config struct {
 	Version string     `json:"version" yaml:"version"`
-	Config  *RKE2Inner `json:"config,omitempty" yaml:"config,omitempty"`
+	Config  *RKE2Inner `json:"config" yaml:"config,omitempty"`
 }
 
 type RKE2Inner struct {
 	Token      string      `json:"token" yaml:"token"`
 	Port       int         `json:"port" yaml:"port"`
-	ParamsFile *ParamsFile `json:"params_file,omitempty" yaml:"params_file,omitempty"`
+	ParamsFile *ParamsFile `json:"params_file" yaml:"params_file,omitempty"`
 }
 
 type ParamsFile struct {
@@ -225,39 +225,39 @@ type ParamsFile struct {
 }
 
 type HelmRef struct {
-	Version      string `json:"version,omitempty" yaml:"version,omitempty"`
-	LocalCharts  *bool  `json:"local_charts,omitempty" yaml:"local_charts,omitempty"`
-	ChartRef     string `json:"chart_ref,omitempty" yaml:"chart_ref,omitempty"`
-	ChartVersion string `json:"chart_version,omitempty" yaml:"chart_version,omitempty"`
+	Version      string `json:"version" yaml:"version,omitempty"`
+	LocalCharts  *bool  `json:"local_charts" yaml:"local_charts,omitempty"`
+	ChartRef     string `json:"chart_ref" yaml:"chart_ref,omitempty"`
+	ChartVersion string `json:"chart_version" yaml:"chart_version,omitempty"`
 }
 
 // --- Core ---
 
 type CoreConfig struct {
-	Standalone *bool      `json:"standalone,omitempty" yaml:"standalone,omitempty"`
-	DataIface  string     `json:"data_iface,omitempty" yaml:"data_iface,omitempty"`
-	ValuesFile string     `json:"values_file,omitempty" yaml:"values_file,omitempty"`
-	RANSubnet  string     `json:"ran_subnet,omitempty" yaml:"ran_subnet,omitempty"`
-	Helm       *HelmRef   `json:"helm,omitempty" yaml:"helm,omitempty"`
-	UPF        *UPFConfig `json:"upf,omitempty" yaml:"upf,omitempty"`
-	AMF        *AMFConfig `json:"amf,omitempty" yaml:"amf,omitempty"`
-	MME        *MMEConfig `json:"mme,omitempty" yaml:"mme,omitempty"`
+	Standalone *bool      `json:"standalone" yaml:"standalone,omitempty"`
+	DataIface  string     `json:"data_iface" yaml:"data_iface,omitempty"`
+	ValuesFile string     `json:"values_file" yaml:"values_file,omitempty"`
+	RANSubnet  string     `json:"ran_subnet" yaml:"ran_subnet,omitempty"`
+	Helm       *HelmRef   `json:"helm" yaml:"helm,omitempty"`
+	UPF        *UPFConfig `json:"upf" yaml:"upf,omitempty"`
+	AMF        *AMFConfig `json:"amf" yaml:"amf,omitempty"`
+	MME        *MMEConfig `json:"mme" yaml:"mme,omitempty"`
 }
 
 type UPFConfig struct {
-	AccessSubnet   string                 `json:"access_subnet,omitempty" yaml:"access_subnet,omitempty"`
-	CoreSubnet     string                 `json:"core_subnet,omitempty" yaml:"core_subnet,omitempty"`
-	Mode           string                 `json:"mode,omitempty" yaml:"mode,omitempty"`
-	MultihopGNB    *bool                  `json:"multihop_gnb,omitempty" yaml:"multihop_gnb,omitempty"`
-	Helm           *HelmRef               `json:"helm,omitempty" yaml:"helm,omitempty"`
-	ValuesFile     string                 `json:"values_file,omitempty" yaml:"values_file,omitempty"`
-	DefaultUPF     *UPFInstance           `json:"default_upf,omitempty" yaml:"default_upf,omitempty"`
-	AdditionalUPFs map[string]*UPFInstance `json:"additional_upfs,omitempty" yaml:"additional_upfs,omitempty"`
+	AccessSubnet   string                 `json:"access_subnet" yaml:"access_subnet,omitempty"`
+	CoreSubnet     string                 `json:"core_subnet" yaml:"core_subnet,omitempty"`
+	Mode           string                 `json:"mode" yaml:"mode,omitempty"`
+	MultihopGNB    *bool                  `json:"multihop_gnb" yaml:"multihop_gnb,omitempty"`
+	Helm           *HelmRef               `json:"helm" yaml:"helm,omitempty"`
+	ValuesFile     string                 `json:"values_file" yaml:"values_file,omitempty"`
+	DefaultUPF     *UPFInstance           `json:"default_upf" yaml:"default_upf,omitempty"`
+	AdditionalUPFs map[string]*UPFInstance `json:"additional_upfs" yaml:"additional_upfs,omitempty"`
 }
 
 type UPFInstance struct {
-	IP       *UPFIP `json:"ip,omitempty" yaml:"ip,omitempty"`
-	UEIPPool string `json:"ue_ip_pool,omitempty" yaml:"ue_ip_pool,omitempty"`
+	IP       *UPFIP `json:"ip" yaml:"ip,omitempty"`
+	UEIPPool string `json:"ue_ip_pool" yaml:"ue_ip_pool,omitempty"`
 }
 
 type UPFIP struct {
@@ -276,14 +276,14 @@ type MMEConfig struct {
 // --- GNBSim ---
 
 type GNBSimConfig struct {
-	Docker  *GNBSimDocker    `json:"docker,omitempty" yaml:"docker,omitempty"`
-	Router  *GNBSimRouter    `json:"router,omitempty" yaml:"router,omitempty"`
-	Servers map[int][]string `json:"servers,omitempty" yaml:"servers,omitempty"`
+	Docker  *GNBSimDocker    `json:"docker" yaml:"docker,omitempty"`
+	Router  *GNBSimRouter    `json:"router" yaml:"router,omitempty"`
+	Servers map[int][]string `json:"servers" yaml:"servers,omitempty"`
 }
 
 type GNBSimDocker struct {
-	Container *GNBSimContainer `json:"container,omitempty" yaml:"container,omitempty"`
-	Network   *GNBSimNetwork   `json:"network,omitempty" yaml:"network,omitempty"`
+	Container *GNBSimContainer `json:"container" yaml:"container,omitempty"`
+	Network   *GNBSimNetwork   `json:"network" yaml:"network,omitempty"`
 }
 
 type GNBSimContainer struct {
@@ -293,7 +293,7 @@ type GNBSimContainer struct {
 }
 
 type GNBSimNetwork struct {
-	Macvlan *GNBSimMacvlan `json:"macvlan,omitempty" yaml:"macvlan,omitempty"`
+	Macvlan *GNBSimMacvlan `json:"macvlan" yaml:"macvlan,omitempty"`
 }
 
 type GNBSimMacvlan struct {
@@ -301,8 +301,8 @@ type GNBSimMacvlan struct {
 }
 
 type GNBSimRouter struct {
-	DataIface string              `json:"data_iface,omitempty" yaml:"data_iface,omitempty"`
-	Macvlan   *GNBSimRouterMacvlan `json:"macvlan,omitempty" yaml:"macvlan,omitempty"`
+	DataIface string              `json:"data_iface" yaml:"data_iface,omitempty"`
+	Macvlan   *GNBSimRouterMacvlan `json:"macvlan" yaml:"macvlan,omitempty"`
 }
 
 type GNBSimRouterMacvlan struct {
@@ -312,22 +312,22 @@ type GNBSimRouterMacvlan struct {
 // --- AMP ---
 
 type AMPConfig struct {
-	ROCModels        string       `json:"roc_models,omitempty" yaml:"roc_models,omitempty"`
-	MonitorDashboard string       `json:"monitor_dashboard,omitempty" yaml:"monitor_dashboard,omitempty"`
-	AetherROC        *HelmBlock   `json:"aether_roc,omitempty" yaml:"aether_roc,omitempty"`
-	Atomix           *HelmBlock   `json:"atomix,omitempty" yaml:"atomix,omitempty"`
-	ONOSProject      *HelmBlock   `json:"onosproject,omitempty" yaml:"onosproject,omitempty"`
-	Store            *StoreConfig `json:"store,omitempty" yaml:"store,omitempty"`
-	Monitor          *HelmBlock   `json:"monitor,omitempty" yaml:"monitor,omitempty"`
-	MonitorCRD       *HelmBlock   `json:"monitor_crd,omitempty" yaml:"monitor_crd,omitempty"`
+	ROCModels        string       `json:"roc_models" yaml:"roc_models,omitempty"`
+	MonitorDashboard string       `json:"monitor_dashboard" yaml:"monitor_dashboard,omitempty"`
+	AetherROC        *HelmBlock   `json:"aether_roc" yaml:"aether_roc,omitempty"`
+	Atomix           *HelmBlock   `json:"atomix" yaml:"atomix,omitempty"`
+	ONOSProject      *HelmBlock   `json:"onosproject" yaml:"onosproject,omitempty"`
+	Store            *StoreConfig `json:"store" yaml:"store,omitempty"`
+	Monitor          *HelmBlock   `json:"monitor" yaml:"monitor,omitempty"`
+	MonitorCRD       *HelmBlock   `json:"monitor_crd" yaml:"monitor_crd,omitempty"`
 }
 
 type HelmBlock struct {
-	Helm *HelmRef `json:"helm,omitempty" yaml:"helm,omitempty"`
+	Helm *HelmRef `json:"helm" yaml:"helm,omitempty"`
 }
 
 type StoreConfig struct {
-	LPP *LPPConfig `json:"lpp,omitempty" yaml:"lpp,omitempty"`
+	LPP *LPPConfig `json:"lpp" yaml:"lpp,omitempty"`
 }
 
 type LPPConfig struct {
@@ -337,46 +337,46 @@ type LPPConfig struct {
 // --- SDRAN ---
 
 type SDRANConfig struct {
-	Platform *SDRANPlatform `json:"platform,omitempty" yaml:"platform,omitempty"`
-	SDRAN    *SDRANInner    `json:"sdran,omitempty" yaml:"sdran,omitempty"`
+	Platform *SDRANPlatform `json:"platform" yaml:"platform,omitempty"`
+	SDRAN    *SDRANInner    `json:"sdran" yaml:"sdran,omitempty"`
 }
 
 type SDRANPlatform struct {
-	Atomix      *HelmBlock   `json:"atomix,omitempty" yaml:"atomix,omitempty"`
-	ONOSProject *HelmBlock   `json:"onosproject,omitempty" yaml:"onosproject,omitempty"`
-	Store       *StoreConfig `json:"store,omitempty" yaml:"store,omitempty"`
+	Atomix      *HelmBlock   `json:"atomix" yaml:"atomix,omitempty"`
+	ONOSProject *HelmBlock   `json:"onosproject" yaml:"onosproject,omitempty"`
+	Store       *StoreConfig `json:"store" yaml:"store,omitempty"`
 }
 
 type SDRANInner struct {
-	Helm   *HelmRef      `json:"helm,omitempty" yaml:"helm,omitempty"`
-	Import *SDRANImport  `json:"import,omitempty" yaml:"import,omitempty"`
-	RANSim *RANSimConfig `json:"ransim,omitempty" yaml:"ransim,omitempty"`
+	Helm   *HelmRef      `json:"helm" yaml:"helm,omitempty"`
+	Import *SDRANImport  `json:"import" yaml:"import,omitempty"`
+	RANSim *RANSimConfig `json:"ransim" yaml:"ransim,omitempty"`
 }
 
 type SDRANImport struct {
-	E2T    *bool `json:"e2t,omitempty" yaml:"e2t,omitempty"`
-	A1T    *bool `json:"a1t,omitempty" yaml:"a1t,omitempty"`
-	UENIB  *bool `json:"uenib,omitempty" yaml:"uenib,omitempty"`
-	Topo   *bool `json:"topo,omitempty" yaml:"topo,omitempty"`
-	Config *bool `json:"config,omitempty" yaml:"config,omitempty"`
-	RANSim *bool `json:"ransim,omitempty" yaml:"ransim,omitempty"`
-	KPIMon *bool `json:"kpimon,omitempty" yaml:"kpimon,omitempty"`
-	PCI    *bool `json:"pci,omitempty" yaml:"pci,omitempty"`
-	MHO    *bool `json:"mho,omitempty" yaml:"mho,omitempty"`
-	MLB    *bool `json:"mlb,omitempty" yaml:"mlb,omitempty"`
-	TS     *bool `json:"ts,omitempty" yaml:"ts,omitempty"`
+	E2T    *bool `json:"e2t" yaml:"e2t,omitempty"`
+	A1T    *bool `json:"a1t" yaml:"a1t,omitempty"`
+	UENIB  *bool `json:"uenib" yaml:"uenib,omitempty"`
+	Topo   *bool `json:"topo" yaml:"topo,omitempty"`
+	Config *bool `json:"config" yaml:"config,omitempty"`
+	RANSim *bool `json:"ransim" yaml:"ransim,omitempty"`
+	KPIMon *bool `json:"kpimon" yaml:"kpimon,omitempty"`
+	PCI    *bool `json:"pci" yaml:"pci,omitempty"`
+	MHO    *bool `json:"mho" yaml:"mho,omitempty"`
+	MLB    *bool `json:"mlb" yaml:"mlb,omitempty"`
+	TS     *bool `json:"ts" yaml:"ts,omitempty"`
 }
 
 type RANSimConfig struct {
-	Model  string `json:"model,omitempty" yaml:"model,omitempty"`
-	Metric string `json:"metric,omitempty" yaml:"metric,omitempty"`
+	Model  string `json:"model" yaml:"model,omitempty"`
+	Metric string `json:"metric" yaml:"metric,omitempty"`
 }
 
 // --- UERANSIM ---
 
 type UERANSIMConfig struct {
-	GNB     *UERANSIMGnb                `json:"gnb,omitempty" yaml:"gnb,omitempty"`
-	Servers map[int]*UERANSIMServer `json:"servers,omitempty" yaml:"servers,omitempty"`
+	GNB     *UERANSIMGnb                `json:"gnb" yaml:"gnb,omitempty"`
+	Servers map[int]*UERANSIMServer `json:"servers" yaml:"servers,omitempty"`
 }
 
 type UERANSIMGnb struct {
@@ -391,14 +391,14 @@ type UERANSIMServer struct {
 // --- OAI ---
 
 type OAIConfig struct {
-	Docker     *OAIDocker         `json:"docker,omitempty" yaml:"docker,omitempty"`
-	Simulation *bool              `json:"simulation,omitempty" yaml:"simulation,omitempty"`
-	Servers    map[int]*OAIServer `json:"servers,omitempty" yaml:"servers,omitempty"`
+	Docker     *OAIDocker         `json:"docker" yaml:"docker,omitempty"`
+	Simulation *bool              `json:"simulation" yaml:"simulation,omitempty"`
+	Servers    map[int]*OAIServer `json:"servers" yaml:"servers,omitempty"`
 }
 
 type OAIDocker struct {
-	Container *OAIContainer `json:"container,omitempty" yaml:"container,omitempty"`
-	Network   *OAINetwork   `json:"network,omitempty" yaml:"network,omitempty"`
+	Container *OAIContainer `json:"container" yaml:"container,omitempty"`
+	Network   *OAINetwork   `json:"network" yaml:"network,omitempty"`
 }
 
 type OAIContainer struct {
@@ -407,10 +407,10 @@ type OAIContainer struct {
 }
 
 type OAINetwork struct {
-	DataIface string     `json:"data_iface,omitempty" yaml:"data_iface,omitempty"`
-	Name      string     `json:"name,omitempty" yaml:"name,omitempty"`
-	Subnet    string     `json:"subnet,omitempty" yaml:"subnet,omitempty"`
-	Bridge    *OAIBridge `json:"bridge,omitempty" yaml:"bridge,omitempty"`
+	DataIface string     `json:"data_iface" yaml:"data_iface,omitempty"`
+	Name      string     `json:"name" yaml:"name,omitempty"`
+	Subnet    string     `json:"subnet" yaml:"subnet,omitempty"`
+	Bridge    *OAIBridge `json:"bridge" yaml:"bridge,omitempty"`
 }
 
 type OAIBridge struct {
@@ -426,14 +426,14 @@ type OAIServer struct {
 // --- srsRAN ---
 
 type SRSRanConfig struct {
-	Docker     *SRSRanDocker         `json:"docker,omitempty" yaml:"docker,omitempty"`
-	Simulation *bool                 `json:"simulation,omitempty" yaml:"simulation,omitempty"`
-	Servers    map[int]*SRSRanServer `json:"servers,omitempty" yaml:"servers,omitempty"`
+	Docker     *SRSRanDocker         `json:"docker" yaml:"docker,omitempty"`
+	Simulation *bool                 `json:"simulation" yaml:"simulation,omitempty"`
+	Servers    map[int]*SRSRanServer `json:"servers" yaml:"servers,omitempty"`
 }
 
 type SRSRanDocker struct {
-	Container *SRSRanContainer `json:"container,omitempty" yaml:"container,omitempty"`
-	Network   *SRSRanNetwork   `json:"network,omitempty" yaml:"network,omitempty"`
+	Container *SRSRanContainer `json:"container" yaml:"container,omitempty"`
+	Network   *SRSRanNetwork   `json:"network" yaml:"network,omitempty"`
 }
 
 type SRSRanContainer struct {
@@ -454,13 +454,13 @@ type SRSRanServer struct {
 // --- N3IWF ---
 
 type N3IWFConfig struct {
-	Docker  *N3IWFDocker         `json:"docker,omitempty" yaml:"docker,omitempty"`
-	Servers map[int]*N3IWFServer `json:"servers,omitempty" yaml:"servers,omitempty"`
+	Docker  *N3IWFDocker         `json:"docker" yaml:"docker,omitempty"`
+	Servers map[int]*N3IWFServer `json:"servers" yaml:"servers,omitempty"`
 }
 
 type N3IWFDocker struct {
-	Image   string         `json:"image,omitempty" yaml:"image,omitempty"`
-	Network *N3IWFNetwork  `json:"network,omitempty" yaml:"network,omitempty"`
+	Image   string         `json:"image" yaml:"image,omitempty"`
+	Network *N3IWFNetwork  `json:"network" yaml:"network,omitempty"`
 }
 
 type N3IWFNetwork struct {
