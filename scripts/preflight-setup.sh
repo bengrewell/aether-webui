@@ -87,7 +87,7 @@ install_packages() {
     fi
     log_info "Using package manager: ${PM_NAME} (${PM_PATH})"
 
-    # On Debian/Ubuntu, ansible requires the PPA.
+    # Check whether ansible is one of the missing packages.
     local needs_ansible=false
     for m in "${missing[@]}"; do
         if [[ "$m" == "ansible-playbook" ]]; then
@@ -97,9 +97,26 @@ install_packages() {
     done
 
     if [[ "$PM_NAME" == "apt-get" ]] && [[ "$needs_ansible" == "true" ]]; then
-        log_info "Adding Ansible PPA for Debian/Ubuntu..."
-        "$PM_PATH" install -y software-properties-common
-        add-apt-repository --yes --update ppa:ansible/ansible
+        # The Ansible PPA (ppa:ansible/ansible) is Ubuntu-specific; adding it on
+        # plain Debian or other derivatives will fail.  Only add it when running
+        # on Ubuntu *and* ansible is not already available in the default repos.
+        local distro_id=""
+        if [[ -f /etc/os-release ]]; then
+            distro_id=$(. /etc/os-release && echo "${ID:-}")
+        fi
+
+        if [[ "${distro_id}" == "ubuntu" ]]; then
+            # On Ubuntu, prefer the official Ansible PPA for an up-to-date package.
+            log_info "Ubuntu detected — adding Ansible PPA..."
+            "$PM_PATH" install -y software-properties-common
+            add-apt-repository --yes --update ppa:ansible/ansible
+        else
+            # On Debian and other apt-based distros install from the default repos
+            # (or backports if configured).  Update the index so the latest
+            # available version is seen before the install step below.
+            log_info "Non-Ubuntu apt system detected — installing ansible from distro repos..."
+            "$PM_PATH" update -y
+        fi
     fi
 
     # Map binary names to package names.
