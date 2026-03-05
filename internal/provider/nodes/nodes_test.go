@@ -75,6 +75,7 @@ func TestHandleCreate(t *testing.T) {
 	in.Body.AnsibleHost = "10.0.0.1"
 	in.Body.AnsibleUser = "ubuntu"
 	in.Body.Password = "secret"
+	in.Body.SudoPassword = "sudosecret"
 	in.Body.Roles = []string{"master"}
 
 	out, err := p.handleCreate(t.Context(), in)
@@ -93,8 +94,8 @@ func TestHandleCreate(t *testing.T) {
 	if !out.Body.HasPassword {
 		t.Error("expected HasPassword=true")
 	}
-	if out.Body.HasSudoPassword {
-		t.Error("expected HasSudoPassword=false")
+	if !out.Body.HasSudoPassword {
+		t.Error("expected HasSudoPassword=true")
 	}
 	if len(out.Body.Roles) != 1 || out.Body.Roles[0] != "master" {
 		t.Errorf("Roles = %v, want [master]", out.Body.Roles)
@@ -128,6 +129,9 @@ func TestHandleCreate_InvalidRole(t *testing.T) {
 	in := &NodeCreateInput{}
 	in.Body.Name = "node1"
 	in.Body.AnsibleHost = "10.0.0.1"
+	in.Body.AnsibleUser = "aether"
+	in.Body.Password = "aether"
+	in.Body.SudoPassword = "aether"
 	in.Body.Roles = []string{"invalid_role"}
 
 	_, err := p.handleCreate(t.Context(), in)
@@ -150,6 +154,9 @@ func TestHandleGet(t *testing.T) {
 	in := &NodeCreateInput{}
 	in.Body.Name = "node1"
 	in.Body.AnsibleHost = "10.0.0.1"
+	in.Body.AnsibleUser = "aether"
+	in.Body.Password = "aether"
+	in.Body.SudoPassword = "aether"
 	in.Body.SSHKey = "ssh-rsa AAAA"
 	created, err := p.handleCreate(t.Context(), in)
 	if err != nil {
@@ -201,6 +208,9 @@ func TestHandleList_WithNodes(t *testing.T) {
 		in := &NodeCreateInput{}
 		in.Body.Name = name
 		in.Body.AnsibleHost = "10.0.0.1"
+		in.Body.AnsibleUser = "aether"
+		in.Body.Password = "aether"
+		in.Body.SudoPassword = "aether"
 		if _, err := p.handleCreate(t.Context(), in); err != nil {
 			t.Fatalf("handleCreate(%s): %v", name, err)
 		}
@@ -225,6 +235,9 @@ func TestHandleUpdate(t *testing.T) {
 	in := &NodeCreateInput{}
 	in.Body.Name = "node1"
 	in.Body.AnsibleHost = "10.0.0.1"
+	in.Body.AnsibleUser = "aether"
+	in.Body.Password = "aether"
+	in.Body.SudoPassword = "aether"
 	in.Body.Roles = []string{"master"}
 	created, _ := p.handleCreate(t.Context(), in)
 
@@ -269,6 +282,8 @@ func TestHandleUpdate_PartialUpdate(t *testing.T) {
 	in.Body.Name = "node1"
 	in.Body.AnsibleHost = "10.0.0.1"
 	in.Body.AnsibleUser = "ubuntu"
+	in.Body.Password = "secret"
+	in.Body.SudoPassword = "sudosecret"
 	in.Body.Roles = []string{"master"}
 	created, _ := p.handleCreate(t.Context(), in)
 
@@ -301,6 +316,9 @@ func TestHandleUpdate_InvalidRole(t *testing.T) {
 	in := &NodeCreateInput{}
 	in.Body.Name = "node1"
 	in.Body.AnsibleHost = "10.0.0.1"
+	in.Body.AnsibleUser = "aether"
+	in.Body.Password = "aether"
+	in.Body.SudoPassword = "aether"
 	created, _ := p.handleCreate(t.Context(), in)
 
 	upd := &NodeUpdateInput{ID: created.Body.ID}
@@ -322,6 +340,9 @@ func TestHandleDelete(t *testing.T) {
 	in := &NodeCreateInput{}
 	in.Body.Name = "node1"
 	in.Body.AnsibleHost = "10.0.0.1"
+	in.Body.AnsibleUser = "aether"
+	in.Body.Password = "aether"
+	in.Body.SudoPassword = "aether"
 	created, _ := p.handleCreate(t.Context(), in)
 
 	out, err := p.handleDelete(t.Context(), &NodeDeleteInput{ID: created.Body.ID})
