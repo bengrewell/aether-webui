@@ -557,7 +557,8 @@ type ConfigGetOutput struct {
 }
 
 type ConfigPatchInput struct {
-	Body OnRampConfig
+	RawBody []byte
+	Body    OnRampConfig
 }
 
 type ConfigPatchOutput struct {
