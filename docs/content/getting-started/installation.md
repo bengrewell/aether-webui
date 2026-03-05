@@ -7,6 +7,18 @@ title: Installation
 
 This page walks through installing Aether WebUI and verifying that the service is running.
 
+## Prepare the host
+
+Before installing the service, run the preflight setup script to install required packages (`make`, `ansible`), enable SSH password authentication, and create the `aether` service user:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/bengrewell/aether-webui/main/scripts/preflight-setup.sh | sudo bash
+```
+
+The script is idempotent — running it again on an already-configured host skips all steps that are already satisfied.
+
+Note: The script enables SSH password authentication and creates a user with a default password. See the [Security guide](../guides/security) for hardening recommendations.
+
 ## Install via the quick-start script
 
 The fastest way to install is the one-line installer. This downloads the latest release binary, installs it to the system path, and creates a systemd service.
