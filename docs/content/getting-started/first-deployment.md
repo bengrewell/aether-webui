@@ -14,8 +14,27 @@ This page walks through deploying a Kubernetes cluster and the 5G Core network o
 
 Before deploying anything, run the preflight checks to verify that the host meets all prerequisites. These checks verify that required tools are installed, SSH password authentication is enabled, and the `aether` service user exists with the correct permissions.
 
+If you already ran the preflight setup script during [Installation](installation#prepare-the-host), all fixable checks should already pass. You can skip ahead to verifying the results or proceed directly to Step 2.
+
 <Tabs>
-  <TabItem value="ui" label="Web UI" default>
+  <TabItem value="script" label="Setup Script" default>
+
+The preflight setup script fixes all three fixable checks in one pass. If you did not run it during installation, run it now:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/bengrewell/aether-webui/main/scripts/preflight-setup.sh | sudo bash
+```
+
+The script installs required packages (`make`, `ansible`), enables SSH password authentication, and creates the `aether` user with passwordless sudo. It is idempotent — running it again skips anything already configured.
+
+After running the script, verify all checks pass via the API or Web UI:
+
+```bash
+curl http://localhost:8186/api/v1/preflight
+```
+
+  </TabItem>
+  <TabItem value="ui" label="Web UI">
 
 Open the Web UI. The **Preflight** page shows a checklist of system prerequisites. Each check displays a pass/fail status and, where applicable, a **Fix** button to automatically resolve the issue.
 

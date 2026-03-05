@@ -13,7 +13,13 @@ For developer internals (provider framework, store layer, adding endpoints), see
 
 ## Quick Install
 
-Install aether-webd as a systemd service with a single command:
+Prepare the host (installs required packages, enables SSH password auth, creates the `aether` user):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/bengrewell/aether-webui/main/scripts/preflight-setup.sh | sudo bash
+```
+
+Install aether-webd as a systemd service:
 
 ```bash
 # Install latest version
