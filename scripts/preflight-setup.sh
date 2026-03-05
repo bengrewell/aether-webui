@@ -105,9 +105,17 @@ install_packages() {
     done
 
     if [[ "$PM_NAME" == "apt-get" ]] && [[ "$needs_ansible" == "true" ]]; then
-        log_info "Adding Ansible PPA for Debian/Ubuntu..."
-        "$PM_PATH" install -y software-properties-common
-        add-apt-repository --yes --update ppa:ansible/ansible
+        # PPAs are Ubuntu-specific; on Debian, install ansible from default repos.
+        local distro_id
+        # shellcheck disable=SC1091 # /etc/os-release is a system file, not a script input
+        distro_id=$(. /etc/os-release 2>/dev/null && echo "${ID:-}") || true
+        if [[ "$distro_id" == "ubuntu" ]]; then
+            log_info "Adding Ansible PPA for Ubuntu..."
+            "$PM_PATH" install -y software-properties-common
+            add-apt-repository --yes --update ppa:ansible/ansible
+        else
+            log_info "Installing ansible from default repos (non-Ubuntu apt system)"
+        fi
     fi
 
     # Map binary names to package names.
@@ -143,7 +151,7 @@ configure_ssh() {
 
     if [[ -f "$main_config" ]]; then
         local val
-        val=$(grep -i '^\s*PasswordAuthentication\s' "$main_config" | tail -1 | awk '{print $2}') || true
+        val=$(grep -i '^[[:space:]]*PasswordAuthentication[[:space:]]' "$main_config" | tail -1 | awk '{print $2}') || true
         if [[ -n "$val" ]]; then
             enabled="$val"
             source="$main_config"
@@ -154,7 +162,7 @@ configure_ssh() {
         for conf in "$drop_in_dir"/*.conf; do
             [[ -f "$conf" ]] || continue
             local dval
-            dval=$(grep -i '^\s*PasswordAuthentication\s' "$conf" | tail -1 | awk '{print $2}') || true
+            dval=$(grep -i '^[[:space:]]*PasswordAuthentication[[:space:]]' "$conf" | tail -1 | awk '{print $2}') || true
             if [[ -n "$dval" ]]; then
                 enabled="$dval"
                 source="$conf"
@@ -252,11 +260,21 @@ configure_aether_user() {
         echo 'aether:aether' | chpasswd
     fi
 
-    # Write sudoers file.
+    # Write sudoers file via temp file + visudo validation.
     local sudoers_file="/etc/sudoers.d/aether"
-    echo 'aether ALL=(ALL) NOPASSWD: ALL' > "$sudoers_file"
-    chmod 0440 "$sudoers_file"
-    log_info "Configured NOPASSWD sudo in ${sudoers_file}"
+    local sudoers_tmp
+    sudoers_tmp=$(mktemp)
+    echo 'aether ALL=(ALL) NOPASSWD: ALL' > "$sudoers_tmp"
+
+    if visudo -c -f "$sudoers_tmp" >/dev/null 2>&1; then
+        install -m 0440 "$sudoers_tmp" "$sudoers_file"
+        log_info "Configured NOPASSWD sudo in ${sudoers_file}"
+    else
+        log_error "Sudoers syntax validation failed; not installing ${sudoers_file}"
+        rm -f "$sudoers_tmp"
+        exit 1
+    fi
+    rm -f "$sudoers_tmp"
 
     if [[ "$user_existed" == "true" ]]; then
         SUMMARY_USER="configured sudo for existing user 'aether'"
