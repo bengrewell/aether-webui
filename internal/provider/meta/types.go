@@ -104,10 +104,12 @@ type ConfigOutput struct {
 
 // ProviderStatus describes a single registered provider's state.
 type ProviderStatus struct {
-	Name          string `json:"name" example:"system" doc:"Provider name"`
-	Enabled       bool   `json:"enabled" example:"true" doc:"Whether the provider is enabled"`
-	Running       bool   `json:"running" example:"true" doc:"Whether the provider is currently running"`
-	EndpointCount int    `json:"endpoint_count" example:"8" doc:"Number of registered endpoints"`
+	Name           string `json:"name" example:"system" doc:"Provider name"`
+	Enabled        bool   `json:"enabled" example:"true" doc:"Whether the provider is enabled"`
+	Running        bool   `json:"running" example:"true" doc:"Whether the provider is currently running"`
+	EndpointCount  int    `json:"endpoint_count" example:"8" doc:"Number of registered endpoints"`
+	Degraded       bool   `json:"degraded,omitempty" example:"false" doc:"Whether the provider is in a degraded state"`
+	DegradedReason string `json:"degraded_reason,omitempty" example:"" doc:"Reason for degraded state, if any"`
 }
 
 // ProvidersInfo holds the list of registered provider statuses.

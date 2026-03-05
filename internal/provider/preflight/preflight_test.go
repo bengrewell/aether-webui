@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io/fs"
 	"net"
+	"os"
 	"os/user"
 	"strings"
 	"testing"
@@ -40,6 +41,9 @@ func testDeps(t *testing.T) CheckDeps {
 			return nil, errStub
 		},
 		DialTimeout: func(string, string, time.Duration) (net.Conn, error) {
+			return nil, errStub
+		},
+		Stat: func(string) (os.FileInfo, error) {
 			return nil, errStub
 		},
 	}
@@ -145,10 +149,14 @@ func TestCheckRequiredPackages_AllFound(t *testing.T) {
 	deps := testDeps(t)
 	deps.LookPath = func(name string) (string, error) {
 		switch name {
+		case "git":
+			return "/usr/bin/git", nil
 		case "make":
 			return "/usr/bin/make", nil
 		case "ansible-playbook":
 			return "/usr/bin/ansible-playbook", nil
+		case "sshd":
+			return "/usr/sbin/sshd", nil
 		}
 		return "", errors.New("not found")
 	}
@@ -159,16 +167,48 @@ func TestCheckRequiredPackages_AllFound(t *testing.T) {
 	if !r.Passed {
 		t.Errorf("expected Passed=true, message=%q", r.Message)
 	}
-	if !strings.Contains(r.Message, "make") || !strings.Contains(r.Message, "ansible-playbook") {
-		t.Errorf("message = %q, expected both package names", r.Message)
+	if !strings.Contains(r.Message, "git") || !strings.Contains(r.Message, "make") || !strings.Contains(r.Message, "ansible-playbook") || !strings.Contains(r.Message, "sshd") {
+		t.Errorf("message = %q, expected all package names", r.Message)
+	}
+}
+
+func TestCheckRequiredPackages_SshdFallbackPath(t *testing.T) {
+	deps := testDeps(t)
+	deps.LookPath = func(name string) (string, error) {
+		switch name {
+		case "git":
+			return "/usr/bin/git", nil
+		case "make":
+			return "/usr/bin/make", nil
+		case "ansible-playbook":
+			return "/usr/bin/ansible-playbook", nil
+		}
+		// sshd not on PATH.
+		return "", errors.New("not found")
+	}
+	deps.Stat = func(path string) (os.FileInfo, error) {
+		if path == "/usr/sbin/sshd" {
+			return nil, nil // file exists
+		}
+		return nil, errors.New("not found")
+	}
+
+	check := checkRequiredPackages()
+	r := check.RunCheck(t.Context(), deps)
+
+	if !r.Passed {
+		t.Errorf("expected Passed=true via fallback path, message=%q", r.Message)
+	}
+	if !strings.Contains(r.Message, "/usr/sbin/sshd") {
+		t.Errorf("message = %q, expected fallback path mention", r.Message)
 	}
 }
 
 func TestCheckRequiredPackages_SomeMissing(t *testing.T) {
 	deps := testDeps(t)
 	deps.LookPath = func(name string) (string, error) {
-		if name == "make" {
-			return "/usr/bin/make", nil
+		if name == "git" || name == "make" || name == "sshd" {
+			return "/usr/bin/" + name, nil
 		}
 		return "", errors.New("not found")
 	}
@@ -197,8 +237,8 @@ func TestCheckRequiredPackages_AllMissing(t *testing.T) {
 	if r.Passed {
 		t.Error("expected Passed=false")
 	}
-	if !strings.Contains(r.Message, "make") || !strings.Contains(r.Message, "ansible-playbook") {
-		t.Errorf("message = %q, expected both missing package names", r.Message)
+	if !strings.Contains(r.Message, "git") || !strings.Contains(r.Message, "make") || !strings.Contains(r.Message, "ansible-playbook") || !strings.Contains(r.Message, "sshd") {
+		t.Errorf("message = %q, expected all missing package names", r.Message)
 	}
 	if !r.CanFix {
 		t.Error("expected CanFix=true")
@@ -207,9 +247,11 @@ func TestCheckRequiredPackages_AllMissing(t *testing.T) {
 
 func TestCheckRequiredPackages_FixWithApt(t *testing.T) {
 	deps := testDeps(t)
-	// make is missing, ansible-playbook is present.
+	// make is missing, git and ansible-playbook are present.
 	deps.LookPath = func(name string) (string, error) {
 		switch name {
+		case "git":
+			return "/usr/bin/git", nil
 		case "ansible-playbook":
 			return "/usr/bin/ansible-playbook", nil
 		case "apt-get":
@@ -217,9 +259,9 @@ func TestCheckRequiredPackages_FixWithApt(t *testing.T) {
 		}
 		return "", errors.New("not found")
 	}
-	var ranCmd string
+	var commands []string
 	deps.RunCommand = func(ctx context.Context, name string, args ...string) ([]byte, error) {
-		ranCmd = name + " " + strings.Join(args, " ")
+		commands = append(commands, name+" "+strings.Join(args, " "))
 		return []byte("ok"), nil
 	}
 
@@ -229,11 +271,24 @@ func TestCheckRequiredPackages_FixWithApt(t *testing.T) {
 	if !r.Applied {
 		t.Errorf("expected Applied=true, error=%q, message=%q", r.Error, r.Message)
 	}
-	if !strings.Contains(ranCmd, "apt-get") {
-		t.Errorf("expected apt-get in command, got %q", ranCmd)
+
+	// commands[0] = sudo -n true (canSudo probe)
+	// commands[1] = apt-get update
+	// commands[2] = apt-get install
+	var hasUpdate, hasInstall bool
+	for _, cmd := range commands {
+		if strings.Contains(cmd, "apt-get") && strings.Contains(cmd, "update") {
+			hasUpdate = true
+		}
+		if strings.Contains(cmd, "apt-get") && strings.Contains(cmd, "install") && strings.Contains(cmd, "make") {
+			hasInstall = true
+		}
 	}
-	if !strings.Contains(ranCmd, "make") {
-		t.Errorf("expected 'make' package in command, got %q", ranCmd)
+	if !hasUpdate {
+		t.Errorf("expected apt-get update command, got %v", commands)
+	}
+	if !hasInstall {
+		t.Errorf("expected apt-get install with 'make', got %v", commands)
 	}
 }
 
@@ -242,6 +297,8 @@ func TestCheckRequiredPackages_FixWithApt_AnsiblePPA(t *testing.T) {
 	// ansible-playbook is missing, apt-get is the package manager.
 	deps.LookPath = func(name string) (string, error) {
 		switch name {
+		case "git":
+			return "/usr/bin/git", nil
 		case "make":
 			return "/usr/bin/make", nil
 		case "apt-get":
@@ -262,18 +319,21 @@ func TestCheckRequiredPackages_FixWithApt_AnsiblePPA(t *testing.T) {
 		t.Errorf("expected Applied=true, error=%q, message=%q", r.Error, r.Message)
 	}
 
-	// Verify PPA setup ran before the install.
-	if len(commands) < 3 {
-		t.Fatalf("expected at least 3 commands (software-properties-common, add-apt-repository, install), got %d: %v", len(commands), commands)
+	// commands: [0]=sudo -n true, [1]=software-properties-common, [2]=add-apt-repository, [3]=apt-get update, [4]=apt-get install
+	if len(commands) < 5 {
+		t.Fatalf("expected at least 5 commands (sudo probe, software-properties-common, add-apt-repository, update, install), got %d: %v", len(commands), commands)
 	}
-	if !strings.Contains(commands[0], "software-properties-common") {
-		t.Errorf("first command should install software-properties-common, got %q", commands[0])
+	if !strings.Contains(commands[1], "software-properties-common") {
+		t.Errorf("second command should install software-properties-common, got %q", commands[1])
 	}
-	if !(strings.Contains(commands[1], "add-apt-repository") && strings.Contains(commands[1], "ppa:ansible/ansible")) {
-		t.Errorf("second command should add Ansible PPA, got %q", commands[1])
+	if !(strings.Contains(commands[2], "add-apt-repository") && strings.Contains(commands[2], "ppa:ansible/ansible")) {
+		t.Errorf("third command should add Ansible PPA, got %q", commands[2])
 	}
-	if !strings.Contains(commands[2], "ansible") {
-		t.Errorf("third command should install ansible, got %q", commands[2])
+	if !strings.Contains(commands[3], "update") {
+		t.Errorf("fourth command should be apt-get update, got %q", commands[3])
+	}
+	if !strings.Contains(commands[4], "ansible") {
+		t.Errorf("fifth command should install ansible, got %q", commands[4])
 	}
 }
 
@@ -574,17 +634,11 @@ func TestFindSSHDirective(t *testing.T) {
 // aether-user-configured check
 // ---------------------------------------------------------------------------
 
-func TestCheckAetherUserConfigured_ExistsWithSudoers(t *testing.T) {
+func TestCheckAetherUserConfigured_Exists(t *testing.T) {
 	deps := testDeps(t)
 	deps.LookupUser = func(name string) (*user.User, error) {
 		if name == "aether" {
 			return &user.User{Uid: "1001", Username: "aether"}, nil
-		}
-		return nil, errors.New("not found")
-	}
-	deps.ReadFile = func(path string) ([]byte, error) {
-		if path == "/etc/sudoers.d/aether" {
-			return []byte("aether ALL=(ALL) NOPASSWD: ALL\n"), nil
 		}
 		return nil, errors.New("not found")
 	}
@@ -598,26 +652,11 @@ func TestCheckAetherUserConfigured_ExistsWithSudoers(t *testing.T) {
 	if !strings.Contains(r.Message, "1001") {
 		t.Errorf("message = %q, expected uid mention", r.Message)
 	}
-}
-
-func TestCheckAetherUserConfigured_ExistsWithoutSudoers(t *testing.T) {
-	deps := testDeps(t)
-	deps.LookupUser = func(name string) (*user.User, error) {
-		if name == "aether" {
-			return &user.User{Uid: "1001", Username: "aether"}, nil
-		}
-		return nil, errors.New("not found")
+	if r.Notes == "" {
+		t.Error("expected Notes with sudo verification guidance")
 	}
-	// ReadFile defaults to error for sudoers path.
-
-	check := checkAetherUserConfigured()
-	r := check.RunCheck(t.Context(), deps)
-
-	if r.Passed {
-		t.Error("expected Passed=false (no sudoers)")
-	}
-	if r.Details == "" {
-		t.Error("expected Details about missing sudoers")
+	if !strings.Contains(r.Notes, "sudo") {
+		t.Errorf("notes = %q, expected sudo verification guidance", r.Notes)
 	}
 }
 
@@ -662,11 +701,11 @@ func TestCheckNodeSSHReachable_NoNodes(t *testing.T) {
 	check := checkNodeSSHReachable()
 	r := check.RunCheck(t.Context(), deps)
 
-	if !r.Passed {
-		t.Error("expected Passed=true when no nodes")
+	if r.Passed {
+		t.Error("expected Passed=false when no nodes registered")
 	}
-	if !strings.Contains(r.Message, "no managed nodes") {
-		t.Errorf("message = %q, expected 'no managed nodes'", r.Message)
+	if !strings.Contains(r.Message, "no managed nodes registered") {
+		t.Errorf("message = %q, expected 'no managed nodes registered'", r.Message)
 	}
 }
 
@@ -942,6 +981,177 @@ func TestHandleFixCheck_NotFound(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "not found") {
 		t.Errorf("error = %q, should mention 'not found'", err)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// canSudo tests
+// ---------------------------------------------------------------------------
+
+func TestCanSudo_Available(t *testing.T) {
+	deps := testDeps(t)
+	deps.RunCommand = func(ctx context.Context, name string, args ...string) ([]byte, error) {
+		return []byte(""), nil
+	}
+	if !canSudo(t.Context(), deps) {
+		t.Error("expected canSudo=true when sudo -n true succeeds")
+	}
+}
+
+func TestCanSudo_Unavailable(t *testing.T) {
+	deps := testDeps(t)
+	deps.RunCommand = func(ctx context.Context, name string, args ...string) ([]byte, error) {
+		return nil, errors.New("sudo: a password is required")
+	}
+	if canSudo(t.Context(), deps) {
+		t.Error("expected canSudo=false when sudo -n true fails")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// No-sudo graceful degradation tests
+// ---------------------------------------------------------------------------
+
+func TestFixRequiredPackages_NoSudo(t *testing.T) {
+	deps := testDeps(t)
+	deps.LookPath = func(name string) (string, error) {
+		if name == "apt-get" {
+			return "/usr/bin/apt-get", nil
+		}
+		return "", errors.New("not found")
+	}
+	deps.RunCommand = func(ctx context.Context, name string, args ...string) ([]byte, error) {
+		// sudo -n true fails.
+		return nil, errors.New("sudo: a password is required")
+	}
+
+	check := checkRequiredPackages()
+	r := check.RunFix(t.Context(), deps)
+
+	if r.Applied {
+		t.Error("expected Applied=false when sudo unavailable")
+	}
+	if !strings.Contains(r.Error, "cannot elevate") {
+		t.Errorf("error = %q, expected privilege escalation message", r.Error)
+	}
+	if !strings.Contains(r.Message, "sudo") {
+		t.Errorf("message = %q, expected manual instructions with sudo", r.Message)
+	}
+}
+
+func TestFixSSHConfigured_NoSudo(t *testing.T) {
+	deps := testDeps(t)
+	deps.RunCommand = func(ctx context.Context, name string, args ...string) ([]byte, error) {
+		return nil, errors.New("sudo: a password is required")
+	}
+
+	check := checkSSHConfigured()
+	r := check.RunFix(t.Context(), deps)
+
+	if r.Applied {
+		t.Error("expected Applied=false when sudo unavailable")
+	}
+	if !strings.Contains(r.Error, "cannot elevate") {
+		t.Errorf("error = %q, expected privilege escalation message", r.Error)
+	}
+	if !strings.Contains(r.Message, "tee") {
+		t.Errorf("message = %q, expected manual instructions", r.Message)
+	}
+}
+
+func TestFixAetherUser_NoSudo(t *testing.T) {
+	deps := testDeps(t)
+	deps.LookupUser = func(name string) (*user.User, error) {
+		return nil, errors.New("not found")
+	}
+	deps.RunCommand = func(ctx context.Context, name string, args ...string) ([]byte, error) {
+		return nil, errors.New("sudo: a password is required")
+	}
+
+	check := checkAetherUserConfigured()
+	r := check.RunFix(t.Context(), deps)
+
+	if r.Applied {
+		t.Error("expected Applied=false when sudo unavailable")
+	}
+	if !strings.Contains(r.Error, "cannot elevate") {
+		t.Errorf("error = %q, expected privilege escalation message", r.Error)
+	}
+	if !strings.Contains(r.Message, "useradd") {
+		t.Errorf("message = %q, expected manual useradd instruction", r.Message)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Error output inclusion tests
+// ---------------------------------------------------------------------------
+
+func TestFixRequiredPackages_ErrorIncludesOutput(t *testing.T) {
+	deps := testDeps(t)
+	deps.LookPath = func(name string) (string, error) {
+		if name == "dnf" {
+			return "/usr/bin/dnf", nil
+		}
+		return "", errors.New("not found")
+	}
+	deps.RunCommand = func(ctx context.Context, name string, args ...string) ([]byte, error) {
+		cmd := name + " " + strings.Join(args, " ")
+		if strings.Contains(cmd, "dnf") && strings.Contains(cmd, "install") {
+			return []byte("E: Unable to locate package"), errors.New("exit status 100")
+		}
+		return []byte("ok"), nil
+	}
+
+	check := checkRequiredPackages()
+	r := check.RunFix(t.Context(), deps)
+
+	if r.Applied {
+		t.Error("expected Applied=false")
+	}
+	if !strings.Contains(r.Error, "Unable to locate package") {
+		t.Errorf("error = %q, expected command output in error", r.Error)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// DEBIAN_FRONTEND=noninteractive tests
+// ---------------------------------------------------------------------------
+
+func TestFixRequiredPackages_DebianFrontend(t *testing.T) {
+	deps := testDeps(t)
+	deps.LookPath = func(name string) (string, error) {
+		switch name {
+		case "git":
+			return "/usr/bin/git", nil
+		case "ansible-playbook":
+			return "/usr/bin/ansible-playbook", nil
+		case "apt-get":
+			return "/usr/bin/apt-get", nil
+		}
+		return "", errors.New("not found")
+	}
+	var commands []string
+	deps.RunCommand = func(ctx context.Context, name string, args ...string) ([]byte, error) {
+		commands = append(commands, name+" "+strings.Join(args, " "))
+		return []byte("ok"), nil
+	}
+
+	check := checkRequiredPackages()
+	r := check.RunFix(t.Context(), deps)
+
+	if !r.Applied {
+		t.Fatalf("expected Applied=true, error=%q", r.Error)
+	}
+
+	var hasNoninteractive bool
+	for _, cmd := range commands {
+		if strings.Contains(cmd, "DEBIAN_FRONTEND=noninteractive") {
+			hasNoninteractive = true
+			break
+		}
+	}
+	if !hasNoninteractive {
+		t.Errorf("expected DEBIAN_FRONTEND=noninteractive in apt commands, got %v", commands)
 	}
 }
 

@@ -31,10 +31,12 @@ func (o *OnRamp) handleGetRepoStatus(_ context.Context, _ *struct{}) (*RepoStatu
 func (o *OnRamp) handleRefreshRepo(_ context.Context, _ *struct{}) (*RepoRefreshOutput, error) {
 	log := o.Log()
 	if err := ensureRepo(o.config, log); err != nil {
+		o.SetDegraded(fmt.Sprintf("repo setup: %v", err))
 		status := o.gatherRepoStatus()
 		status.Error = err.Error()
 		return &RepoRefreshOutput{Body: status}, nil
 	}
+	o.ClearDegraded()
 	status := o.gatherRepoStatus()
 	return &RepoRefreshOutput{Body: status}, nil
 }
