@@ -69,15 +69,15 @@ detect_package_manager() {
     return 1
 }
 
-# Install required packages (git, make, ansible, sshd) if missing.
+# Install required packages (git, make, ansible, sshd, iptables) if missing.
 install_packages() {
     local missing=()
 
-    for bin in git make ansible-playbook sshd; do
+    for bin in git make ansible-playbook sshd iptables; do
         if ! command -v "$bin" &>/dev/null; then
-            # sshd is often in /usr/sbin which may not be on PATH.
-            if [[ "$bin" == "sshd" ]]; then
-                if [[ -x /usr/sbin/sshd ]] || [[ -x /sbin/sshd ]]; then
+            # sshd and iptables are often in /usr/sbin which may not be on PATH.
+            if [[ "$bin" == "sshd" || "$bin" == "iptables" ]]; then
+                if [[ -x "/usr/sbin/$bin" ]] || [[ -x "/sbin/$bin" ]]; then
                     continue
                 fi
             fi
@@ -86,8 +86,8 @@ install_packages() {
     done
 
     if [[ ${#missing[@]} -eq 0 ]]; then
-        log_info "Required packages already installed (git, make, ansible, sshd)"
-        SUMMARY_PACKAGES="already installed (git, make, ansible, sshd)"
+        log_info "Required packages already installed (git, make, ansible, sshd, iptables)"
+        SUMMARY_PACKAGES="already installed (git, make, ansible, sshd, iptables)"
         return
     fi
 
@@ -139,6 +139,9 @@ install_packages() {
                 ;;
             sshd)
                 pkgs+=("openssh-server")
+                ;;
+            iptables)
+                pkgs+=("iptables")
                 ;;
         esac
     done
