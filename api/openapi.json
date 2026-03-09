@@ -41,6 +41,16 @@
             "$ref": "#/components/schemas/StoreConfig"
           }
         },
+        "required": [
+          "roc_models",
+          "monitor_dashboard",
+          "aether_roc",
+          "atomix",
+          "onosproject",
+          "store",
+          "monitor",
+          "monitor_crd"
+        ],
         "type": "object"
       },
       "Action": {
@@ -60,6 +70,75 @@
           "name",
           "description",
           "target"
+        ],
+        "type": "object"
+      },
+      "ActionHistoryItem": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/ActionHistoryItem.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "action": {
+            "type": "string"
+          },
+          "component": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          },
+          "exit_code": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "finished_at": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "id": {
+            "type": "string"
+          },
+          "labels": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "started_at": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "status": {
+            "type": "string"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "target": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "component",
+          "action",
+          "target",
+          "status",
+          "exit_code",
+          "started_at"
         ],
         "type": "object"
       },
@@ -211,6 +290,41 @@
         ],
         "type": "object"
       },
+      "ComponentStateItem": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/ComponentStateItem.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "action_id": {
+            "type": "string"
+          },
+          "component": {
+            "type": "string"
+          },
+          "last_action": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "component",
+          "status"
+        ],
+        "type": "object"
+      },
       "ConfigInfo": {
         "additionalProperties": false,
         "properties": {
@@ -292,7 +406,10 @@
             "type": "string"
           },
           "standalone": {
-            "type": "boolean"
+            "type": [
+              "boolean",
+              "null"
+            ]
           },
           "upf": {
             "$ref": "#/components/schemas/UPFConfig"
@@ -301,6 +418,16 @@
             "type": "string"
           }
         },
+        "required": [
+          "standalone",
+          "data_iface",
+          "values_file",
+          "ran_subnet",
+          "helm",
+          "upf",
+          "amf",
+          "mme"
+        ],
         "type": "object"
       },
       "DiagnosticCheck": {
@@ -447,6 +574,36 @@
         },
         "type": "object"
       },
+      "ExecuteActionBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/ExecuteActionBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "labels": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
       "FrontendConfig": {
         "additionalProperties": false,
         "properties": {
@@ -501,6 +658,11 @@
             "type": "object"
           }
         },
+        "required": [
+          "docker",
+          "router",
+          "servers"
+        ],
         "type": "object"
       },
       "GNBSimContainer": {
@@ -534,6 +696,10 @@
             "$ref": "#/components/schemas/GNBSimNetwork"
           }
         },
+        "required": [
+          "container",
+          "network"
+        ],
         "type": "object"
       },
       "GNBSimMacvlan": {
@@ -555,6 +721,9 @@
             "$ref": "#/components/schemas/GNBSimMacvlan"
           }
         },
+        "required": [
+          "macvlan"
+        ],
         "type": "object"
       },
       "GNBSimRouter": {
@@ -567,6 +736,10 @@
             "$ref": "#/components/schemas/GNBSimRouterMacvlan"
           }
         },
+        "required": [
+          "data_iface",
+          "macvlan"
+        ],
         "type": "object"
       },
       "GNBSimRouterMacvlan": {
@@ -612,6 +785,9 @@
             "$ref": "#/components/schemas/HelmRef"
           }
         },
+        "required": [
+          "helm"
+        ],
         "type": "object"
       },
       "HelmRef": {
@@ -624,12 +800,21 @@
             "type": "string"
           },
           "local_charts": {
-            "type": "boolean"
+            "type": [
+              "boolean",
+              "null"
+            ]
           },
           "version": {
             "type": "string"
           }
         },
+        "required": [
+          "version",
+          "local_charts",
+          "chart_ref",
+          "chart_version"
+        ],
         "type": "object"
       },
       "InventoryData": {
@@ -724,6 +909,10 @@
             "$ref": "#/components/schemas/RKE2Config"
           }
         },
+        "required": [
+          "rke2",
+          "helm"
+        ],
         "type": "object"
       },
       "LPPConfig": {
@@ -1023,6 +1212,10 @@
             "type": "object"
           }
         },
+        "required": [
+          "docker",
+          "servers"
+        ],
         "type": "object"
       },
       "N3IWFDocker": {
@@ -1035,6 +1228,10 @@
             "$ref": "#/components/schemas/N3IWFNetwork"
           }
         },
+        "required": [
+          "image",
+          "network"
+        ],
         "type": "object"
       },
       "N3IWFNetwork": {
@@ -1319,9 +1516,17 @@
             "type": "object"
           },
           "simulation": {
-            "type": "boolean"
+            "type": [
+              "boolean",
+              "null"
+            ]
           }
         },
+        "required": [
+          "docker",
+          "simulation",
+          "servers"
+        ],
         "type": "object"
       },
       "OAIContainer": {
@@ -1350,6 +1555,10 @@
             "$ref": "#/components/schemas/OAINetwork"
           }
         },
+        "required": [
+          "container",
+          "network"
+        ],
         "type": "object"
       },
       "OAINetwork": {
@@ -1368,6 +1577,12 @@
             "type": "string"
           }
         },
+        "required": [
+          "data_iface",
+          "name",
+          "subnet",
+          "bridge"
+        ],
         "type": "object"
       },
       "OAIServer": {
@@ -1505,6 +1720,17 @@
             "$ref": "#/components/schemas/UERANSIMConfig"
           }
         },
+        "required": [
+          "k8s",
+          "core",
+          "gnbsim",
+          "amp",
+          "sdran",
+          "ueransim",
+          "oai",
+          "srsran",
+          "n3iwf"
+        ],
         "type": "object"
       },
       "OnRampTask": {
@@ -1561,6 +1787,7 @@
           "target",
           "status",
           "started_at",
+          "exit_code",
           "output",
           "output_offset"
         ],
@@ -1702,6 +1929,20 @@
       "ProviderStatus": {
         "additionalProperties": false,
         "properties": {
+          "degraded": {
+            "description": "Whether the provider is in a degraded state",
+            "examples": [
+              false
+            ],
+            "type": "boolean"
+          },
+          "degraded_reason": {
+            "description": "Reason for degraded state, if any",
+            "examples": [
+              ""
+            ],
+            "type": "string"
+          },
           "enabled": {
             "description": "Whether the provider is enabled",
             "examples": [
@@ -1777,6 +2018,10 @@
             "type": "string"
           }
         },
+        "required": [
+          "model",
+          "metric"
+        ],
         "type": "object"
       },
       "RKE2Config": {
@@ -1790,7 +2035,8 @@
           }
         },
         "required": [
-          "version"
+          "version",
+          "config"
         ],
         "type": "object"
       },
@@ -1810,7 +2056,8 @@
         },
         "required": [
           "token",
-          "port"
+          "port",
+          "params_file"
         ],
         "type": "object"
       },
@@ -1933,45 +2180,95 @@
             "$ref": "#/components/schemas/SDRANInner"
           }
         },
+        "required": [
+          "platform",
+          "sdran"
+        ],
         "type": "object"
       },
       "SDRANImport": {
         "additionalProperties": false,
         "properties": {
           "a1t": {
-            "type": "boolean"
+            "type": [
+              "boolean",
+              "null"
+            ]
           },
           "config": {
-            "type": "boolean"
+            "type": [
+              "boolean",
+              "null"
+            ]
           },
           "e2t": {
-            "type": "boolean"
+            "type": [
+              "boolean",
+              "null"
+            ]
           },
           "kpimon": {
-            "type": "boolean"
+            "type": [
+              "boolean",
+              "null"
+            ]
           },
           "mho": {
-            "type": "boolean"
+            "type": [
+              "boolean",
+              "null"
+            ]
           },
           "mlb": {
-            "type": "boolean"
+            "type": [
+              "boolean",
+              "null"
+            ]
           },
           "pci": {
-            "type": "boolean"
+            "type": [
+              "boolean",
+              "null"
+            ]
           },
           "ransim": {
-            "type": "boolean"
+            "type": [
+              "boolean",
+              "null"
+            ]
           },
           "topo": {
-            "type": "boolean"
+            "type": [
+              "boolean",
+              "null"
+            ]
           },
           "ts": {
-            "type": "boolean"
+            "type": [
+              "boolean",
+              "null"
+            ]
           },
           "uenib": {
-            "type": "boolean"
+            "type": [
+              "boolean",
+              "null"
+            ]
           }
         },
+        "required": [
+          "e2t",
+          "a1t",
+          "uenib",
+          "topo",
+          "config",
+          "ransim",
+          "kpimon",
+          "pci",
+          "mho",
+          "mlb",
+          "ts"
+        ],
         "type": "object"
       },
       "SDRANInner": {
@@ -1987,6 +2284,11 @@
             "$ref": "#/components/schemas/RANSimConfig"
           }
         },
+        "required": [
+          "helm",
+          "import",
+          "ransim"
+        ],
         "type": "object"
       },
       "SDRANPlatform": {
@@ -2002,6 +2304,11 @@
             "$ref": "#/components/schemas/StoreConfig"
           }
         },
+        "required": [
+          "atomix",
+          "onosproject",
+          "store"
+        ],
         "type": "object"
       },
       "SRSRanConfig": {
@@ -2017,9 +2324,17 @@
             "type": "object"
           },
           "simulation": {
-            "type": "boolean"
+            "type": [
+              "boolean",
+              "null"
+            ]
           }
         },
+        "required": [
+          "docker",
+          "simulation",
+          "servers"
+        ],
         "type": "object"
       },
       "SRSRanContainer": {
@@ -2048,6 +2363,10 @@
             "$ref": "#/components/schemas/SRSRanNetwork"
           }
         },
+        "required": [
+          "container",
+          "network"
+        ],
         "type": "object"
       },
       "SRSRanNetwork": {
@@ -2188,6 +2507,9 @@
             "$ref": "#/components/schemas/LPPConfig"
           }
         },
+        "required": [
+          "lpp"
+        ],
         "type": "object"
       },
       "StoreInfo": {
@@ -2273,6 +2595,10 @@
             "type": "object"
           }
         },
+        "required": [
+          "gnb",
+          "servers"
+        ],
         "type": "object"
       },
       "UERANSIMGnb": {
@@ -2328,12 +2654,25 @@
             "type": "string"
           },
           "multihop_gnb": {
-            "type": "boolean"
+            "type": [
+              "boolean",
+              "null"
+            ]
           },
           "values_file": {
             "type": "string"
           }
         },
+        "required": [
+          "access_subnet",
+          "core_subnet",
+          "mode",
+          "multihop_gnb",
+          "helm",
+          "values_file",
+          "default_upf",
+          "additional_upfs"
+        ],
         "type": "object"
       },
       "UPFIP": {
@@ -2362,6 +2701,10 @@
             "type": "string"
           }
         },
+        "required": [
+          "ip",
+          "ue_ip_pool"
+        ],
         "type": "object"
       },
       "UserInfo": {
@@ -2862,6 +3205,144 @@
         ]
       }
     },
+    "/api/v1/onramp/actions": {
+      "get": {
+        "description": "Returns paginated action execution history, filterable by component, action, and status.",
+        "operationId": "onramp-list-actions",
+        "parameters": [
+          {
+            "description": "Filter by component name",
+            "explode": false,
+            "in": "query",
+            "name": "component",
+            "schema": {
+              "description": "Filter by component name",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by action name",
+            "explode": false,
+            "in": "query",
+            "name": "action",
+            "schema": {
+              "description": "Filter by action name",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by status",
+            "explode": false,
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "description": "Filter by status",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Max results",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "description": "Max results",
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Pagination offset",
+            "explode": false,
+            "in": "query",
+            "name": "offset",
+            "schema": {
+              "default": 0,
+              "description": "Pagination offset",
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ActionHistoryItem"
+                  },
+                  "type": [
+                    "array",
+                    "null"
+                  ]
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List action history",
+        "tags": [
+          "onramp"
+        ]
+      }
+    },
+    "/api/v1/onramp/actions/{id}": {
+      "get": {
+        "description": "Returns a single action execution record by ID.",
+        "operationId": "onramp-get-action",
+        "parameters": [
+          {
+            "description": "Action ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Action ID",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActionHistoryItem"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get action detail",
+        "tags": [
+          "onramp"
+        ]
+      }
+    },
     "/api/v1/onramp/components": {
       "get": {
         "description": "Returns all available OnRamp components and their actions.",
@@ -2970,6 +3451,15 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExecuteActionBody"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "content": {
@@ -3037,6 +3527,13 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/OnRampConfig"
+              }
+            },
+            "application/octet-stream": {
+              "schema": {
+                "contentMediaType": "application/octet-stream",
+                "format": "binary",
+                "type": "string"
               }
             }
           },
@@ -3319,6 +3816,88 @@
           }
         },
         "summary": "Refresh OnRamp repo",
+        "tags": [
+          "onramp"
+        ]
+      }
+    },
+    "/api/v1/onramp/state": {
+      "get": {
+        "description": "Returns the current deployment state of all components. Components with no history default to not_installed.",
+        "operationId": "onramp-list-state",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ComponentStateItem"
+                  },
+                  "type": [
+                    "array",
+                    "null"
+                  ]
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List component states",
+        "tags": [
+          "onramp"
+        ]
+      }
+    },
+    "/api/v1/onramp/state/{component}": {
+      "get": {
+        "description": "Returns the current deployment state of a single component.",
+        "operationId": "onramp-get-state",
+        "parameters": [
+          {
+            "description": "Component name",
+            "in": "path",
+            "name": "component",
+            "required": true,
+            "schema": {
+              "description": "Component name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComponentStateItem"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get component state",
         "tags": [
           "onramp"
         ]
