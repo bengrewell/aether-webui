@@ -157,6 +157,8 @@ func TestCheckRequiredPackages_AllFound(t *testing.T) {
 			return "/usr/bin/ansible-playbook", nil
 		case "sshd":
 			return "/usr/sbin/sshd", nil
+		case "iptables":
+			return "/usr/sbin/iptables", nil
 		}
 		return "", errors.New("not found")
 	}
@@ -167,12 +169,12 @@ func TestCheckRequiredPackages_AllFound(t *testing.T) {
 	if !r.Passed {
 		t.Errorf("expected Passed=true, message=%q", r.Message)
 	}
-	if !strings.Contains(r.Message, "git") || !strings.Contains(r.Message, "make") || !strings.Contains(r.Message, "ansible-playbook") || !strings.Contains(r.Message, "sshd") {
+	if !strings.Contains(r.Message, "git") || !strings.Contains(r.Message, "make") || !strings.Contains(r.Message, "ansible-playbook") || !strings.Contains(r.Message, "sshd") || !strings.Contains(r.Message, "iptables") {
 		t.Errorf("message = %q, expected all package names", r.Message)
 	}
 }
 
-func TestCheckRequiredPackages_SshdFallbackPath(t *testing.T) {
+func TestCheckRequiredPackages_SbinFallbackPath(t *testing.T) {
 	deps := testDeps(t)
 	deps.LookPath = func(name string) (string, error) {
 		switch name {
@@ -183,11 +185,11 @@ func TestCheckRequiredPackages_SshdFallbackPath(t *testing.T) {
 		case "ansible-playbook":
 			return "/usr/bin/ansible-playbook", nil
 		}
-		// sshd not on PATH.
+		// sshd and iptables not on PATH.
 		return "", errors.New("not found")
 	}
 	deps.Stat = func(path string) (os.FileInfo, error) {
-		if path == "/usr/sbin/sshd" {
+		if path == "/usr/sbin/sshd" || path == "/usr/sbin/iptables" {
 			return nil, nil // file exists
 		}
 		return nil, errors.New("not found")
@@ -200,7 +202,10 @@ func TestCheckRequiredPackages_SshdFallbackPath(t *testing.T) {
 		t.Errorf("expected Passed=true via fallback path, message=%q", r.Message)
 	}
 	if !strings.Contains(r.Message, "/usr/sbin/sshd") {
-		t.Errorf("message = %q, expected fallback path mention", r.Message)
+		t.Errorf("message = %q, expected sshd fallback path mention", r.Message)
+	}
+	if !strings.Contains(r.Message, "/usr/sbin/iptables") {
+		t.Errorf("message = %q, expected iptables fallback path mention", r.Message)
 	}
 }
 

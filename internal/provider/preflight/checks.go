@@ -40,13 +40,15 @@ var requiredBinaries = []struct {
 	{"make", "make", "make"},
 	{"ansible-playbook", "ansible", "ansible"},
 	{"sshd", "openssh-server", "openssh-server"},
+	{"iptables", "iptables", "iptables"},
 }
 
-// sshdFallbackPaths lists common absolute paths for sshd, which is often
-// installed in /usr/sbin or /sbin and may not be on the service's PATH.
-var sshdFallbackPaths = []string{
-	"/usr/sbin/sshd",
-	"/sbin/sshd",
+// sbinFallbackPaths maps binaries that are commonly installed in /usr/sbin
+// or /sbin (which may not be on PATH when running as a service) to their
+// known absolute paths.
+var sbinFallbackPaths = map[string][]string{
+	"sshd":     {"/usr/sbin/sshd", "/sbin/sshd"},
+	"iptables": {"/usr/sbin/iptables", "/sbin/iptables"},
 }
 
 // packageManagers lists known package manager binaries in preference order.
@@ -67,23 +69,23 @@ func checkRequiredPackages() Check {
 	return Check{
 		ID:          "required-packages",
 		Name:        "Required Packages",
-		Description: "Checks that required build and deployment tools (git, make, ansible, sshd) are installed.",
+		Description: "Checks that required build and deployment tools (git, make, ansible, sshd, iptables) are installed.",
 		Severity:    SeverityRequired,
 		Category:    CategoryTooling,
 		FixWarning:  "This will install system packages using the detected package manager (apt-get, dnf, or yum). On Debian/Ubuntu, the Ansible PPA may be added if ansible is missing.",
 		RunCheck: func(ctx context.Context, deps CheckDeps) CheckResult {
 			r := newResult("required-packages", "Required Packages",
-				"Checks that required build and deployment tools (git, make, ansible, sshd) are installed.",
+				"Checks that required build and deployment tools (git, make, ansible, sshd, iptables) are installed.",
 				SeverityRequired, CategoryTooling, true)
 			r.FixWarning = "This will install system packages using the detected package manager (apt-get, dnf, or yum). On Debian/Ubuntu, the Ansible PPA may be added if ansible is missing."
 
 			var found, missing []string
 			for _, bin := range requiredBinaries {
 				path, err := deps.LookPath(bin.Name)
-				if err != nil && bin.Name == "sshd" {
-					// sshd is often installed in /usr/sbin which may
-					// not be on PATH when running as a service.
-					for _, fp := range sshdFallbackPaths {
+				if err != nil {
+					// Some binaries live in /usr/sbin or /sbin which
+					// may not be on PATH when running as a service.
+					for _, fp := range sbinFallbackPaths[bin.Name] {
 						if _, serr := deps.Stat(fp); serr == nil {
 							path = fp
 							err = nil

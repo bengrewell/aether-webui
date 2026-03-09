@@ -9,7 +9,7 @@ This page walks through installing Aether WebUI and verifying that the service i
 
 ## Prepare the host
 
-Before installing the service, run the preflight setup script to install required packages (`make`, `ansible`), enable SSH password authentication, and create the `aether` service user:
+Before installing the service, run the preflight setup script to install required packages (`git`, `make`, `ansible`, `openssh-server`, `iptables`), enable SSH password authentication, and create the `aether` service user:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/bengrewell/aether-webui/main/scripts/preflight-setup.sh | sudo bash

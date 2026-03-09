@@ -25,7 +25,7 @@ The preflight setup script fixes all three fixable checks in one pass. If you di
 curl -fsSL https://raw.githubusercontent.com/bengrewell/aether-webui/main/scripts/preflight-setup.sh | sudo bash
 ```
 
-The script installs required packages (`make`, `ansible`), enables SSH password authentication, and creates the `aether` user with passwordless sudo. It is idempotent — running it again skips anything already configured.
+The script installs required packages (`git`, `make`, `ansible`, `openssh-server`, `iptables`), enables SSH password authentication, and creates the `aether` user with passwordless sudo. It is idempotent — running it again skips anything already configured.
 
 After running the script, verify all checks pass via the API or Web UI:
 
@@ -88,7 +88,7 @@ curl http://localhost:8186/api/v1/preflight
 
 | Check | What it verifies | Auto-fix |
 |-------|------------------|----------|
-| Required Packages | `git`, `make`, `ansible-playbook`, and `sshd` are installed | Yes -- installs via apt-get, dnf, or yum |
+| Required Packages | `git`, `make`, `ansible-playbook`, `sshd`, and `iptables` are installed | Yes -- installs via apt-get, dnf, or yum |
 | SSH Configuration | SSH password authentication is enabled | Yes -- writes sshd drop-in config and restarts sshd |
 | Aether User | `aether` user exists (check notes for sudo verification guidance) | Yes -- creates user with sudo access |
 | Node SSH Reachability | All managed nodes are reachable on port 22 | No |
