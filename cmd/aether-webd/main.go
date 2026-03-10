@@ -9,7 +9,9 @@ import (
 	"time"
 
 	"github.com/bengrewell/aether-webui/internal/controller"
+	"github.com/bengrewell/aether-webui/internal/nodefacts"
 	"github.com/bengrewell/aether-webui/internal/provider"
+	"github.com/bengrewell/aether-webui/internal/provider/configdefaults"
 	"github.com/bengrewell/aether-webui/internal/provider/meta"
 	"github.com/bengrewell/aether-webui/internal/provider/nodes"
 	"github.com/bengrewell/aether-webui/internal/provider/onramp"
@@ -167,6 +169,15 @@ func main() {
 				RepoURL:   "https://github.com/opennetworkinglab/aether-onramp.git",
 				Version:   *flagOnRampVersion,
 			}, opts...), nil
+		}),
+		controller.WithProvider("configdefaults", true, func(_ context.Context, _ store.Client, opts []provider.Option) (provider.Provider, error) {
+			dir := *flagOnRampDir
+			if dir == "" {
+				dir = filepath.Join(*flagDataDir, "aether-onramp")
+			}
+			return configdefaults.NewProvider(configdefaults.Config{
+				OnRampDir: dir,
+			}, &nodefacts.SSHGatherer{}, opts...), nil
 		}),
 	)
 	if err != nil {
