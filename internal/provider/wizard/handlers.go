@@ -46,7 +46,10 @@ func (w *Wizard) handleGet(ctx context.Context, _ *struct{}) (*WizardGetOutput, 
 		Status: "running",
 		Limit:  1,
 	})
-	if err == nil && len(running) > 0 {
+	if err != nil {
+		return nil, huma.Error500InternalServerError("failed to list running actions", err)
+	}
+	if len(running) > 0 {
 		r := running[0]
 		activeTask = &ActiveTask{
 			ID:        r.ID,

@@ -24,8 +24,8 @@ type StepStatus struct {
 	CompletedAt *time.Time `json:"completed_at"`
 }
 
-// ActiveTask describes a currently running onramp task, included in the wizard
-// state so the frontend can resume monitoring after a page refresh.
+// ActiveTask describes a currently running deployment action, included in the
+// wizard state so the frontend can resume monitoring after a page refresh.
 type ActiveTask struct {
 	ID        string `json:"id"`
 	Component string `json:"component"`
