@@ -140,7 +140,13 @@ All API requests (except [public paths](./api-overview.md)) require the header `
 aether-webd --cors-origins http://localhost:5173
 ```
 
-Multiple origins can be comma-separated. Use `*` to allow all origins (not recommended for production).
+Multiple origins can be comma-separated. Use `'*'` (quoted to prevent shell glob expansion) to allow all origins (not recommended for production):
+
+```bash
+aether-webd --cors-origins '*'
+# or via environment variable
+AETHER_CORS_ORIGINS='*' aether-webd
+```
 
 ### API-only mode (no frontend)
 
