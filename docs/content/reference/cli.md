@@ -32,6 +32,7 @@ aether-webd [options]
 | `--api-token` | `AETHER_API_TOKEN` | Bearer token for API authentication | - |
 | `--encryption-key` | `AETHER_ENCRYPTION_KEY` | 32-byte encryption key for node passwords (auto-generated if not provided) | - |
 | `-r, --enable-rbac` | `AETHER_ENABLE_RBAC` | Enable RBAC authentication/authorization | `false` |
+| `--cors-origins` | `AETHER_CORS_ORIGINS` | Comma-separated list of allowed CORS origins (e.g., `http://localhost:5173`) | - |
 
 ### Execution
 
@@ -82,6 +83,7 @@ Every CLI flag (except `--version`) has a corresponding `AETHER_*` environment v
 | `AETHER_API_TOKEN` | Bearer token for API authentication | `--api-token` |
 | `AETHER_ENCRYPTION_KEY` | 32-byte hex-encoded key for encrypting node passwords at rest (AES-256-GCM). If neither the flag nor the env var is provided, a random key is generated at startup (secrets will not survive restarts). | `--encryption-key` |
 | `AETHER_ENABLE_RBAC` | Enable RBAC (`true`, `1`, `yes`) | `--enable-rbac` |
+| `AETHER_CORS_ORIGINS` | Comma-separated list of allowed CORS origins | `--cors-origins` |
 | `AETHER_DATA_DIR` | Directory for persistent state database | `--data-dir` |
 | `AETHER_ONRAMP_DIR` | Path to aether-onramp repository | `--onramp-dir` |
 | `AETHER_ONRAMP_VERSION` | Tag, branch, or commit to pin aether-onramp to | `--onramp-version` |
@@ -131,6 +133,14 @@ aether-webd --listen 0.0.0.0:8186
 ```
 
 All API requests (except [public paths](./api-overview.md)) require the header `Authorization: Bearer my-secret-token`.
+
+### Allow CORS for a local frontend dev server
+
+```bash
+aether-webd --cors-origins http://localhost:5173
+```
+
+Multiple origins can be comma-separated. Use `*` to allow all origins (not recommended for production).
 
 ### API-only mode (no frontend)
 

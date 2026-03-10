@@ -144,6 +144,58 @@ Unauthorized requests receive a `401` JSON response:
 }
 ```
 
+## CORS (Cross-Origin Resource Sharing)
+
+When the frontend is served separately from the backend (e.g., a Vite dev server on `http://localhost:5173`), browsers block cross-origin API requests. Enable CORS to allow specific origins.
+
+### Set allowed origins
+
+Via CLI flag:
+
+```bash
+aether-webd --cors-origins http://localhost:5173
+```
+
+Via environment variable:
+
+```bash
+export AETHER_CORS_ORIGINS=http://localhost:5173
+aether-webd
+```
+
+Via the systemd environment file (`/etc/aether-webd/env`):
+
+```
+AETHER_CORS_ORIGINS=http://localhost:5173
+```
+
+Multiple origins can be comma-separated:
+
+```bash
+aether-webd --cors-origins "http://localhost:5173,https://admin.example.com"
+```
+
+Use `*` to allow all origins (not recommended for production).
+
+### CORS middleware behavior
+
+When enabled, the middleware:
+
+- Responds to preflight `OPTIONS` requests automatically
+- Sets `Access-Control-Allow-Origin` to the matching origin
+- Allows methods: `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `OPTIONS`
+- Allows headers: `Authorization`, `Content-Type`
+- Sets `Access-Control-Allow-Credentials: true`
+- Caches preflight responses for 300 seconds
+
+### Verify CORS configuration
+
+```bash
+curl http://localhost:8186/api/v1/meta/config
+```
+
+The `security.cors_origins` field lists the configured origins. An empty or absent list means CORS is disabled.
+
 ## Activation matrix
 
 | Flags | Result |
@@ -156,6 +208,7 @@ Unauthorized requests receive a `401` JSON response:
 | `--mtls-ca-cert` + `--tls-cert` + `--tls-key` | HTTPS + mTLS, user-provided server cert |
 | `--tls` + `--tls-cert` + `--tls-key` | HTTPS, user-provided cert (`--tls` redundant) |
 | `--api-token` | Token auth on `/api/*` paths (combinable with any TLS mode) |
+| `--cors-origins` | CORS middleware allowing the listed origins (combinable with any other mode) |
 
 ## Production recommendations
 

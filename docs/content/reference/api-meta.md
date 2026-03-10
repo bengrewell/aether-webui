@@ -157,6 +157,7 @@ Returns the active (non-secret) application configuration including listen addre
 | `mtls_enabled` | bool | Whether mutual TLS is enabled |
 | `token_auth_enabled` | bool | Whether bearer token authentication is enabled |
 | `rbac_enabled` | bool | Whether RBAC is enabled |
+| `cors_origins` | string[] | Allowed CORS origins (omitted when CORS is disabled) |
 
 **`frontend` object:**
 
@@ -194,7 +195,8 @@ curl http://localhost:8186/api/v1/meta/config
     "tls_auto_generated": false,
     "mtls_enabled": false,
     "token_auth_enabled": true,
-    "rbac_enabled": false
+    "rbac_enabled": false,
+    "cors_origins": ["http://localhost:5173"]
   },
   "frontend": {
     "enabled": true,
