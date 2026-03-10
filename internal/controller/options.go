@@ -73,6 +73,12 @@ func WithEncryptionKey(key string) Option {
 	return func(c *Controller) error { c.encryptionKey = key; return nil }
 }
 
+// WithCORSOrigins sets the allowed origins for CORS requests.
+// When non-empty, a CORS middleware is added to the middleware chain.
+func WithCORSOrigins(origins []string) Option {
+	return func(c *Controller) error { c.corsOrigins = origins; return nil }
+}
+
 // WithStoreOptions appends additional store.Option values passed through to store.New.
 func WithStoreOptions(opts ...store.Option) Option {
 	return func(c *Controller) error {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/bengrewell/aether-webui/internal/controller"
@@ -74,6 +75,7 @@ func main() {
 	flagMTLSCACert := u.AddStringOption("m", "mtls-ca-cert", envOr("AETHER_MTLS_CA_CERT", ""), "Path to the CA certificate file for client verification; enables mTLS (env: AETHER_MTLS_CA_CERT)", "", secOptions)
 	flagAPIToken := u.AddStringOption("", "api-token", envOr("AETHER_API_TOKEN", ""), "Bearer token for API authentication; all /api/* requests require Authorization: Bearer <token> (env: AETHER_API_TOKEN)", "", secOptions)
 	flagEnableRBAC := u.AddBooleanOption("r", "enable-rbac", envBool("AETHER_ENABLE_RBAC", false), "Enable role-based access control (RBAC) authentication and authorization middleware (env: AETHER_ENABLE_RBAC)", "", secOptions)
+	flagCORSOrigins := u.AddStringOption("", "cors-origins", envOr("AETHER_CORS_ORIGINS", ""), "Comma-separated list of allowed CORS origins, e.g. http://localhost:5173 (env: AETHER_CORS_ORIGINS)", "", secOptions)
 
 	exeOptions := u.AddGroup(1, "Execution Options", "Options that control API command execution")
 	_ = u.AddStringOption("u", "exec-user", envOr("AETHER_EXEC_USER", ""), "User account under which API commands will be executed (env: AETHER_EXEC_USER)", "", exeOptions)
@@ -114,6 +116,15 @@ func main() {
 		os.Exit(1)
 	}
 
+	var corsOrigins []string
+	if *flagCORSOrigins != "" {
+		for _, o := range strings.Split(*flagCORSOrigins, ",") {
+			if o = strings.TrimSpace(o); o != "" {
+				corsOrigins = append(corsOrigins, o)
+			}
+		}
+	}
+
 	ctrl, err := controller.New(
 		controller.WithVersion(meta.VersionInfo{
 			Version:    version,
@@ -127,6 +138,7 @@ func main() {
 		controller.WithTLS(*flagTLS, *flagTLSCert, *flagTLSKey, *flagMTLSCACert),
 		controller.WithAPIToken(*flagAPIToken),
 		controller.WithRBAC(*flagEnableRBAC),
+		controller.WithCORSOrigins(corsOrigins),
 		controller.WithFrontend(*flagServeFrontend, *flagFrontendDir),
 		controller.WithMetrics(*flagMetricsInterval, *flagMetricsRetention),
 		controller.WithEncryptionKey(*flagEncryptionKey),

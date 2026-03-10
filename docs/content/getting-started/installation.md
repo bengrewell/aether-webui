@@ -95,6 +95,17 @@ CLI flags override environment variables when both are set. See the [CLI Referen
 
 Note: Exposing the API on all interfaces should be paired with TLS and API token authentication in production. See the [Security guide](../guides/security) for setup instructions.
 
+### CORS (Cross-Origin Resource Sharing)
+
+If you serve the frontend separately from the backend (e.g. during development with `npm run dev`), the browser will block API requests due to CORS. Set `AETHER_CORS_ORIGINS` to allow the frontend origin:
+
+```bash
+echo 'AETHER_CORS_ORIGINS=http://localhost:5173' | sudo tee -a /etc/aether-webd/env
+sudo systemctl restart aether-webd
+```
+
+Multiple origins can be comma-separated. Use `*` to allow all origins (not recommended for production).
+
 ## Configuration options
 
 The `aether-webd` binary accepts several flags for customizing behavior, including `--tls` for automatic self-signed certificate generation and `--api-token` for bearer token authentication. See the [CLI Reference](../reference/cli) for the full list of options.

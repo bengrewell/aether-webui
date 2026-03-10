@@ -11,6 +11,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/rs/cors"
+
 	"github.com/bengrewell/aether-webui/internal/api/rest"
 	"github.com/bengrewell/aether-webui/internal/auth"
 	"github.com/bengrewell/aether-webui/internal/frontend"
@@ -137,9 +139,20 @@ func (c *Controller) openStore(ctx context.Context) error {
 	return nil
 }
 
-// buildMiddleware assembles the middleware chain (logging + optional token auth).
+// buildMiddleware assembles the middleware chain (CORS + logging + optional token auth).
 func (c *Controller) buildMiddleware() []func(http.Handler) http.Handler {
 	var mw []func(http.Handler) http.Handler
+	if len(c.corsOrigins) > 0 {
+		corsMiddleware := cors.New(cors.Options{
+			AllowedOrigins:   c.corsOrigins,
+			AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+			AllowedHeaders:   []string{"Authorization", "Content-Type"},
+			AllowCredentials: true,
+			MaxAge:           300,
+		})
+		mw = append(mw, corsMiddleware.Handler)
+		c.log.Info("CORS enabled", "origins", c.corsOrigins)
+	}
 	mw = append(mw, logging.RequestLogger())
 	if c.apiToken != "" {
 		mw = append(mw, auth.TokenAuth(c.apiToken, auth.DefaultSkipPaths))
@@ -213,6 +226,7 @@ func (c *Controller) createMetaProvider(transport *rest.Transport) *meta.Meta {
 			MTLSEnabled:      c.tlsResult != nil && c.tlsResult.MTLSEnabled,
 			TokenAuthEnabled: c.apiToken != "",
 			RBACEnabled:      c.rbacEnabled,
+			CORSOrigins:      c.corsOrigins,
 		},
 		Frontend: meta.FrontendConfig{
 			Enabled: c.frontendEnabled,
