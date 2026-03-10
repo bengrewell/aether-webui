@@ -41,6 +41,7 @@ type Controller struct {
 	metricsInterval  string
 	metricsRetention string
 	encryptionKey    string
+	corsOrigins      []string
 	storeOpts        []store.Option
 	providerRegs     []providerReg
 
