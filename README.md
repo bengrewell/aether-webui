@@ -195,7 +195,7 @@ For developer documentation on the architecture, provider framework, and individ
 
 ### Frontend
 
-The frontend is a React application located in the `web/frontend` submodule (github.com/bengrewell/aether-webui-frontend).
+The frontend is a React application located in the `web/frontend` submodule (github.com/bgrewell/aether-webui-web).
 
 #### Setup
 
