@@ -16,6 +16,7 @@ SERVICE_NAME="aether-webd"
 SERVICE_USER="aether-webd"
 INSTALL_DIR="/usr/local/bin"
 CONFIG_DIR="/etc/aether-webd"
+DATA_DIR="/var/lib/aether-webd"
 SYSTEMD_DIR="/etc/systemd/system"
 
 # Colors for output
@@ -127,6 +128,16 @@ remove_config() {
     fi
 }
 
+# Remove the data directory including database (only with --purge)
+remove_data() {
+    if [[ -d "$DATA_DIR" ]]; then
+        log_info "Removing data directory: $DATA_DIR"
+        rm -rf "$DATA_DIR"
+    else
+        log_info "Data directory not found: $DATA_DIR"
+    fi
+}
+
 # Reload systemd daemon
 reload_systemd() {
     log_info "Reloading systemd daemon..."
@@ -146,6 +157,7 @@ print_summary() {
         echo "  - Binary: ${INSTALL_DIR}/${BINARY_NAME}"
         echo "  - Service file: ${SYSTEMD_DIR}/${SERVICE_NAME}.service"
         echo "  - Config directory: ${CONFIG_DIR}/"
+        echo "  - Data directory: ${DATA_DIR}/"
         echo "  - System user: ${SERVICE_USER}"
     else
         echo "Removed:"
@@ -154,6 +166,7 @@ print_summary() {
         echo ""
         echo "Preserved (use --purge to remove):"
         echo "  - Config directory: ${CONFIG_DIR}/"
+        echo "  - Data directory: ${DATA_DIR}/"
         echo "  - System user: ${SERVICE_USER}"
     fi
     echo ""
@@ -170,7 +183,7 @@ main() {
     echo ""
 
     if [[ "$PURGE" == "true" ]]; then
-        log_warn "Running with --purge: will remove user and config"
+        log_warn "Running with --purge: will remove user, config, and data (including database)"
     fi
 
     check_root
@@ -181,6 +194,7 @@ main() {
 
     if [[ "$PURGE" == "true" ]]; then
         remove_config
+        remove_data
         remove_user
     fi
 
