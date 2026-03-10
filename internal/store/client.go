@@ -58,6 +58,11 @@ func (c Client) Delete(ctx context.Context, key Key) error {
 	return c.s.Delete(ctx, key)
 }
 
+// List returns all keys in the given namespace.
+func (c Client) List(ctx context.Context, namespace string, opts ...ListOption) ([]Key, error) {
+	return c.s.List(ctx, namespace, opts...)
+}
+
 func Save[T any](c Client, ctx context.Context, key Key, v T, opts ...SaveOption) (Meta, error) {
 	b, err := c.c.Marshal(v)
 	if err != nil {
