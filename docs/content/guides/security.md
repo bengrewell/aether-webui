@@ -175,7 +175,17 @@ Multiple origins can be comma-separated:
 aether-webd --cors-origins "http://localhost:5173,https://admin.example.com"
 ```
 
-Use `*` to allow all origins (not recommended for production).
+Use `'*'` to allow all origins (not recommended for production):
+
+```bash
+aether-webd --cors-origins '*'
+```
+
+Or via environment variable:
+
+```
+AETHER_CORS_ORIGINS='*'
+```
 
 ### CORS middleware behavior
 
