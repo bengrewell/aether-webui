@@ -170,6 +170,9 @@ func TestHandleGet_PartialCompletion(t *testing.T) {
 	if out.Body.Steps["roles"].Completed {
 		t.Error("roles should not be completed")
 	}
+	if out.Body.Steps["config"].Completed {
+		t.Error("config should not be completed")
+	}
 	if out.Body.Steps["deployment"].Completed {
 		t.Error("deployment should not be completed")
 	}
@@ -245,5 +248,90 @@ func TestHandleReset_Empty(t *testing.T) {
 	_, err := p.handleReset(t.Context(), nil)
 	if err != nil {
 		t.Fatalf("handleReset on empty state: %v", err)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Config step
+// ---------------------------------------------------------------------------
+
+func TestHandleCompleteStep_Config(t *testing.T) {
+	p := newTestProvider(t)
+	out, err := p.handleCompleteStep(t.Context(), &StepCompleteInput{Step: "config"})
+	if err != nil {
+		t.Fatalf("handleCompleteStep config: %v", err)
+	}
+	if !out.Body.Completed {
+		t.Error("expected completed=true")
+	}
+}
+
+func TestHandleGet_ConfigNotComplete_MeansNotAllDone(t *testing.T) {
+	p := newTestProvider(t)
+	ctx := t.Context()
+
+	// Complete everything except config.
+	for step := range validSteps {
+		if step == "config" {
+			continue
+		}
+		if _, err := p.handleCompleteStep(ctx, &StepCompleteInput{Step: step}); err != nil {
+			t.Fatalf("complete %s: %v", step, err)
+		}
+	}
+
+	out, err := p.handleGet(ctx, nil)
+	if err != nil {
+		t.Fatalf("handleGet: %v", err)
+	}
+	if out.Body.Completed {
+		t.Error("expected completed=false when config is not done")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Active task
+// ---------------------------------------------------------------------------
+
+func TestHandleGet_ActiveTask_None(t *testing.T) {
+	p := newTestProvider(t)
+	out, err := p.handleGet(t.Context(), nil)
+	if err != nil {
+		t.Fatalf("handleGet: %v", err)
+	}
+	if out.Body.ActiveTask != nil {
+		t.Error("expected nil active_task with no running actions")
+	}
+}
+
+func TestHandleGet_ActiveTask_Running(t *testing.T) {
+	p := newTestProvider(t)
+	ctx := t.Context()
+
+	// Insert a running action into the store.
+	rec := store.ActionRecord{
+		ID:        "task-123",
+		Component: "k8s",
+		Action:    "install",
+		Target:    "aether-k8s-install",
+		Status:    "running",
+		ExitCode:  -1,
+	}
+	if err := p.Store().InsertAction(ctx, rec); err != nil {
+		t.Fatalf("InsertAction: %v", err)
+	}
+
+	out, err := p.handleGet(ctx, nil)
+	if err != nil {
+		t.Fatalf("handleGet: %v", err)
+	}
+	if out.Body.ActiveTask == nil {
+		t.Fatal("expected non-nil active_task")
+	}
+	if out.Body.ActiveTask.ID != "task-123" {
+		t.Errorf("active_task.id = %q, want %q", out.Body.ActiveTask.ID, "task-123")
+	}
+	if out.Body.ActiveTask.Component != "k8s" {
+		t.Errorf("active_task.component = %q, want %q", out.Body.ActiveTask.Component, "k8s")
 	}
 }
