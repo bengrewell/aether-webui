@@ -157,6 +157,47 @@ The response includes TLS and authentication state (token values are redacted).
 
 These paths do not require a token: `/healthz`, `/openapi.json`, `/docs`, and paths not under `/api/`. See the [Security guide](security) for the full list.
 
+## CORS errors in the browser
+
+### Symptom
+
+The browser console shows errors like:
+
+```
+Access to fetch at 'http://localhost:8186/api/v1/...' from origin 'http://localhost:5173'
+has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present
+on the requested resource.
+```
+
+### Cause
+
+The frontend is served from a different origin than the API (e.g., a Vite dev server on `:5173` and the API on `:8186`), and CORS is not configured.
+
+### Fix
+
+Set `AETHER_CORS_ORIGINS` to the frontend origin:
+
+```bash
+echo 'AETHER_CORS_ORIGINS=http://localhost:5173' | sudo tee -a /etc/aether-webd/env
+sudo systemctl restart aether-webd
+```
+
+Or pass it directly:
+
+```bash
+aether-webd --cors-origins http://localhost:5173
+```
+
+### Verify
+
+Confirm that the origin appears in the active configuration:
+
+```bash
+curl http://localhost:8186/api/v1/meta/config | jq '.security.cors_origins'
+```
+
+See the [Security guide](security#cors-cross-origin-resource-sharing) for details on allowed methods, headers, and production recommendations.
+
 ## Connectivity issues
 
 ### SSH credentials
