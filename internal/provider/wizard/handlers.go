@@ -39,31 +39,9 @@ func (w *Wizard) handleGet(ctx context.Context, _ *struct{}) (*WizardGetOutput, 
 		}
 	}
 
-	// Look for a currently running action so the frontend can resume
-	// monitoring after a page refresh.
-	var activeTask *ActiveTask
-	running, err := w.Store().ListActions(ctx, store.ActionFilter{
-		Status: "running",
-		Limit:  1,
-	})
-	if err != nil {
-		return nil, huma.Error500InternalServerError("failed to list running actions", err)
-	}
-	if len(running) > 0 {
-		r := running[0]
-		activeTask = &ActiveTask{
-			ID:        r.ID,
-			Component: r.Component,
-			Action:    r.Action,
-			Target:    r.Target,
-			Status:    r.Status,
-		}
-	}
-
 	return &WizardGetOutput{Body: WizardState{
-		Completed:  allDone && len(completed) == len(validSteps),
-		Steps:      steps,
-		ActiveTask: activeTask,
+		Completed: allDone && len(completed) == len(validSteps),
+		Steps:     steps,
 	}}, nil
 }
 

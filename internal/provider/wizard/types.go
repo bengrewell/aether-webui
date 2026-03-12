@@ -24,21 +24,10 @@ type StepStatus struct {
 	CompletedAt *time.Time `json:"completed_at"`
 }
 
-// ActiveTask describes a currently running deployment action, included in the
-// wizard state so the frontend can resume monitoring after a page refresh.
-type ActiveTask struct {
-	ID        string `json:"id"`
-	Component string `json:"component"`
-	Action    string `json:"action"`
-	Target    string `json:"target"`
-	Status    string `json:"status"`
-}
-
 // WizardState is the full wizard status returned by GET /api/v1/wizard.
 type WizardState struct {
-	Completed  bool                  `json:"completed"`
-	Steps      map[string]StepStatus `json:"steps"`
-	ActiveTask *ActiveTask           `json:"active_task"`
+	Completed bool                  `json:"completed"`
+	Steps     map[string]StepStatus `json:"steps"`
 }
 
 // ---------------------------------------------------------------------------

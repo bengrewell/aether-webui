@@ -52,29 +52,133 @@ func TestSubmitCommandNotFound(t *testing.T) {
 	}
 }
 
-func TestSubmitConcurrencyLimit(t *testing.T) {
+func TestSubmitQueuesWhenAtCapacity(t *testing.T) {
 	r := New(RunnerConfig{MaxConcurrent: 1})
 
-	// Submit a long-running task.
-	view, err := r.Submit(TaskSpec{
+	// Submit a long-running task to fill the slot.
+	v1, err := r.Submit(TaskSpec{
 		Command: "sleep",
 		Args:    []string{"10"},
 	})
 	if err != nil {
 		t.Fatalf("first Submit: %v", err)
 	}
+	if v1.Status != StatusRunning {
+		t.Fatalf("first task status = %q, want %q", v1.Status, StatusRunning)
+	}
 
-	// Second submit should be rejected.
-	_, err = r.Submit(TaskSpec{
+	// Second submit should be queued, not rejected.
+	v2, err := r.Submit(TaskSpec{
 		Command: "echo",
 		Args:    []string{"second"},
 	})
-	if err != ErrConcurrencyLimit {
-		t.Fatalf("second Submit error = %v, want ErrConcurrencyLimit", err)
+	if err != nil {
+		t.Fatalf("second Submit: %v", err)
+	}
+	if v2.Status != StatusPending {
+		t.Fatalf("second task status = %q, want %q", v2.Status, StatusPending)
 	}
 
-	// Cancel the first so the test doesn't hang.
-	r.Cancel(view.ID)
+	// Cancel the first — the second should start and complete.
+	r.Cancel(v1.ID)
+	waitForTask(t, r, v2.ID, 5*time.Second)
+
+	got, _ := r.Get(v2.ID)
+	if got.Status != StatusSucceeded {
+		t.Fatalf("queued task status = %q, want %q", got.Status, StatusSucceeded)
+	}
+}
+
+func TestSubmitQueueOrder(t *testing.T) {
+	r := New(RunnerConfig{MaxConcurrent: 1})
+
+	// Fill the slot.
+	blocker, _ := r.Submit(TaskSpec{Command: "sleep", Args: []string{"10"}})
+
+	// Queue two more tasks.
+	var completed []string
+	var mu sync.Mutex
+
+	for _, label := range []string{"first", "second"} {
+		l := label
+		r.Submit(TaskSpec{
+			Command: "echo",
+			Args:    []string{l},
+			OnComplete: func(v TaskView) {
+				mu.Lock()
+				completed = append(completed, l)
+				mu.Unlock()
+			},
+		})
+	}
+
+	// Cancel the blocker — queued tasks should run in FIFO order.
+	r.Cancel(blocker.ID)
+
+	// Wait for all tasks to finish.
+	for _, v := range r.List(nil) {
+		waitForTask(t, r, v.ID, 5*time.Second)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(completed) != 2 {
+		t.Fatalf("completed = %v, want 2 items", completed)
+	}
+	if completed[0] != "first" || completed[1] != "second" {
+		t.Errorf("completion order = %v, want [first second]", completed)
+	}
+}
+
+func TestCancelPendingTask(t *testing.T) {
+	r := New(RunnerConfig{MaxConcurrent: 1})
+
+	// Fill the slot.
+	blocker, _ := r.Submit(TaskSpec{Command: "sleep", Args: []string{"10"}})
+
+	// Queue a task.
+	queued, _ := r.Submit(TaskSpec{Command: "echo", Args: []string{"queued"}})
+	if queued.Status != StatusPending {
+		t.Fatalf("status = %q, want %q", queued.Status, StatusPending)
+	}
+
+	// Cancel the pending task.
+	if err := r.Cancel(queued.ID); err != nil {
+		t.Fatalf("Cancel pending: %v", err)
+	}
+
+	got, _ := r.Get(queued.ID)
+	if got.Status != StatusCanceled {
+		t.Fatalf("status = %q, want %q", got.Status, StatusCanceled)
+	}
+
+	// Clean up.
+	r.Cancel(blocker.ID)
+}
+
+func TestCallerSuppliedID(t *testing.T) {
+	r := New(RunnerConfig{})
+	view, err := r.Submit(TaskSpec{
+		ID:      "my-custom-id",
+		Command: "echo",
+		Args:    []string{"hello"},
+	})
+	if err != nil {
+		t.Fatalf("Submit: %v", err)
+	}
+	if view.ID != "my-custom-id" {
+		t.Fatalf("ID = %q, want %q", view.ID, "my-custom-id")
+	}
+
+	waitForTask(t, r, "my-custom-id", 5*time.Second)
+
+	got, err := r.Get("my-custom-id")
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if got.Status != StatusSucceeded {
+		t.Fatalf("status = %q, want %q", got.Status, StatusSucceeded)
+	}
 }
 
 func TestOutputStreaming(t *testing.T) {

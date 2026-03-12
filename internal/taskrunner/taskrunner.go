@@ -21,12 +21,15 @@ type RunnerConfig struct {
 }
 
 // Runner manages the lifecycle of asynchronous command executions.
+// When MaxConcurrent is set, tasks beyond the limit are queued in
+// submission order and started automatically as running tasks complete.
 type Runner struct {
 	cfg RunnerConfig
 	log *slog.Logger
 
 	mu    sync.RWMutex
 	tasks map[string]*task
+	queue []*task // pending tasks in FIFO order
 }
 
 // New creates a Runner with the given configuration.
@@ -42,9 +45,9 @@ func New(cfg RunnerConfig) *Runner {
 	}
 }
 
-// Submit validates the command, creates a new task, and starts it in a
-// background goroutine. The task's context is independent of the caller's
-// context so it outlives the HTTP request that created it.
+// Submit validates the command, creates a new task, and either starts it
+// immediately or queues it if the concurrency limit is reached. The returned
+// TaskView reflects the initial state (StatusRunning or StatusPending).
 func (r *Runner) Submit(spec TaskSpec) (TaskView, error) {
 	// Validate the command binary exists on PATH.
 	if _, err := exec.LookPath(spec.Command); err != nil {
@@ -54,33 +57,27 @@ func (r *Runner) Submit(spec TaskSpec) (TaskView, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	// Enforce concurrency limit.
-	if r.cfg.MaxConcurrent > 0 {
-		running := 0
-		for _, t := range r.tasks {
-			if t.status == StatusRunning {
-				running++
-			}
-		}
-		if running >= r.cfg.MaxConcurrent {
-			return TaskView{}, ErrConcurrencyLimit
-		}
+	id := spec.ID
+	if id == "" {
+		id = uuid.NewString()
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-
+	now := time.Now().UTC()
 	t := &task{
-		id:         uuid.NewString(),
-		spec:       spec,
-		status:     StatusRunning,
-		createdAt:  time.Now().UTC(),
-		startedAt:  time.Now().UTC(),
-		output:     &OutputBuffer{},
-		cancelFunc: cancel,
+		id:        id,
+		spec:      spec,
+		status:    StatusPending,
+		createdAt: now,
+		output:    &OutputBuffer{},
 	}
 	r.tasks[t.id] = t
 
-	go r.run(ctx, t)
+	if r.canStartLocked() {
+		r.startLocked(t)
+	} else {
+		r.queue = append(r.queue, t)
+		r.log.Info("task queued", "id", t.id, "queue_depth", len(r.queue))
+	}
 
 	return t.view(), nil
 }
@@ -134,23 +131,88 @@ func (r *Runner) Output(id string, offset int) (OutputChunk, error) {
 	}, nil
 }
 
-// Cancel sends a cancellation signal to a running task. Returns ErrNotFound if
-// the task ID is unknown, or ErrNotRunning if the task has already finished.
+// Cancel sends a cancellation signal to a running task. Pending tasks are
+// removed from the queue and marked as canceled immediately. Returns
+// ErrNotFound if the task ID is unknown, or ErrNotRunning if the task has
+// already finished.
 func (r *Runner) Cancel(id string) error {
-	r.mu.RLock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	t, ok := r.tasks[id]
-	r.mu.RUnlock()
 	if !ok {
 		return ErrNotFound
 	}
 
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if t.status != StatusRunning {
+	switch t.status {
+	case StatusPending:
+		// Remove from queue.
+		for i, qt := range r.queue {
+			if qt.id == id {
+				r.queue = append(r.queue[:i], r.queue[i+1:]...)
+				break
+			}
+		}
+		t.status = StatusCanceled
+		t.finishedAt = time.Now().UTC()
+		t.errMsg = "canceled"
+		t.exitCode = -1
+		return nil
+	case StatusRunning:
+		t.cancelFunc()
+		return nil
+	default:
 		return ErrNotRunning
 	}
-	t.cancelFunc()
-	return nil
+}
+
+// canStartLocked returns true if there is capacity to start another task.
+// Caller must hold r.mu.
+func (r *Runner) canStartLocked() bool {
+	if r.cfg.MaxConcurrent <= 0 {
+		return true
+	}
+	running := 0
+	for _, t := range r.tasks {
+		if t.status == StatusRunning {
+			running++
+		}
+	}
+	return running < r.cfg.MaxConcurrent
+}
+
+// startLocked transitions a pending task to running and spawns its goroutine.
+// Caller must hold r.mu.
+func (r *Runner) startLocked(t *task) {
+	ctx, cancel := context.WithCancel(context.Background())
+	t.status = StatusRunning
+	t.startedAt = time.Now().UTC()
+	t.cancelFunc = cancel
+
+	cb := t.spec.OnStart
+	v := t.view()
+
+	go func() {
+		if cb != nil {
+			r.safeCallback(v, cb)
+		}
+		r.run(ctx, t)
+	}()
+}
+
+// drainQueue starts the next pending task from the queue if capacity allows.
+// Caller must hold r.mu.
+func (r *Runner) drainQueue() {
+	for len(r.queue) > 0 && r.canStartLocked() {
+		next := r.queue[0]
+		r.queue = r.queue[1:]
+		// Skip tasks that were canceled while pending.
+		if next.status != StatusPending {
+			continue
+		}
+		r.startLocked(next)
+		r.log.Info("dequeued task", "id", next.id, "remaining", len(r.queue))
+	}
 }
 
 // run executes the command described by the task and updates its state on
@@ -191,6 +253,9 @@ func (r *Runner) run(ctx context.Context, t *task) {
 	}
 	v := t.view()
 	cb := t.spec.OnComplete
+
+	// Start the next queued task before releasing the lock.
+	r.drainQueue()
 	r.mu.Unlock()
 
 	if cb != nil {

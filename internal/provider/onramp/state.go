@@ -23,6 +23,41 @@ func actionCategory(action string) string {
 	return ""
 }
 
+// buildOnStart returns a callback that updates the action record and component
+// state when a queued task transitions to running.
+func buildOnStart(st store.Client, log *slog.Logger, actionID, component, action string) func(taskrunner.TaskView) {
+	return func(v taskrunner.TaskView) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		result := store.ActionResult{
+			Status: "running",
+		}
+		if err := st.UpdateActionResult(ctx, actionID, result); err != nil {
+			log.Error("failed to update action to running", "action_id", actionID, "error", err)
+		}
+
+		cat := actionCategory(action)
+		if cat == "" {
+			return
+		}
+		status := "installing"
+		if cat == "uninstall" {
+			status = "uninstalling"
+		}
+		cs := store.ComponentState{
+			Component:  component,
+			Status:     status,
+			LastAction: action,
+			ActionID:   actionID,
+			UpdatedAt:  v.StartedAt,
+		}
+		if err := st.UpsertComponentState(ctx, cs); err != nil {
+			log.Error("failed to update component state on start", "component", component, "error", err)
+		}
+	}
+}
+
 // buildOnComplete returns a TaskView callback that persists the action result
 // and updates component state when appropriate. The callback is safe to call
 // from the task goroutine (no mutex held).

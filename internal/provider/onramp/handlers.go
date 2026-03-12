@@ -3,7 +3,6 @@ package onramp
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -133,7 +132,7 @@ func (o *OnRamp) handleExecuteAction(ctx context.Context, in *ExecuteActionInput
 		Component: in.Component,
 		Action:    in.Action,
 		Target:    target,
-		Status:    "running",
+		Status:    "pending",
 		ExitCode:  -1,
 		Labels:    labels,
 		Tags:      tags,
@@ -143,25 +142,8 @@ func (o *OnRamp) handleExecuteAction(ctx context.Context, in *ExecuteActionInput
 		log.Error("failed to insert action record", "action_id", actionID, "error", err)
 	}
 
-	// Update component state for install/uninstall actions.
-	if cat := actionCategory(in.Action); cat != "" {
-		status := "installing"
-		if cat == "uninstall" {
-			status = "uninstalling"
-		}
-		cs := store.ComponentState{
-			Component:  in.Component,
-			Status:     status,
-			LastAction: in.Action,
-			ActionID:   actionID,
-			UpdatedAt:  now,
-		}
-		if err := st.UpsertComponentState(dbCtx, cs); err != nil {
-			log.Error("failed to upsert component state", "component", in.Component, "error", err)
-		}
-	}
-
 	view, err := o.runner.Submit(taskrunner.TaskSpec{
+		ID:          actionID,
 		Command:     "make",
 		Args:        []string{target},
 		Dir:         o.config.OnRampDir,
@@ -172,6 +154,7 @@ func (o *OnRamp) handleExecuteAction(ctx context.Context, in *ExecuteActionInput
 			"target":    target,
 		},
 		OnComplete: buildOnComplete(st, log, actionID, in.Component, in.Action),
+		OnStart:    buildOnStart(st, log, actionID, in.Component, in.Action),
 	})
 	if err != nil {
 		// Submit failed — mark the already-inserted action as failed.
@@ -183,9 +166,6 @@ func (o *OnRamp) handleExecuteAction(ctx context.Context, in *ExecuteActionInput
 		}
 		if updateErr := st.UpdateActionResult(dbCtx, actionID, failResult); updateErr != nil {
 			log.Error("failed to mark action as failed after submit error", "action_id", actionID, "error", updateErr)
-		}
-		if errors.Is(err, taskrunner.ErrConcurrencyLimit) {
-			return nil, huma.Error409Conflict("a task is already running", err)
 		}
 		return nil, huma.Error500InternalServerError("failed to start task", err)
 	}
