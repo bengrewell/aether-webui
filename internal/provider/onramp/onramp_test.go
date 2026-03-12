@@ -325,7 +325,7 @@ func TestHandleExecuteAction_Success(t *testing.T) {
 	waitForTask(t, p.runner, out.Body.ID, 5*time.Second)
 }
 
-func TestHandleExecuteAction_ConcurrencyLimit(t *testing.T) {
+func TestHandleExecuteAction_Queued(t *testing.T) {
 	if _, err := exec.LookPath("make"); err != nil {
 		t.Skip("make not available on PATH")
 	}
@@ -343,17 +343,20 @@ func TestHandleExecuteAction_ConcurrencyLimit(t *testing.T) {
 	}
 	defer p.runner.Cancel(view.ID)
 
-	// Second submission via the handler should hit the concurrency limit.
-	_, err = p.handleExecuteAction(t.Context(), &ExecuteActionInput{
+	// Second submission via the handler should be queued (pending), not rejected.
+	out, err := p.handleExecuteAction(t.Context(), &ExecuteActionInput{
 		Component: "cluster",
 		Action:    "pingall",
 	})
-	if err == nil {
-		t.Fatal("expected concurrency limit error")
+	if err != nil {
+		t.Fatalf("expected queued task, got error: %v", err)
 	}
-	if !strings.Contains(err.Error(), "already running") {
-		t.Errorf("error = %q, should mention 'already running'", err)
+	if out.Body.Status != "pending" {
+		t.Errorf("status = %q, want %q", out.Body.Status, "pending")
 	}
+
+	// Cancel both to clean up.
+	p.runner.Cancel(out.Body.ID)
 }
 
 // ---------------------------------------------------------------------------

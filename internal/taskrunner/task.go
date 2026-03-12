@@ -18,19 +18,20 @@ const (
 
 // Sentinel errors returned by Runner methods.
 var (
-	ErrNotFound         = errors.New("task not found")
-	ErrNotRunning       = errors.New("task is not running")
-	ErrConcurrencyLimit = errors.New("concurrency limit reached")
+	ErrNotFound   = errors.New("task not found")
+	ErrNotRunning = errors.New("task is not running")
 )
 
 // TaskSpec describes a command to execute. Callers provide this to Runner.Submit.
 type TaskSpec struct {
+	ID          string            // caller-supplied ID; if empty, a UUID is generated
 	Command     string            // binary name (validated via exec.LookPath)
 	Args        []string          // command arguments
 	Dir         string            // working directory
 	Env         []string          // extra KEY=VALUE env vars (appended to inherited env)
 	Labels      map[string]string // arbitrary provider-specific metadata
 	Description string            // human-readable summary
+	OnStart     func(TaskView)    // called when task transitions from pending to running; nil = no callback
 	OnComplete  func(TaskView)    // called after task finishes; nil = no callback
 }
 
