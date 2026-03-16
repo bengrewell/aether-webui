@@ -108,9 +108,6 @@ func (c *Controller) setupLogging() {
 		Level:     level,
 		AddSource: c.debug,
 	}
-	if c.mcpEnabled && c.mcpListenAddr == "" {
-		opts.Writer = os.Stderr
-	}
 	logging.Setup(opts)
 	c.log = slog.Default()
 }
@@ -373,6 +370,23 @@ func (c *Controller) startMCP(ctx context.Context) error {
 		}
 	}
 
+	if nodesProvider == nil || onrampProvider == nil || systemProvider == nil || metaProvider == nil {
+		missing := []string{}
+		if nodesProvider == nil {
+			missing = append(missing, "nodes")
+		}
+		if onrampProvider == nil {
+			missing = append(missing, "onramp")
+		}
+		if systemProvider == nil {
+			missing = append(missing, "system")
+		}
+		if metaProvider == nil {
+			missing = append(missing, "meta")
+		}
+		return fmt.Errorf("MCP requires providers %v but they were not found", missing)
+	}
+
 	srv := mcpserver.New(mcpserver.Config{
 		Store:   c.store,
 		Nodes:   nodesProvider,
@@ -395,9 +409,13 @@ func (c *Controller) startMCP(ctx context.Context) error {
 
 	// StreamableHTTP transport on a separate address.
 	if c.mcpListenAddr != "" {
+		handler := srv.HTTPHandler()
+		if c.apiToken != "" {
+			handler = auth.TokenAuth(c.apiToken, nil)(handler)
+		}
 		c.mcpServer = &http.Server{
 			Addr:    c.mcpListenAddr,
-			Handler: srv.HTTPHandler(),
+			Handler: handler,
 		}
 		go func() {
 			c.log.Info("starting MCP HTTP server", "addr", c.mcpListenAddr)

@@ -30,8 +30,8 @@ func (s *Server) registerSystemTools() {
 		if disks, err := s.system.HandleDisks(ctx, nil); err == nil {
 			result.Disks = disks.Body
 		}
-		if os, err := s.system.HandleOS(ctx, nil); err == nil {
-			result.OS = os.Body
+		if osInfo, err := s.system.HandleOS(ctx, nil); err == nil {
+			result.OS = osInfo.Body
 		}
 
 		return jsonResult(result), nil, nil

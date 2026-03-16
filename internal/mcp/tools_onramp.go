@@ -90,7 +90,11 @@ func (s *Server) registerOnRampTools() {
 		Name:        "config_patch",
 		Description: "Patch the OnRamp configuration by deep-merging provided fields into vars/main.yml",
 	}, func(ctx context.Context, _ *gomcp.CallToolRequest, args ConfigPatchInput) (*gomcp.CallToolResult, any, error) {
-		rawBody, err := json.Marshal(args.Config)
+		cfg := args.Config
+		if cfg == nil {
+			cfg = map[string]any{}
+		}
+		rawBody, err := json.Marshal(cfg)
 		if err != nil {
 			return errorResult(err), nil, nil
 		}
