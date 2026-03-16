@@ -45,7 +45,7 @@ func NewProvider(cfg Config, opts ...provider.Option) *System {
 			Tags:        []string{"system"},
 			HTTP:        endpoint.HTTPHint{Path: "/api/v1/system/cpu"},
 		},
-		Handler: s.handleCPU,
+		Handler: s.HandleCPU,
 	})
 
 	provider.Register(s.Base, endpoint.Endpoint[struct{}, MemoryInfoOutput]{
@@ -57,7 +57,7 @@ func NewProvider(cfg Config, opts ...provider.Option) *System {
 			Tags:        []string{"system"},
 			HTTP:        endpoint.HTTPHint{Path: "/api/v1/system/memory"},
 		},
-		Handler: s.handleMemory,
+		Handler: s.HandleMemory,
 	})
 
 	provider.Register(s.Base, endpoint.Endpoint[struct{}, DiskInfoOutput]{
@@ -69,7 +69,7 @@ func NewProvider(cfg Config, opts ...provider.Option) *System {
 			Tags:        []string{"system"},
 			HTTP:        endpoint.HTTPHint{Path: "/api/v1/system/disks"},
 		},
-		Handler: s.handleDisks,
+		Handler: s.HandleDisks,
 	})
 
 	provider.Register(s.Base, endpoint.Endpoint[struct{}, OSInfoOutput]{
@@ -81,7 +81,7 @@ func NewProvider(cfg Config, opts ...provider.Option) *System {
 			Tags:        []string{"system"},
 			HTTP:        endpoint.HTTPHint{Path: "/api/v1/system/os"},
 		},
-		Handler: s.handleOS,
+		Handler: s.HandleOS,
 	})
 
 	provider.Register(s.Base, endpoint.Endpoint[struct{}, NetworkInterfacesOutput]{
@@ -93,7 +93,7 @@ func NewProvider(cfg Config, opts ...provider.Option) *System {
 			Tags:        []string{"system"},
 			HTTP:        endpoint.HTTPHint{Path: "/api/v1/system/network/interfaces"},
 		},
-		Handler: s.handleNetworkInterfaces,
+		Handler: s.HandleNetworkInterfaces,
 	})
 
 	provider.Register(s.Base, endpoint.Endpoint[struct{}, NetworkConfigOutput]{
@@ -105,7 +105,7 @@ func NewProvider(cfg Config, opts ...provider.Option) *System {
 			Tags:        []string{"system"},
 			HTTP:        endpoint.HTTPHint{Path: "/api/v1/system/network/config"},
 		},
-		Handler: s.handleNetworkConfig,
+		Handler: s.HandleNetworkConfig,
 	})
 
 	provider.Register(s.Base, endpoint.Endpoint[struct{}, ListeningPortsOutput]{
@@ -117,7 +117,7 @@ func NewProvider(cfg Config, opts ...provider.Option) *System {
 			Tags:        []string{"system"},
 			HTTP:        endpoint.HTTPHint{Path: "/api/v1/system/network/ports"},
 		},
-		Handler: s.handleListeningPorts,
+		Handler: s.HandleListeningPorts,
 	})
 
 	provider.Register(s.Base, endpoint.Endpoint[MetricsQueryInput, MetricsQueryOutput]{
@@ -129,7 +129,7 @@ func NewProvider(cfg Config, opts ...provider.Option) *System {
 			Tags:        []string{"system"},
 			HTTP:        endpoint.HTTPHint{Path: "/api/v1/system/metrics"},
 		},
-		Handler: s.handleMetricsQuery,
+		Handler: s.HandleMetricsQuery,
 	})
 
 	return s

@@ -47,7 +47,7 @@ func NewProvider(version VersionInfo, config AppConfig, schemaVer SchemaVersionF
 			Tags:        []string{"meta"},
 			HTTP:        endpoint.HTTPHint{Path: "/api/v1/meta/version"},
 		},
-		Handler: m.handleVersion,
+		Handler: m.HandleVersion,
 	})
 
 	provider.Register(m.Base, endpoint.Endpoint[struct{}, BuildOutput]{
@@ -59,7 +59,7 @@ func NewProvider(version VersionInfo, config AppConfig, schemaVer SchemaVersionF
 			Tags:        []string{"meta"},
 			HTTP:        endpoint.HTTPHint{Path: "/api/v1/meta/build"},
 		},
-		Handler: m.handleBuild,
+		Handler: m.HandleBuild,
 	})
 
 	provider.Register(m.Base, endpoint.Endpoint[struct{}, RuntimeOutput]{
@@ -71,7 +71,7 @@ func NewProvider(version VersionInfo, config AppConfig, schemaVer SchemaVersionF
 			Tags:        []string{"meta"},
 			HTTP:        endpoint.HTTPHint{Path: "/api/v1/meta/runtime"},
 		},
-		Handler: m.handleRuntime,
+		Handler: m.HandleRuntime,
 	})
 
 	provider.Register(m.Base, endpoint.Endpoint[struct{}, ConfigOutput]{
@@ -83,7 +83,7 @@ func NewProvider(version VersionInfo, config AppConfig, schemaVer SchemaVersionF
 			Tags:        []string{"meta"},
 			HTTP:        endpoint.HTTPHint{Path: "/api/v1/meta/config"},
 		},
-		Handler: m.handleConfig,
+		Handler: m.HandleConfig,
 	})
 
 	provider.Register(m.Base, endpoint.Endpoint[struct{}, ProvidersOutput]{
@@ -95,7 +95,7 @@ func NewProvider(version VersionInfo, config AppConfig, schemaVer SchemaVersionF
 			Tags:        []string{"meta"},
 			HTTP:        endpoint.HTTPHint{Path: "/api/v1/meta/providers"},
 		},
-		Handler: m.handleProviders,
+		Handler: m.HandleProviders,
 	})
 
 	provider.Register(m.Base, endpoint.Endpoint[struct{}, StoreOutput]{
@@ -107,7 +107,7 @@ func NewProvider(version VersionInfo, config AppConfig, schemaVer SchemaVersionF
 			Tags:        []string{"meta"},
 			HTTP:        endpoint.HTTPHint{Path: "/api/v1/meta/store"},
 		},
-		Handler: m.handleStore,
+		Handler: m.HandleStore,
 	})
 
 	return m
@@ -117,11 +117,11 @@ func (m *Meta) Name() string { return "meta" }
 
 func (m *Meta) Endpoints() []endpoint.AnyEndpoint { return m.endpoints }
 
-func (m *Meta) handleVersion(_ context.Context, _ *struct{}) (*VersionOutput, error) {
+func (m *Meta) HandleVersion(_ context.Context, _ *struct{}) (*VersionOutput, error) {
 	return &VersionOutput{Body: m.versionInfo}, nil
 }
 
-func (m *Meta) handleBuild(_ context.Context, _ *struct{}) (*BuildOutput, error) {
+func (m *Meta) HandleBuild(_ context.Context, _ *struct{}) (*BuildOutput, error) {
 	return &BuildOutput{Body: BuildInfo{
 		GoVersion: runtime.Version(),
 		OS:        runtime.GOOS,
@@ -129,7 +129,7 @@ func (m *Meta) handleBuild(_ context.Context, _ *struct{}) (*BuildOutput, error)
 	}}, nil
 }
 
-func (m *Meta) handleRuntime(_ context.Context, _ *struct{}) (*RuntimeOutput, error) {
+func (m *Meta) HandleRuntime(_ context.Context, _ *struct{}) (*RuntimeOutput, error) {
 	info := RuntimeInfo{
 		PID:       os.Getpid(),
 		StartTime: m.startTime.Format(time.RFC3339),
@@ -152,7 +152,7 @@ func (m *Meta) handleRuntime(_ context.Context, _ *struct{}) (*RuntimeOutput, er
 	return &RuntimeOutput{Body: info}, nil
 }
 
-func (m *Meta) handleConfig(_ context.Context, _ *struct{}) (*ConfigOutput, error) {
+func (m *Meta) HandleConfig(_ context.Context, _ *struct{}) (*ConfigOutput, error) {
 	schemaVersion := 0
 	if m.schemaVer != nil {
 		if v, err := m.schemaVer(); err == nil {
@@ -165,7 +165,7 @@ func (m *Meta) handleConfig(_ context.Context, _ *struct{}) (*ConfigOutput, erro
 	}}, nil
 }
 
-func (m *Meta) handleStore(ctx context.Context, _ *struct{}) (*StoreOutput, error) {
+func (m *Meta) HandleStore(ctx context.Context, _ *struct{}) (*StoreOutput, error) {
 	if m.storeInfoFn == nil {
 		return &StoreOutput{Body: StoreInfo{
 			Status:      "unhealthy",
@@ -175,7 +175,7 @@ func (m *Meta) handleStore(ctx context.Context, _ *struct{}) (*StoreOutput, erro
 	return &StoreOutput{Body: m.storeInfoFn(ctx)}, nil
 }
 
-func (m *Meta) handleProviders(_ context.Context, _ *struct{}) (*ProvidersOutput, error) {
+func (m *Meta) HandleProviders(_ context.Context, _ *struct{}) (*ProvidersOutput, error) {
 	var providers []ProviderStatus
 	if m.providersFn != nil {
 		providers = m.providersFn()

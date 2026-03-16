@@ -49,7 +49,7 @@ func NewProvider(cfg Config, opts ...provider.Option) *OnRamp {
 			Tags:        []string{"onramp"},
 			HTTP:        endpoint.HTTPHint{Path: "/api/v1/onramp/repo"},
 		},
-		Handler: o.handleGetRepoStatus,
+		Handler: o.HandleGetRepoStatus,
 	})
 
 	provider.Register(o.Base, endpoint.Endpoint[struct{}, RepoRefreshOutput]{
@@ -61,7 +61,7 @@ func NewProvider(cfg Config, opts ...provider.Option) *OnRamp {
 			Tags:        []string{"onramp"},
 			HTTP:        endpoint.HTTPHint{Path: "/api/v1/onramp/repo/refresh"},
 		},
-		Handler: o.handleRefreshRepo,
+		Handler: o.HandleRefreshRepo,
 	})
 
 	// --- Components ---
@@ -75,7 +75,7 @@ func NewProvider(cfg Config, opts ...provider.Option) *OnRamp {
 			Tags:        []string{"onramp"},
 			HTTP:        endpoint.HTTPHint{Path: "/api/v1/onramp/components"},
 		},
-		Handler: o.handleListComponents,
+		Handler: o.HandleListComponents,
 	})
 
 	provider.Register(o.Base, endpoint.Endpoint[ComponentGetInput, ComponentGetOutput]{
@@ -87,7 +87,7 @@ func NewProvider(cfg Config, opts ...provider.Option) *OnRamp {
 			Tags:        []string{"onramp"},
 			HTTP:        endpoint.HTTPHint{Path: "/api/v1/onramp/components/{component}"},
 		},
-		Handler: o.handleGetComponent,
+		Handler: o.HandleGetComponent,
 	})
 
 	provider.Register(o.Base, endpoint.Endpoint[ExecuteActionInput, ExecuteActionOutput]{
@@ -99,7 +99,7 @@ func NewProvider(cfg Config, opts ...provider.Option) *OnRamp {
 			Tags:        []string{"onramp"},
 			HTTP:        endpoint.HTTPHint{Path: "/api/v1/onramp/components/{component}/{action}"},
 		},
-		Handler: o.handleExecuteAction,
+		Handler: o.HandleExecuteAction,
 	})
 
 	// --- Tasks ---
@@ -113,7 +113,7 @@ func NewProvider(cfg Config, opts ...provider.Option) *OnRamp {
 			Tags:        []string{"onramp"},
 			HTTP:        endpoint.HTTPHint{Path: "/api/v1/onramp/tasks"},
 		},
-		Handler: o.handleListTasks,
+		Handler: o.HandleListTasks,
 	})
 
 	provider.Register(o.Base, endpoint.Endpoint[TaskGetInput, TaskGetOutput]{
@@ -125,7 +125,7 @@ func NewProvider(cfg Config, opts ...provider.Option) *OnRamp {
 			Tags:        []string{"onramp"},
 			HTTP:        endpoint.HTTPHint{Path: "/api/v1/onramp/tasks/{id}"},
 		},
-		Handler: o.handleGetTask,
+		Handler: o.HandleGetTask,
 	})
 
 	// --- Actions ---
@@ -139,7 +139,7 @@ func NewProvider(cfg Config, opts ...provider.Option) *OnRamp {
 			Tags:        []string{"onramp"},
 			HTTP:        endpoint.HTTPHint{Path: "/api/v1/onramp/actions"},
 		},
-		Handler: o.handleListActions,
+		Handler: o.HandleListActions,
 	})
 
 	provider.Register(o.Base, endpoint.Endpoint[ActionGetInput, ActionGetOutput]{
@@ -151,7 +151,7 @@ func NewProvider(cfg Config, opts ...provider.Option) *OnRamp {
 			Tags:        []string{"onramp"},
 			HTTP:        endpoint.HTTPHint{Path: "/api/v1/onramp/actions/{id}"},
 		},
-		Handler: o.handleGetAction,
+		Handler: o.HandleGetAction,
 	})
 
 	// --- State ---
@@ -165,7 +165,7 @@ func NewProvider(cfg Config, opts ...provider.Option) *OnRamp {
 			Tags:        []string{"onramp"},
 			HTTP:        endpoint.HTTPHint{Path: "/api/v1/onramp/state"},
 		},
-		Handler: o.handleListComponentStates,
+		Handler: o.HandleListComponentStates,
 	})
 
 	provider.Register(o.Base, endpoint.Endpoint[ComponentStateGetInput, ComponentStateGetOutput]{
@@ -177,7 +177,7 @@ func NewProvider(cfg Config, opts ...provider.Option) *OnRamp {
 			Tags:        []string{"onramp"},
 			HTTP:        endpoint.HTTPHint{Path: "/api/v1/onramp/state/{component}"},
 		},
-		Handler: o.handleGetComponentState,
+		Handler: o.HandleGetComponentState,
 	})
 
 	// --- Config ---
@@ -191,7 +191,7 @@ func NewProvider(cfg Config, opts ...provider.Option) *OnRamp {
 			Tags:        []string{"onramp"},
 			HTTP:        endpoint.HTTPHint{Path: "/api/v1/onramp/config"},
 		},
-		Handler: o.handleGetConfig,
+		Handler: o.HandleGetConfig,
 	})
 
 	provider.Register(o.Base, endpoint.Endpoint[ConfigPatchInput, ConfigPatchOutput]{
@@ -203,7 +203,7 @@ func NewProvider(cfg Config, opts ...provider.Option) *OnRamp {
 			Tags:        []string{"onramp"},
 			HTTP:        endpoint.HTTPHint{Method: "PATCH", Path: "/api/v1/onramp/config"},
 		},
-		Handler: o.handlePatchConfig,
+		Handler: o.HandlePatchConfig,
 	})
 
 	// --- Profiles ---
@@ -217,7 +217,7 @@ func NewProvider(cfg Config, opts ...provider.Option) *OnRamp {
 			Tags:        []string{"onramp"},
 			HTTP:        endpoint.HTTPHint{Path: "/api/v1/onramp/config/profiles"},
 		},
-		Handler: o.handleListProfiles,
+		Handler: o.HandleListProfiles,
 	})
 
 	provider.Register(o.Base, endpoint.Endpoint[ProfileGetInput, ProfileGetOutput]{
@@ -229,7 +229,7 @@ func NewProvider(cfg Config, opts ...provider.Option) *OnRamp {
 			Tags:        []string{"onramp"},
 			HTTP:        endpoint.HTTPHint{Path: "/api/v1/onramp/config/profiles/{name}"},
 		},
-		Handler: o.handleGetProfile,
+		Handler: o.HandleGetProfile,
 	})
 
 	provider.Register(o.Base, endpoint.Endpoint[ProfileActivateInput, ProfileActivateOutput]{
@@ -241,7 +241,7 @@ func NewProvider(cfg Config, opts ...provider.Option) *OnRamp {
 			Tags:        []string{"onramp"},
 			HTTP:        endpoint.HTTPHint{Path: "/api/v1/onramp/config/profiles/{name}/activate"},
 		},
-		Handler: o.handleActivateProfile,
+		Handler: o.HandleActivateProfile,
 	})
 
 	// --- Inventory ---
@@ -255,7 +255,7 @@ func NewProvider(cfg Config, opts ...provider.Option) *OnRamp {
 			Tags:        []string{"onramp"},
 			HTTP:        endpoint.HTTPHint{Path: "/api/v1/onramp/inventory"},
 		},
-		Handler: o.handleGetInventory,
+		Handler: o.HandleGetInventory,
 	})
 
 	provider.Register(o.Base, endpoint.Endpoint[struct{}, InventorySyncOutput]{
@@ -267,7 +267,7 @@ func NewProvider(cfg Config, opts ...provider.Option) *OnRamp {
 			Tags:        []string{"onramp"},
 			HTTP:        endpoint.HTTPHint{Path: "/api/v1/onramp/inventory/sync"},
 		},
-		Handler: o.handleSyncInventory,
+		Handler: o.HandleSyncInventory,
 	})
 
 	return o
@@ -275,6 +275,9 @@ func NewProvider(cfg Config, opts ...provider.Option) *OnRamp {
 
 // Endpoints returns all registered endpoints for the provider.
 func (o *OnRamp) Endpoints() []endpoint.AnyEndpoint { return o.endpoints }
+
+// Runner returns the task runner used by this provider.
+func (o *OnRamp) Runner() *taskrunner.Runner { return o.runner }
 
 // Start clones/validates the OnRamp repo and marks the provider as running.
 // If repo setup fails, the provider logs the error and starts in degraded mode.

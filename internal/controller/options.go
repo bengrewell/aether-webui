@@ -79,6 +79,16 @@ func WithCORSOrigins(origins []string) Option {
 	return func(c *Controller) error { c.corsOrigins = origins; return nil }
 }
 
+// WithMCP enables the MCP server for LLM tool integration.
+func WithMCP(enabled bool) Option {
+	return func(c *Controller) error { c.mcpEnabled = enabled; return nil }
+}
+
+// WithMCPListenAddr sets the address for the MCP StreamableHTTP transport.
+func WithMCPListenAddr(addr string) Option {
+	return func(c *Controller) error { c.mcpListenAddr = addr; return nil }
+}
+
 // WithStoreOptions appends additional store.Option values passed through to store.New.
 func WithStoreOptions(opts ...store.Option) Option {
 	return func(c *Controller) error {

@@ -78,7 +78,7 @@ func TestHandleCreate(t *testing.T) {
 	in.Body.SudoPassword = "sudosecret"
 	in.Body.Roles = []string{"master"}
 
-	out, err := p.handleCreate(t.Context(), in)
+	out, err := p.HandleCreate(t.Context(), in)
 	if err != nil {
 		t.Fatalf("handleCreate: %v", err)
 	}
@@ -107,7 +107,7 @@ func TestHandleCreate_MissingName(t *testing.T) {
 	in := &NodeCreateInput{}
 	in.Body.AnsibleHost = "10.0.0.1"
 
-	_, err := p.handleCreate(t.Context(), in)
+	_, err := p.HandleCreate(t.Context(), in)
 	if err == nil {
 		t.Fatal("expected error for missing name")
 	}
@@ -118,7 +118,7 @@ func TestHandleCreate_MissingHost(t *testing.T) {
 	in := &NodeCreateInput{}
 	in.Body.Name = "node1"
 
-	_, err := p.handleCreate(t.Context(), in)
+	_, err := p.HandleCreate(t.Context(), in)
 	if err == nil {
 		t.Fatal("expected error for missing host")
 	}
@@ -134,7 +134,7 @@ func TestHandleCreate_InvalidRole(t *testing.T) {
 	in.Body.SudoPassword = "aether"
 	in.Body.Roles = []string{"invalid_role"}
 
-	_, err := p.handleCreate(t.Context(), in)
+	_, err := p.HandleCreate(t.Context(), in)
 	if err == nil {
 		t.Fatal("expected error for invalid role")
 	}
@@ -158,12 +158,12 @@ func TestHandleGet(t *testing.T) {
 	in.Body.Password = "aether"
 	in.Body.SudoPassword = "aether"
 	in.Body.SSHKey = "ssh-rsa AAAA"
-	created, err := p.handleCreate(t.Context(), in)
+	created, err := p.HandleCreate(t.Context(), in)
 	if err != nil {
 		t.Fatalf("handleCreate: %v", err)
 	}
 
-	out, err := p.handleGet(t.Context(), &NodeGetInput{ID: created.Body.ID})
+	out, err := p.HandleGet(t.Context(), &NodeGetInput{ID: created.Body.ID})
 	if err != nil {
 		t.Fatalf("handleGet: %v", err)
 	}
@@ -177,7 +177,7 @@ func TestHandleGet(t *testing.T) {
 
 func TestHandleGet_NotFound(t *testing.T) {
 	p := newTestProvider(t)
-	_, err := p.handleGet(t.Context(), &NodeGetInput{ID: "nonexistent"})
+	_, err := p.HandleGet(t.Context(), &NodeGetInput{ID: "nonexistent"})
 	if err == nil {
 		t.Fatal("expected error for missing node")
 	}
@@ -192,7 +192,7 @@ func TestHandleGet_NotFound(t *testing.T) {
 
 func TestHandleList_Empty(t *testing.T) {
 	p := newTestProvider(t)
-	out, err := p.handleList(t.Context(), nil)
+	out, err := p.HandleList(t.Context(), nil)
 	if err != nil {
 		t.Fatalf("handleList: %v", err)
 	}
@@ -211,12 +211,12 @@ func TestHandleList_WithNodes(t *testing.T) {
 		in.Body.AnsibleUser = "aether"
 		in.Body.Password = "aether"
 		in.Body.SudoPassword = "aether"
-		if _, err := p.handleCreate(t.Context(), in); err != nil {
+		if _, err := p.HandleCreate(t.Context(), in); err != nil {
 			t.Fatalf("handleCreate(%s): %v", name, err)
 		}
 	}
 
-	out, err := p.handleList(t.Context(), nil)
+	out, err := p.HandleList(t.Context(), nil)
 	if err != nil {
 		t.Fatalf("handleList: %v", err)
 	}
@@ -239,7 +239,7 @@ func TestHandleUpdate(t *testing.T) {
 	in.Body.Password = "aether"
 	in.Body.SudoPassword = "aether"
 	in.Body.Roles = []string{"master"}
-	created, _ := p.handleCreate(t.Context(), in)
+	created, _ := p.HandleCreate(t.Context(), in)
 
 	newName := "node1-updated"
 	newHost := "10.0.0.2"
@@ -248,7 +248,7 @@ func TestHandleUpdate(t *testing.T) {
 	upd.Body.AnsibleHost = &newHost
 	upd.Body.Roles = []string{"worker"}
 
-	out, err := p.handleUpdate(t.Context(), upd)
+	out, err := p.HandleUpdate(t.Context(), upd)
 	if err != nil {
 		t.Fatalf("handleUpdate: %v", err)
 	}
@@ -266,7 +266,7 @@ func TestHandleUpdate(t *testing.T) {
 func TestHandleUpdate_NotFound(t *testing.T) {
 	p := newTestProvider(t)
 	upd := &NodeUpdateInput{ID: "nonexistent"}
-	_, err := p.handleUpdate(t.Context(), upd)
+	_, err := p.HandleUpdate(t.Context(), upd)
 	if err == nil {
 		t.Fatal("expected error for missing node")
 	}
@@ -285,14 +285,14 @@ func TestHandleUpdate_PartialUpdate(t *testing.T) {
 	in.Body.Password = "secret"
 	in.Body.SudoPassword = "sudosecret"
 	in.Body.Roles = []string{"master"}
-	created, _ := p.handleCreate(t.Context(), in)
+	created, _ := p.HandleCreate(t.Context(), in)
 
 	// Only update name; everything else should be preserved.
 	newName := "node1-renamed"
 	upd := &NodeUpdateInput{ID: created.Body.ID}
 	upd.Body.Name = &newName
 
-	out, err := p.handleUpdate(t.Context(), upd)
+	out, err := p.HandleUpdate(t.Context(), upd)
 	if err != nil {
 		t.Fatalf("handleUpdate: %v", err)
 	}
@@ -319,12 +319,12 @@ func TestHandleUpdate_InvalidRole(t *testing.T) {
 	in.Body.AnsibleUser = "aether"
 	in.Body.Password = "aether"
 	in.Body.SudoPassword = "aether"
-	created, _ := p.handleCreate(t.Context(), in)
+	created, _ := p.HandleCreate(t.Context(), in)
 
 	upd := &NodeUpdateInput{ID: created.Body.ID}
 	upd.Body.Roles = []string{"bogus"}
 
-	_, err := p.handleUpdate(t.Context(), upd)
+	_, err := p.HandleUpdate(t.Context(), upd)
 	if err == nil {
 		t.Fatal("expected error for invalid role")
 	}
@@ -343,9 +343,9 @@ func TestHandleDelete(t *testing.T) {
 	in.Body.AnsibleUser = "aether"
 	in.Body.Password = "aether"
 	in.Body.SudoPassword = "aether"
-	created, _ := p.handleCreate(t.Context(), in)
+	created, _ := p.HandleCreate(t.Context(), in)
 
-	out, err := p.handleDelete(t.Context(), &NodeDeleteInput{ID: created.Body.ID})
+	out, err := p.HandleDelete(t.Context(), &NodeDeleteInput{ID: created.Body.ID})
 	if err != nil {
 		t.Fatalf("handleDelete: %v", err)
 	}
@@ -354,7 +354,7 @@ func TestHandleDelete(t *testing.T) {
 	}
 
 	// Verify node is gone.
-	_, err = p.handleGet(t.Context(), &NodeGetInput{ID: created.Body.ID})
+	_, err = p.HandleGet(t.Context(), &NodeGetInput{ID: created.Body.ID})
 	if err == nil {
 		t.Error("expected error getting deleted node")
 	}

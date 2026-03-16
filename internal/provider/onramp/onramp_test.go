@@ -201,7 +201,7 @@ func TestNewProvider_EndpointPaths(t *testing.T) {
 
 func TestHandleListComponents(t *testing.T) {
 	p := newTestProvider(t, "")
-	out, err := p.handleListComponents(t.Context(), nil)
+	out, err := p.HandleListComponents(t.Context(), nil)
 	if err != nil {
 		t.Fatalf("handleListComponents: %v", err)
 	}
@@ -223,7 +223,7 @@ func TestHandleListComponents(t *testing.T) {
 
 func TestHandleGetComponent(t *testing.T) {
 	p := newTestProvider(t, "")
-	out, err := p.handleGetComponent(t.Context(), &ComponentGetInput{Component: "cluster"})
+	out, err := p.HandleGetComponent(t.Context(), &ComponentGetInput{Component: "cluster"})
 	if err != nil {
 		t.Fatalf("handleGetComponent: %v", err)
 	}
@@ -237,7 +237,7 @@ func TestHandleGetComponent(t *testing.T) {
 
 func TestHandleGetComponent_NotFound(t *testing.T) {
 	p := newTestProvider(t, "")
-	_, err := p.handleGetComponent(t.Context(), &ComponentGetInput{Component: "nonexistent"})
+	_, err := p.HandleGetComponent(t.Context(), &ComponentGetInput{Component: "nonexistent"})
 	if err == nil {
 		t.Fatal("expected error for unknown component")
 	}
@@ -249,7 +249,7 @@ func TestHandleGetComponent_NotFound(t *testing.T) {
 func TestHandleGetComponent_AllRegistered(t *testing.T) {
 	p := newTestProvider(t, "")
 	for _, comp := range componentRegistry {
-		out, err := p.handleGetComponent(t.Context(), &ComponentGetInput{Component: comp.Name})
+		out, err := p.HandleGetComponent(t.Context(), &ComponentGetInput{Component: comp.Name})
 		if err != nil {
 			t.Errorf("handleGetComponent(%q): %v", comp.Name, err)
 			continue
@@ -266,7 +266,7 @@ func TestHandleGetComponent_AllRegistered(t *testing.T) {
 
 func TestHandleExecuteAction_UnknownComponent(t *testing.T) {
 	p := newTestProvider(t, "")
-	_, err := p.handleExecuteAction(t.Context(), &ExecuteActionInput{
+	_, err := p.HandleExecuteAction(t.Context(), &ExecuteActionInput{
 		Component: "nonexistent",
 		Action:    "install",
 	})
@@ -280,7 +280,7 @@ func TestHandleExecuteAction_UnknownComponent(t *testing.T) {
 
 func TestHandleExecuteAction_UnknownAction(t *testing.T) {
 	p := newTestProvider(t, "")
-	_, err := p.handleExecuteAction(t.Context(), &ExecuteActionInput{
+	_, err := p.HandleExecuteAction(t.Context(), &ExecuteActionInput{
 		Component: "k8s",
 		Action:    "nonexistent",
 	})
@@ -298,7 +298,7 @@ func TestHandleExecuteAction_Success(t *testing.T) {
 	}
 
 	p := newTestProviderWithStore(t, "")
-	out, err := p.handleExecuteAction(t.Context(), &ExecuteActionInput{
+	out, err := p.HandleExecuteAction(t.Context(), &ExecuteActionInput{
 		Component: "cluster",
 		Action:    "pingall",
 	})
@@ -344,7 +344,7 @@ func TestHandleExecuteAction_Queued(t *testing.T) {
 	defer p.runner.Cancel(view.ID)
 
 	// Second submission via the handler should be queued (pending), not rejected.
-	out, err := p.handleExecuteAction(t.Context(), &ExecuteActionInput{
+	out, err := p.HandleExecuteAction(t.Context(), &ExecuteActionInput{
 		Component: "cluster",
 		Action:    "pingall",
 	})
@@ -365,7 +365,7 @@ func TestHandleExecuteAction_Queued(t *testing.T) {
 
 func TestHandleListTasks_Empty(t *testing.T) {
 	p := newTestProvider(t, "")
-	out, err := p.handleListTasks(t.Context(), nil)
+	out, err := p.HandleListTasks(t.Context(), nil)
 	if err != nil {
 		t.Fatalf("handleListTasks: %v", err)
 	}
@@ -380,7 +380,7 @@ func TestHandleListTasks_WithTasks(t *testing.T) {
 	time.Sleep(10 * time.Millisecond) // ensure different CreatedAt
 	v2 := submitEchoTask(t, p, "second")
 
-	out, err := p.handleListTasks(t.Context(), nil)
+	out, err := p.HandleListTasks(t.Context(), nil)
 	if err != nil {
 		t.Fatalf("handleListTasks: %v", err)
 	}
@@ -402,7 +402,7 @@ func TestHandleListTasks_WithTasks(t *testing.T) {
 
 func TestHandleGetTask_NotFound(t *testing.T) {
 	p := newTestProvider(t, "")
-	_, err := p.handleGetTask(t.Context(), &TaskGetInput{ID: "nonexistent"})
+	_, err := p.HandleGetTask(t.Context(), &TaskGetInput{ID: "nonexistent"})
 	if err == nil {
 		t.Fatal("expected error for unknown task")
 	}
@@ -415,7 +415,7 @@ func TestHandleGetTask_Found(t *testing.T) {
 	p := newTestProvider(t, "")
 	view := submitEchoTask(t, p, "hello")
 
-	out, err := p.handleGetTask(t.Context(), &TaskGetInput{ID: view.ID})
+	out, err := p.HandleGetTask(t.Context(), &TaskGetInput{ID: view.ID})
 	if err != nil {
 		t.Fatalf("handleGetTask: %v", err)
 	}
@@ -438,7 +438,7 @@ func TestHandleGetTask_WithOffset(t *testing.T) {
 	view := submitEchoTask(t, p, "hello world")
 
 	// Read from offset 6.
-	out, err := p.handleGetTask(t.Context(), &TaskGetInput{ID: view.ID, Offset: 6})
+	out, err := p.HandleGetTask(t.Context(), &TaskGetInput{ID: view.ID, Offset: 6})
 	if err != nil {
 		t.Fatalf("handleGetTask: %v", err)
 	}
@@ -464,7 +464,7 @@ core:
 
 func TestHandleGetConfig(t *testing.T) {
 	p := newTestProvider(t, testMainYML)
-	out, err := p.handleGetConfig(t.Context(), nil)
+	out, err := p.HandleGetConfig(t.Context(), nil)
 	if err != nil {
 		t.Fatalf("handleGetConfig: %v", err)
 	}
@@ -484,7 +484,7 @@ func TestHandleGetConfig(t *testing.T) {
 
 func TestHandleGetConfig_MissingFile(t *testing.T) {
 	p := newTestProvider(t, "") // no vars/main.yml
-	_, err := p.handleGetConfig(t.Context(), nil)
+	_, err := p.HandleGetConfig(t.Context(), nil)
 	if err == nil {
 		t.Fatal("expected error for missing config file")
 	}
@@ -493,7 +493,7 @@ func TestHandleGetConfig_MissingFile(t *testing.T) {
 func TestHandlePatchConfig(t *testing.T) {
 	p := newTestProvider(t, testMainYML)
 
-	out, err := p.handlePatchConfig(t.Context(), &ConfigPatchInput{
+	out, err := p.HandlePatchConfig(t.Context(), &ConfigPatchInput{
 		RawBody: []byte(`{"core": {"data_iface": "ens20"}}`),
 	})
 	if err != nil {
@@ -514,7 +514,7 @@ func TestHandlePatchConfig(t *testing.T) {
 func TestHandlePatchConfig_PersistsToDisk(t *testing.T) {
 	p := newTestProvider(t, testMainYML)
 
-	_, err := p.handlePatchConfig(t.Context(), &ConfigPatchInput{
+	_, err := p.HandlePatchConfig(t.Context(), &ConfigPatchInput{
 		RawBody: []byte(`{"core": {"data_iface": "ens20"}}`),
 	})
 	if err != nil {
@@ -522,7 +522,7 @@ func TestHandlePatchConfig_PersistsToDisk(t *testing.T) {
 	}
 
 	// Re-read from disk to verify persistence.
-	out, err := p.handleGetConfig(t.Context(), nil)
+	out, err := p.HandleGetConfig(t.Context(), nil)
 	if err != nil {
 		t.Fatalf("handleGetConfig: %v", err)
 	}
@@ -535,7 +535,7 @@ func TestHandlePatchConfig_NilFieldsPreserved(t *testing.T) {
 	p := newTestProvider(t, testMainYML)
 
 	// Empty patch — all existing sections should survive.
-	out, err := p.handlePatchConfig(t.Context(), &ConfigPatchInput{
+	out, err := p.HandlePatchConfig(t.Context(), &ConfigPatchInput{
 		RawBody: []byte(`{}`),
 	})
 	if err != nil {
@@ -562,7 +562,7 @@ core:
 
 func TestHandleListProfiles_Empty(t *testing.T) {
 	p := newTestProvider(t, testMainYML)
-	out, err := p.handleListProfiles(t.Context(), nil)
+	out, err := p.HandleListProfiles(t.Context(), nil)
 	if err != nil {
 		t.Fatalf("handleListProfiles: %v", err)
 	}
@@ -576,7 +576,7 @@ func TestHandleListProfiles(t *testing.T) {
 	writeProfile(t, p, "staging", testProfileYML)
 	writeProfile(t, p, "production", testProfileYML)
 
-	out, err := p.handleListProfiles(t.Context(), nil)
+	out, err := p.HandleListProfiles(t.Context(), nil)
 	if err != nil {
 		t.Fatalf("handleListProfiles: %v", err)
 	}
@@ -593,7 +593,7 @@ func TestHandleGetProfile(t *testing.T) {
 	p := newTestProvider(t, testMainYML)
 	writeProfile(t, p, "staging", testProfileYML)
 
-	out, err := p.handleGetProfile(t.Context(), &ProfileGetInput{Name: "staging"})
+	out, err := p.HandleGetProfile(t.Context(), &ProfileGetInput{Name: "staging"})
 	if err != nil {
 		t.Fatalf("handleGetProfile: %v", err)
 	}
@@ -607,7 +607,7 @@ func TestHandleGetProfile(t *testing.T) {
 
 func TestHandleGetProfile_NotFound(t *testing.T) {
 	p := newTestProvider(t, testMainYML)
-	_, err := p.handleGetProfile(t.Context(), &ProfileGetInput{Name: "nonexistent"})
+	_, err := p.HandleGetProfile(t.Context(), &ProfileGetInput{Name: "nonexistent"})
 	if err == nil {
 		t.Fatal("expected error for missing profile")
 	}
@@ -620,7 +620,7 @@ func TestHandleActivateProfile(t *testing.T) {
 	p := newTestProvider(t, testMainYML)
 	writeProfile(t, p, "staging", testProfileYML)
 
-	out, err := p.handleActivateProfile(t.Context(), &ProfileActivateInput{Name: "staging"})
+	out, err := p.HandleActivateProfile(t.Context(), &ProfileActivateInput{Name: "staging"})
 	if err != nil {
 		t.Fatalf("handleActivateProfile: %v", err)
 	}
@@ -629,7 +629,7 @@ func TestHandleActivateProfile(t *testing.T) {
 	}
 
 	// Verify main.yml was replaced with the profile content.
-	cfg, err := p.handleGetConfig(t.Context(), nil)
+	cfg, err := p.HandleGetConfig(t.Context(), nil)
 	if err != nil {
 		t.Fatalf("handleGetConfig after activate: %v", err)
 	}
@@ -640,7 +640,7 @@ func TestHandleActivateProfile(t *testing.T) {
 
 func TestHandleActivateProfile_NotFound(t *testing.T) {
 	p := newTestProvider(t, testMainYML)
-	_, err := p.handleActivateProfile(t.Context(), &ProfileActivateInput{Name: "nonexistent"})
+	_, err := p.HandleActivateProfile(t.Context(), &ProfileActivateInput{Name: "nonexistent"})
 	if err == nil {
 		t.Fatal("expected error for missing profile")
 	}
@@ -655,7 +655,7 @@ func TestHandleActivateProfile_NotFound(t *testing.T) {
 
 func TestHandleGetRepoStatus_NoGitDir(t *testing.T) {
 	p := newTestProvider(t, "")
-	out, err := p.handleGetRepoStatus(t.Context(), nil)
+	out, err := p.HandleGetRepoStatus(t.Context(), nil)
 	if err != nil {
 		t.Fatalf("handleGetRepoStatus: %v", err)
 	}
@@ -674,7 +674,7 @@ func TestHandleGetRepoStatus_WithGitRepo(t *testing.T) {
 	p := newTestProvider(t, "")
 	initGitRepo(t, p.config.OnRampDir)
 
-	out, err := p.handleGetRepoStatus(t.Context(), nil)
+	out, err := p.HandleGetRepoStatus(t.Context(), nil)
 	if err != nil {
 		t.Fatalf("handleGetRepoStatus: %v", err)
 	}
@@ -701,7 +701,7 @@ func TestHandleGetRepoStatus_DirtyRepo(t *testing.T) {
 		t.Fatalf("WriteFile: %v", err)
 	}
 
-	out, err := p.handleGetRepoStatus(t.Context(), nil)
+	out, err := p.HandleGetRepoStatus(t.Context(), nil)
 	if err != nil {
 		t.Fatalf("handleGetRepoStatus: %v", err)
 	}
@@ -721,7 +721,7 @@ func TestHandleRefreshRepo_Success(t *testing.T) {
 	// Pre-set degraded state to verify ClearDegraded is called on success.
 	p.SetDegraded("previous failure")
 
-	out, err := p.handleRefreshRepo(t.Context(), nil)
+	out, err := p.HandleRefreshRepo(t.Context(), nil)
 	if err != nil {
 		t.Fatalf("handleRefreshRepo: %v", err)
 	}
@@ -742,7 +742,7 @@ func TestHandleRefreshRepo_InvalidDir(t *testing.T) {
 	// Refresh with a non-clonable URL returns a status with an error message
 	// rather than a handler error (degraded mode).
 	p := newTestProvider(t, "")
-	out, err := p.handleRefreshRepo(t.Context(), nil)
+	out, err := p.HandleRefreshRepo(t.Context(), nil)
 	if err != nil {
 		t.Fatalf("handleRefreshRepo: %v", err)
 	}
@@ -1199,7 +1199,7 @@ func TestGenerateHostsINI_EmptySections(t *testing.T) {
 
 func TestHandleGetInventory_MissingFile(t *testing.T) {
 	p := newTestProvider(t, "")
-	out, err := p.handleGetInventory(t.Context(), nil)
+	out, err := p.HandleGetInventory(t.Context(), nil)
 	if err != nil {
 		t.Fatalf("handleGetInventory: %v", err)
 	}
@@ -1220,7 +1220,7 @@ node1
 		t.Fatalf("WriteFile: %v", err)
 	}
 
-	out, err := p.handleGetInventory(t.Context(), nil)
+	out, err := p.HandleGetInventory(t.Context(), nil)
 	if err != nil {
 		t.Fatalf("handleGetInventory: %v", err)
 	}

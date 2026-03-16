@@ -54,7 +54,7 @@ func TestNewProvider_ImplementsInterface(t *testing.T) {
 
 func TestHandleCPU(t *testing.T) {
 	p := NewProvider(Config{CollectInterval: 10 * time.Second})
-	out, err := p.handleCPU(t.Context(), nil)
+	out, err := p.HandleCPU(t.Context(), nil)
 	if err != nil {
 		t.Fatalf("handleCPU: %v", err)
 	}
@@ -65,7 +65,7 @@ func TestHandleCPU(t *testing.T) {
 
 func TestHandleMemory(t *testing.T) {
 	p := NewProvider(Config{CollectInterval: 10 * time.Second})
-	out, err := p.handleMemory(t.Context(), nil)
+	out, err := p.HandleMemory(t.Context(), nil)
 	if err != nil {
 		t.Fatalf("handleMemory: %v", err)
 	}
@@ -76,7 +76,7 @@ func TestHandleMemory(t *testing.T) {
 
 func TestHandleDisks(t *testing.T) {
 	p := NewProvider(Config{CollectInterval: 10 * time.Second})
-	out, err := p.handleDisks(t.Context(), nil)
+	out, err := p.HandleDisks(t.Context(), nil)
 	if err != nil {
 		t.Fatalf("handleDisks: %v", err)
 	}
@@ -87,7 +87,7 @@ func TestHandleDisks(t *testing.T) {
 
 func TestHandleOS(t *testing.T) {
 	p := NewProvider(Config{CollectInterval: 10 * time.Second})
-	out, err := p.handleOS(t.Context(), nil)
+	out, err := p.HandleOS(t.Context(), nil)
 	if err != nil {
 		t.Fatalf("handleOS: %v", err)
 	}
@@ -101,7 +101,7 @@ func TestHandleOS(t *testing.T) {
 
 func TestHandleNetworkInterfaces(t *testing.T) {
 	p := NewProvider(Config{CollectInterval: 10 * time.Second})
-	out, err := p.handleNetworkInterfaces(t.Context(), nil)
+	out, err := p.HandleNetworkInterfaces(t.Context(), nil)
 	if err != nil {
 		t.Fatalf("handleNetworkInterfaces: %v", err)
 	}
@@ -112,7 +112,7 @@ func TestHandleNetworkInterfaces(t *testing.T) {
 
 func TestHandleNetworkConfig(t *testing.T) {
 	p := NewProvider(Config{CollectInterval: 10 * time.Second})
-	out, err := p.handleNetworkConfig(t.Context(), nil)
+	out, err := p.HandleNetworkConfig(t.Context(), nil)
 	if err != nil {
 		t.Fatalf("handleNetworkConfig: %v", err)
 	}
@@ -127,7 +127,7 @@ func TestHandleNetworkConfig(t *testing.T) {
 
 func TestHandleListeningPorts(t *testing.T) {
 	p := NewProvider(Config{CollectInterval: 10 * time.Second})
-	out, err := p.handleListeningPorts(t.Context(), nil)
+	out, err := p.HandleListeningPorts(t.Context(), nil)
 	if err != nil {
 		t.Fatalf("handleListeningPorts: %v", err)
 	}
@@ -139,7 +139,7 @@ func TestHandleListeningPorts(t *testing.T) {
 
 func TestHandleMetricsQuery_NoStore(t *testing.T) {
 	p := NewProvider(Config{CollectInterval: 10 * time.Second})
-	_, err := p.handleMetricsQuery(t.Context(), &MetricsQueryInput{Metric: "test"})
+	_, err := p.HandleMetricsQuery(t.Context(), &MetricsQueryInput{Metric: "test"})
 	if err == nil {
 		t.Error("expected error when store is not configured")
 	}
@@ -147,7 +147,7 @@ func TestHandleMetricsQuery_NoStore(t *testing.T) {
 
 func TestHandleMetricsQuery_EmptyMetric(t *testing.T) {
 	p := NewProvider(Config{CollectInterval: 10 * time.Second})
-	out, err := p.handleMetricsQuery(t.Context(), &MetricsQueryInput{})
+	out, err := p.HandleMetricsQuery(t.Context(), &MetricsQueryInput{})
 	if err != nil {
 		t.Fatalf("handleMetricsQuery: %v", err)
 	}
@@ -174,7 +174,7 @@ func TestHandleMetricsQuery_WithStore(t *testing.T) {
 	}
 
 	p := NewProvider(Config{CollectInterval: 10 * time.Second}, provider.WithStore(st))
-	out, err := p.handleMetricsQuery(ctx, &MetricsQueryInput{
+	out, err := p.HandleMetricsQuery(ctx, &MetricsQueryInput{
 		Metric: "test.metric",
 		From:   now.Add(-1 * time.Minute).Format(time.RFC3339),
 		To:     now.Add(1 * time.Minute).Format(time.RFC3339),
