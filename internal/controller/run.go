@@ -17,8 +17,12 @@ import (
 	"github.com/bengrewell/aether-webui/internal/auth"
 	"github.com/bengrewell/aether-webui/internal/frontend"
 	"github.com/bengrewell/aether-webui/internal/logging"
+	mcpserver "github.com/bengrewell/aether-webui/internal/mcp"
 	"github.com/bengrewell/aether-webui/internal/provider"
 	"github.com/bengrewell/aether-webui/internal/provider/meta"
+	"github.com/bengrewell/aether-webui/internal/provider/nodes"
+	"github.com/bengrewell/aether-webui/internal/provider/onramp"
+	"github.com/bengrewell/aether-webui/internal/provider/system"
 	"github.com/bengrewell/aether-webui/internal/security"
 	"github.com/bengrewell/aether-webui/internal/store"
 )
@@ -58,6 +62,12 @@ func (c *Controller) Run(ctx context.Context) error {
 		return fmt.Errorf("providers: %w", err)
 	}
 
+	if c.mcpEnabled {
+		if err := c.startMCP(ctx); err != nil {
+			return fmt.Errorf("mcp: %w", err)
+		}
+	}
+
 	c.mountFrontend(transport)
 
 	c.server = &http.Server{
@@ -87,15 +97,18 @@ func (c *Controller) Run(ctx context.Context) error {
 }
 
 // setupLogging initializes structured logging via the logging package.
+// When MCP stdio transport is active (mcpEnabled && no mcpListenAddr),
+// log output goes to stderr to avoid conflicting with JSON-RPC on stdout.
 func (c *Controller) setupLogging() {
 	level := slog.LevelInfo
 	if c.debug {
 		level = slog.LevelDebug
 	}
-	logging.Setup(logging.Options{
+	opts := logging.Options{
 		Level:     level,
 		AddSource: c.debug,
-	})
+	}
+	logging.Setup(opts)
 	c.log = slog.Default()
 }
 
@@ -335,6 +348,86 @@ func (c *Controller) buildStoreInfoFn() meta.StoreInfoFunc {
 	}
 }
 
+// startMCP creates the MCP server and starts the configured transports.
+func (c *Controller) startMCP(ctx context.Context) error {
+	// Find the concrete provider instances from c.providers.
+	var (
+		nodesProvider  *nodes.Nodes
+		onrampProvider *onramp.OnRamp
+		systemProvider *system.System
+		metaProvider   *meta.Meta
+	)
+	for _, p := range c.providers {
+		switch v := p.(type) {
+		case *nodes.Nodes:
+			nodesProvider = v
+		case *onramp.OnRamp:
+			onrampProvider = v
+		case *system.System:
+			systemProvider = v
+		case *meta.Meta:
+			metaProvider = v
+		}
+	}
+
+	if nodesProvider == nil || onrampProvider == nil || systemProvider == nil || metaProvider == nil {
+		missing := []string{}
+		if nodesProvider == nil {
+			missing = append(missing, "nodes")
+		}
+		if onrampProvider == nil {
+			missing = append(missing, "onramp")
+		}
+		if systemProvider == nil {
+			missing = append(missing, "system")
+		}
+		if metaProvider == nil {
+			missing = append(missing, "meta")
+		}
+		return fmt.Errorf("MCP requires providers %v but they were not found", missing)
+	}
+
+	srv := mcpserver.New(mcpserver.Config{
+		Store:   c.store,
+		Nodes:   nodesProvider,
+		OnRamp:  onrampProvider,
+		System:  systemProvider,
+		Meta:    metaProvider,
+		Log:     c.log.With("component", "mcp"),
+		Version: c.versionInfo.Version,
+	})
+
+	// Stdio transport: run in a goroutine, blocks until ctx done.
+	if c.mcpListenAddr == "" {
+		go func() {
+			if err := srv.RunStdio(ctx); err != nil {
+				c.log.Error("MCP stdio server error", "error", err)
+			}
+		}()
+		c.log.Info("MCP server started on stdio")
+	}
+
+	// StreamableHTTP transport on a separate address.
+	if c.mcpListenAddr != "" {
+		handler := srv.HTTPHandler()
+		if c.apiToken != "" {
+			handler = auth.TokenAuth(c.apiToken, nil)(handler)
+		}
+		c.mcpServer = &http.Server{
+			Addr:    c.mcpListenAddr,
+			Handler: handler,
+		}
+		go func() {
+			c.log.Info("starting MCP HTTP server", "addr", c.mcpListenAddr)
+			if err := c.mcpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+				c.log.Error("MCP HTTP server error", "error", err)
+			}
+		}()
+	}
+
+	return nil
+}
+
 // mountFrontend attaches the SPA handler to the first transport, if enabled.
 func (c *Controller) mountFrontend(transport Transport) {
 	if !c.frontendEnabled {
@@ -396,6 +489,15 @@ func (c *Controller) shutdown() error {
 	if err := c.server.Shutdown(shutdownCtx); err != nil {
 		c.log.Error("server shutdown error", "error", err)
 		firstErr = err
+	}
+
+	if c.mcpServer != nil {
+		if err := c.mcpServer.Shutdown(shutdownCtx); err != nil {
+			c.log.Error("MCP server shutdown error", "error", err)
+			if firstErr == nil {
+				firstErr = err
+			}
+		}
 	}
 
 	// Stop providers in reverse registration order.

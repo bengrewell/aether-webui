@@ -17,7 +17,7 @@ import (
 	"github.com/bengrewell/aether-webui/internal/store"
 )
 
-func (s *System) handleCPU(ctx context.Context, _ *struct{}) (*CPUInfoOutput, error) {
+func (s *System) HandleCPU(ctx context.Context, _ *struct{}) (*CPUInfoOutput, error) {
 	infos, err := cpu.InfoWithContext(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("cpu info: %w", err)
@@ -42,7 +42,7 @@ func (s *System) handleCPU(ctx context.Context, _ *struct{}) (*CPUInfoOutput, er
 	return &CPUInfoOutput{Body: out}, nil
 }
 
-func (s *System) handleMemory(ctx context.Context, _ *struct{}) (*MemoryInfoOutput, error) {
+func (s *System) HandleMemory(ctx context.Context, _ *struct{}) (*MemoryInfoOutput, error) {
 	vm, err := mem.VirtualMemoryWithContext(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("virtual memory: %w", err)
@@ -64,7 +64,7 @@ func (s *System) handleMemory(ctx context.Context, _ *struct{}) (*MemoryInfoOutp
 	return &MemoryInfoOutput{Body: out}, nil
 }
 
-func (s *System) handleDisks(ctx context.Context, _ *struct{}) (*DiskInfoOutput, error) {
+func (s *System) HandleDisks(ctx context.Context, _ *struct{}) (*DiskInfoOutput, error) {
 	parts, err := disk.PartitionsWithContext(ctx, false)
 	if err != nil {
 		return nil, fmt.Errorf("disk partitions: %w", err)
@@ -89,7 +89,7 @@ func (s *System) handleDisks(ctx context.Context, _ *struct{}) (*DiskInfoOutput,
 	return &DiskInfoOutput{Body: DiskInfo{Partitions: partitions}}, nil
 }
 
-func (s *System) handleOS(ctx context.Context, _ *struct{}) (*OSInfoOutput, error) {
+func (s *System) HandleOS(ctx context.Context, _ *struct{}) (*OSInfoOutput, error) {
 	info, err := host.InfoWithContext(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("host info: %w", err)
@@ -105,7 +105,7 @@ func (s *System) handleOS(ctx context.Context, _ *struct{}) (*OSInfoOutput, erro
 	}}, nil
 }
 
-func (s *System) handleNetworkInterfaces(ctx context.Context, _ *struct{}) (*NetworkInterfacesOutput, error) {
+func (s *System) HandleNetworkInterfaces(ctx context.Context, _ *struct{}) (*NetworkInterfacesOutput, error) {
 	ifaces, err := net.InterfacesWithContext(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("network interfaces: %w", err)
@@ -134,7 +134,7 @@ func (s *System) handleNetworkInterfaces(ctx context.Context, _ *struct{}) (*Net
 	return &NetworkInterfacesOutput{Body: out}, nil
 }
 
-func (s *System) handleNetworkConfig(_ context.Context, _ *struct{}) (*NetworkConfigOutput, error) {
+func (s *System) HandleNetworkConfig(_ context.Context, _ *struct{}) (*NetworkConfigOutput, error) {
 	servers, search, err := parseResolvConf("/etc/resolv.conf")
 	if err != nil {
 		// Non-fatal: return empty config rather than erroring.
@@ -156,7 +156,7 @@ func (s *System) handleNetworkConfig(_ context.Context, _ *struct{}) (*NetworkCo
 	}}, nil
 }
 
-func (s *System) handleListeningPorts(ctx context.Context, _ *struct{}) (*ListeningPortsOutput, error) {
+func (s *System) HandleListeningPorts(ctx context.Context, _ *struct{}) (*ListeningPortsOutput, error) {
 	conns, err := net.ConnectionsWithContext(ctx, "inet")
 	if err != nil {
 		return nil, fmt.Errorf("network connections: %w", err)
@@ -190,7 +190,7 @@ func (s *System) handleListeningPorts(ctx context.Context, _ *struct{}) (*Listen
 	return &ListeningPortsOutput{Body: ports}, nil
 }
 
-func (s *System) handleMetricsQuery(ctx context.Context, in *MetricsQueryInput) (*MetricsQueryOutput, error) {
+func (s *System) HandleMetricsQuery(ctx context.Context, in *MetricsQueryInput) (*MetricsQueryOutput, error) {
 	if in.Metric == "" {
 		return &MetricsQueryOutput{Body: MetricsResult{Series: []SeriesResult{}}}, nil
 	}

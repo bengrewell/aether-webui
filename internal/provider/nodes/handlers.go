@@ -10,7 +10,7 @@ import (
 	"github.com/bengrewell/aether-webui/internal/store"
 )
 
-func (n *Nodes) handleList(ctx context.Context, _ *struct{}) (*ManagedNodeListOutput, error) {
+func (n *Nodes) HandleList(ctx context.Context, _ *struct{}) (*ManagedNodeListOutput, error) {
 	infos, err := n.Store().ListNodes(ctx)
 	if err != nil {
 		return nil, huma.Error500InternalServerError("failed to list nodes", err)
@@ -22,7 +22,7 @@ func (n *Nodes) handleList(ctx context.Context, _ *struct{}) (*ManagedNodeListOu
 	return &ManagedNodeListOutput{Body: out}, nil
 }
 
-func (n *Nodes) handleGet(ctx context.Context, in *NodeGetInput) (*NodeGetOutput, error) {
+func (n *Nodes) HandleGet(ctx context.Context, in *NodeGetInput) (*NodeGetOutput, error) {
 	node, ok, err := n.Store().GetNode(ctx, in.ID)
 	if err != nil {
 		return nil, huma.Error500InternalServerError("failed to get node", err)
@@ -33,7 +33,7 @@ func (n *Nodes) handleGet(ctx context.Context, in *NodeGetInput) (*NodeGetOutput
 	return &NodeGetOutput{Body: managedNodeFromNode(node)}, nil
 }
 
-func (n *Nodes) handleCreate(ctx context.Context, in *NodeCreateInput) (*NodeCreateOutput, error) {
+func (n *Nodes) HandleCreate(ctx context.Context, in *NodeCreateInput) (*NodeCreateOutput, error) {
 	if in.Body.Name == "" {
 		return nil, huma.Error422UnprocessableEntity("name is required")
 	}
@@ -80,7 +80,7 @@ func (n *Nodes) handleCreate(ctx context.Context, in *NodeCreateInput) (*NodeCre
 	return &NodeCreateOutput{Body: managedNodeFromNode(created)}, nil
 }
 
-func (n *Nodes) handleUpdate(ctx context.Context, in *NodeUpdateInput) (*NodeUpdateOutput, error) {
+func (n *Nodes) HandleUpdate(ctx context.Context, in *NodeUpdateInput) (*NodeUpdateOutput, error) {
 	existing, ok, err := n.Store().GetNode(ctx, in.ID)
 	if err != nil {
 		return nil, huma.Error500InternalServerError("failed to get node", err)
@@ -125,7 +125,7 @@ func (n *Nodes) handleUpdate(ctx context.Context, in *NodeUpdateInput) (*NodeUpd
 	return &NodeUpdateOutput{Body: managedNodeFromNode(updated)}, nil
 }
 
-func (n *Nodes) handleDelete(ctx context.Context, in *NodeDeleteInput) (*NodeDeleteOutput, error) {
+func (n *Nodes) HandleDelete(ctx context.Context, in *NodeDeleteInput) (*NodeDeleteOutput, error) {
 	if err := n.Store().DeleteNode(ctx, in.ID); err != nil {
 		return nil, huma.Error500InternalServerError("failed to delete node", err)
 	}

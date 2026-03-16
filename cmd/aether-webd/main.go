@@ -96,6 +96,10 @@ func main() {
 	flagDataDir := u.AddStringOption("", "data-dir", envOr("AETHER_DATA_DIR", "/var/lib/aether-webd"), "Directory for persistent state database (env: AETHER_DATA_DIR)", "", storageOptions)
 	flagEncryptionKey := u.AddStringOption("", "encryption-key", envOr("AETHER_ENCRYPTION_KEY", ""), "32-byte encryption key for node passwords; auto-generated if not provided (env: AETHER_ENCRYPTION_KEY)", "", secOptions)
 
+	mcpOptions := u.AddGroup(7, "MCP Options", "Options for the embedded MCP server")
+	flagMCP := u.AddBooleanOption("", "mcp", envBool("AETHER_MCP", false), "Enable MCP server for LLM tool integration via stdio (env: AETHER_MCP)", "", mcpOptions)
+	flagMCPListen := u.AddStringOption("", "mcp-listen", envOr("AETHER_MCP_LISTEN", ""), "Address for MCP StreamableHTTP transport; enables HTTP-based MCP (env: AETHER_MCP_LISTEN)", "", mcpOptions)
+
 	metricsOptions := u.AddGroup(5, "Metrics Options", "Options that control metrics collection")
 	flagMetricsInterval := u.AddStringOption("", "metrics-interval", envOr("AETHER_METRICS_INTERVAL", "10s"), "How often to collect system metrics, e.g. 10s, 30s, 1m (env: AETHER_METRICS_INTERVAL)", "", metricsOptions)
 	flagMetricsRetention := u.AddStringOption("", "metrics-retention", envOr("AETHER_METRICS_RETENTION", "24h"), "How long to retain historical metrics data, e.g. 24h, 7d (env: AETHER_METRICS_RETENTION)", "", metricsOptions)
@@ -145,6 +149,8 @@ func main() {
 		controller.WithFrontend(*flagServeFrontend, *flagFrontendDir),
 		controller.WithMetrics(*flagMetricsInterval, *flagMetricsRetention),
 		controller.WithEncryptionKey(*flagEncryptionKey),
+		controller.WithMCP(*flagMCP || *flagMCPListen != ""),
+		controller.WithMCPListenAddr(*flagMCPListen),
 		controller.WithProvider("system", true, func(_ context.Context, _ store.Client, opts []provider.Option) (provider.Provider, error) {
 			return system.NewProvider(system.Config{
 				CollectInterval: collectInterval,

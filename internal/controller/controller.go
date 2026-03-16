@@ -42,6 +42,8 @@ type Controller struct {
 	metricsRetention string
 	encryptionKey    string
 	corsOrigins      []string
+	mcpEnabled       bool
+	mcpListenAddr    string
 	storeOpts        []store.Option
 	providerRegs     []providerReg
 
@@ -51,6 +53,7 @@ type Controller struct {
 	transports []Transport
 	providers  []provider.Provider
 	server     *http.Server
+	mcpServer  *http.Server // separate HTTP server for MCP StreamableHTTP
 	tlsResult  *security.TLSResult
 }
 

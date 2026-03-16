@@ -29,7 +29,7 @@ func NewProvider(opts ...provider.Option) *Nodes {
 			Tags:        []string{"nodes"},
 			HTTP:        endpoint.HTTPHint{Path: "/api/v1/nodes"},
 		},
-		Handler: n.handleList,
+		Handler: n.HandleList,
 	})
 
 	provider.Register(n.Base, endpoint.Endpoint[NodeGetInput, NodeGetOutput]{
@@ -41,7 +41,7 @@ func NewProvider(opts ...provider.Option) *Nodes {
 			Tags:        []string{"nodes"},
 			HTTP:        endpoint.HTTPHint{Path: "/api/v1/nodes/{id}"},
 		},
-		Handler: n.handleGet,
+		Handler: n.HandleGet,
 	})
 
 	provider.Register(n.Base, endpoint.Endpoint[NodeCreateInput, NodeCreateOutput]{
@@ -53,7 +53,7 @@ func NewProvider(opts ...provider.Option) *Nodes {
 			Tags:        []string{"nodes"},
 			HTTP:        endpoint.HTTPHint{Path: "/api/v1/nodes"},
 		},
-		Handler: n.handleCreate,
+		Handler: n.HandleCreate,
 	})
 
 	provider.Register(n.Base, endpoint.Endpoint[NodeUpdateInput, NodeUpdateOutput]{
@@ -65,7 +65,7 @@ func NewProvider(opts ...provider.Option) *Nodes {
 			Tags:        []string{"nodes"},
 			HTTP:        endpoint.HTTPHint{Path: "/api/v1/nodes/{id}"},
 		},
-		Handler: n.handleUpdate,
+		Handler: n.HandleUpdate,
 	})
 
 	provider.Register(n.Base, endpoint.Endpoint[NodeDeleteInput, NodeDeleteOutput]{
@@ -77,7 +77,7 @@ func NewProvider(opts ...provider.Option) *Nodes {
 			Tags:        []string{"nodes"},
 			HTTP:        endpoint.HTTPHint{Path: "/api/v1/nodes/{id}"},
 		},
-		Handler: n.handleDelete,
+		Handler: n.HandleDelete,
 	})
 
 	return n

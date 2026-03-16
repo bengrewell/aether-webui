@@ -52,7 +52,7 @@ func newTestProvider(opts ...func(*Meta)) *Meta {
 
 func TestHandleVersion(t *testing.T) {
 	m := newTestProvider()
-	out, err := m.handleVersion(t.Context(), nil)
+	out, err := m.HandleVersion(t.Context(), nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -72,7 +72,7 @@ func TestHandleVersion(t *testing.T) {
 
 func TestHandleBuild(t *testing.T) {
 	m := newTestProvider()
-	out, err := m.handleBuild(t.Context(), nil)
+	out, err := m.HandleBuild(t.Context(), nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -89,7 +89,7 @@ func TestHandleBuild(t *testing.T) {
 
 func TestHandleRuntime(t *testing.T) {
 	m := newTestProvider()
-	out, err := m.handleRuntime(t.Context(), nil)
+	out, err := m.HandleRuntime(t.Context(), nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -111,7 +111,7 @@ func TestHandleConfig(t *testing.T) {
 	schemaVer := func() (int, error) { return 5, nil }
 	m := newTestProvider(func(m *Meta) { m.schemaVer = schemaVer })
 
-	out, err := m.handleConfig(t.Context(), nil)
+	out, err := m.HandleConfig(t.Context(), nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -157,7 +157,7 @@ func TestHandleConfigSchemaVersionError(t *testing.T) {
 	schemaVer := func() (int, error) { return 0, errors.New("db error") }
 	m := newTestProvider(func(m *Meta) { m.schemaVer = schemaVer })
 
-	out, err := m.handleConfig(t.Context(), nil)
+	out, err := m.HandleConfig(t.Context(), nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -169,7 +169,7 @@ func TestHandleConfigSchemaVersionError(t *testing.T) {
 func TestHandleConfigSchemaVersionNil(t *testing.T) {
 	m := newTestProvider() // schemaVer is nil
 
-	out, err := m.handleConfig(t.Context(), nil)
+	out, err := m.HandleConfig(t.Context(), nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -187,7 +187,7 @@ func TestHandleProviders(t *testing.T) {
 	}
 	m := newTestProvider(func(m *Meta) { m.providersFn = providersFn })
 
-	out, err := m.handleProviders(t.Context(), nil)
+	out, err := m.HandleProviders(t.Context(), nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -205,7 +205,7 @@ func TestHandleProviders(t *testing.T) {
 func TestHandleProvidersNilCallback(t *testing.T) {
 	m := newTestProvider() // providersFn is nil
 
-	out, err := m.handleProviders(t.Context(), nil)
+	out, err := m.HandleProviders(t.Context(), nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -255,7 +255,7 @@ func TestNewProviderEndpointPaths(t *testing.T) {
 func TestHandleStoreNilCallback(t *testing.T) {
 	m := newTestProvider() // storeInfoFn is nil
 
-	out, err := m.handleStore(t.Context(), nil)
+	out, err := m.HandleStore(t.Context(), nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -285,7 +285,7 @@ func TestHandleStoreWithCallback(t *testing.T) {
 	}
 	m := newTestProvider(func(m *Meta) { m.storeInfoFn = storeInfoFn })
 
-	out, err := m.handleStore(t.Context(), nil)
+	out, err := m.HandleStore(t.Context(), nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

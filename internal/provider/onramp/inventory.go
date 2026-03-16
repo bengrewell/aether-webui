@@ -33,7 +33,7 @@ var roleSections = []struct {
 // Handlers
 // ---------------------------------------------------------------------------
 
-func (o *OnRamp) handleGetInventory(_ context.Context, _ *struct{}) (*InventoryGetOutput, error) {
+func (o *OnRamp) HandleGetInventory(_ context.Context, _ *struct{}) (*InventoryGetOutput, error) {
 	path := filepath.Join(o.config.OnRampDir, "hosts.ini")
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -46,7 +46,7 @@ func (o *OnRamp) handleGetInventory(_ context.Context, _ *struct{}) (*InventoryG
 	return &InventoryGetOutput{Body: inv}, nil
 }
 
-func (o *OnRamp) handleSyncInventory(ctx context.Context, _ *struct{}) (*InventorySyncOutput, error) {
+func (o *OnRamp) HandleSyncInventory(ctx context.Context, _ *struct{}) (*InventorySyncOutput, error) {
 	infos, err := o.Store().ListNodes(ctx)
 	if err != nil {
 		return nil, huma.Error500InternalServerError("failed to list nodes", err)

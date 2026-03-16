@@ -22,12 +22,12 @@ import (
 // Repo handlers
 // ---------------------------------------------------------------------------
 
-func (o *OnRamp) handleGetRepoStatus(_ context.Context, _ *struct{}) (*RepoStatusOutput, error) {
+func (o *OnRamp) HandleGetRepoStatus(_ context.Context, _ *struct{}) (*RepoStatusOutput, error) {
 	status := o.gatherRepoStatus()
 	return &RepoStatusOutput{Body: status}, nil
 }
 
-func (o *OnRamp) handleRefreshRepo(_ context.Context, _ *struct{}) (*RepoRefreshOutput, error) {
+func (o *OnRamp) HandleRefreshRepo(_ context.Context, _ *struct{}) (*RepoRefreshOutput, error) {
 	log := o.Log()
 	if err := ensureRepo(o.config, log); err != nil {
 		o.SetDegraded(fmt.Sprintf("repo setup: %v", err))
@@ -79,11 +79,11 @@ func (o *OnRamp) gatherRepoStatus() RepoStatus {
 // Component handlers
 // ---------------------------------------------------------------------------
 
-func (o *OnRamp) handleListComponents(_ context.Context, _ *struct{}) (*ComponentListOutput, error) {
+func (o *OnRamp) HandleListComponents(_ context.Context, _ *struct{}) (*ComponentListOutput, error) {
 	return &ComponentListOutput{Body: componentRegistry}, nil
 }
 
-func (o *OnRamp) handleGetComponent(_ context.Context, in *ComponentGetInput) (*ComponentGetOutput, error) {
+func (o *OnRamp) HandleGetComponent(_ context.Context, in *ComponentGetInput) (*ComponentGetOutput, error) {
 	comp, ok := componentIndex[in.Component]
 	if !ok {
 		return nil, huma.Error404NotFound("component not found", fmt.Errorf("unknown component: %s", in.Component))
@@ -91,7 +91,7 @@ func (o *OnRamp) handleGetComponent(_ context.Context, in *ComponentGetInput) (*
 	return &ComponentGetOutput{Body: *comp}, nil
 }
 
-func (o *OnRamp) handleExecuteAction(ctx context.Context, in *ExecuteActionInput) (*ExecuteActionOutput, error) {
+func (o *OnRamp) HandleExecuteAction(ctx context.Context, in *ExecuteActionInput) (*ExecuteActionOutput, error) {
 	comp, ok := componentIndex[in.Component]
 	if !ok {
 		return nil, huma.Error404NotFound("component not found", fmt.Errorf("unknown component: %s", in.Component))
@@ -177,7 +177,7 @@ func (o *OnRamp) handleExecuteAction(ctx context.Context, in *ExecuteActionInput
 // Task handlers
 // ---------------------------------------------------------------------------
 
-func (o *OnRamp) handleListTasks(_ context.Context, _ *struct{}) (*TaskListOutput, error) {
+func (o *OnRamp) HandleListTasks(_ context.Context, _ *struct{}) (*TaskListOutput, error) {
 	views := o.runner.List(nil)
 	out := make([]OnRampTask, len(views))
 	for i, v := range views {
@@ -187,7 +187,7 @@ func (o *OnRamp) handleListTasks(_ context.Context, _ *struct{}) (*TaskListOutpu
 	return &TaskListOutput{Body: out}, nil
 }
 
-func (o *OnRamp) handleGetTask(_ context.Context, in *TaskGetInput) (*TaskGetOutput, error) {
+func (o *OnRamp) HandleGetTask(_ context.Context, in *TaskGetInput) (*TaskGetOutput, error) {
 	view, err := o.runner.Get(in.ID)
 	if err != nil {
 		return nil, huma.Error404NotFound("task not found", fmt.Errorf("no task with id %s", in.ID))
@@ -200,7 +200,7 @@ func (o *OnRamp) handleGetTask(_ context.Context, in *TaskGetInput) (*TaskGetOut
 // Action history handlers
 // ---------------------------------------------------------------------------
 
-func (o *OnRamp) handleListActions(ctx context.Context, in *ActionListInput) (*ActionListOutput, error) {
+func (o *OnRamp) HandleListActions(ctx context.Context, in *ActionListInput) (*ActionListOutput, error) {
 	recs, err := o.Store().ListActions(ctx, store.ActionFilter{
 		Component: in.Component,
 		Action:    in.Action,
@@ -218,7 +218,7 @@ func (o *OnRamp) handleListActions(ctx context.Context, in *ActionListInput) (*A
 	return &ActionListOutput{Body: items}, nil
 }
 
-func (o *OnRamp) handleGetAction(ctx context.Context, in *ActionGetInput) (*ActionGetOutput, error) {
+func (o *OnRamp) HandleGetAction(ctx context.Context, in *ActionGetInput) (*ActionGetOutput, error) {
 	rec, ok, err := o.Store().GetAction(ctx, in.ID)
 	if err != nil {
 		return nil, huma.Error500InternalServerError("failed to get action", err)
@@ -252,7 +252,7 @@ func actionRecordToItem(r store.ActionRecord) ActionHistoryItem {
 // Component state handlers
 // ---------------------------------------------------------------------------
 
-func (o *OnRamp) handleListComponentStates(ctx context.Context, _ *struct{}) (*ComponentStateListOutput, error) {
+func (o *OnRamp) HandleListComponentStates(ctx context.Context, _ *struct{}) (*ComponentStateListOutput, error) {
 	states, err := o.Store().ListComponentStates(ctx)
 	if err != nil {
 		return nil, huma.Error500InternalServerError("failed to list component states", err)
@@ -279,7 +279,7 @@ func (o *OnRamp) handleListComponentStates(ctx context.Context, _ *struct{}) (*C
 	return &ComponentStateListOutput{Body: items}, nil
 }
 
-func (o *OnRamp) handleGetComponentState(ctx context.Context, in *ComponentStateGetInput) (*ComponentStateGetOutput, error) {
+func (o *OnRamp) HandleGetComponentState(ctx context.Context, in *ComponentStateGetInput) (*ComponentStateGetOutput, error) {
 	// Validate the component name against the registry.
 	if _, ok := componentIndex[in.Component]; !ok {
 		return nil, huma.Error404NotFound("component not found", fmt.Errorf("unknown component: %s", in.Component))
@@ -315,7 +315,7 @@ func componentStateToItem(cs store.ComponentState) ComponentStateItem {
 // Config handlers
 // ---------------------------------------------------------------------------
 
-func (o *OnRamp) handleGetConfig(_ context.Context, _ *struct{}) (*ConfigGetOutput, error) {
+func (o *OnRamp) HandleGetConfig(_ context.Context, _ *struct{}) (*ConfigGetOutput, error) {
 	cfg, err := o.readVarsFile(filepath.Join(o.config.OnRampDir, "vars", "main.yml"))
 	if err != nil {
 		return nil, huma.Error500InternalServerError("failed to read config", err)
@@ -323,7 +323,7 @@ func (o *OnRamp) handleGetConfig(_ context.Context, _ *struct{}) (*ConfigGetOutp
 	return &ConfigGetOutput{Body: cfg}, nil
 }
 
-func (o *OnRamp) handlePatchConfig(_ context.Context, in *ConfigPatchInput) (*ConfigPatchOutput, error) {
+func (o *OnRamp) HandlePatchConfig(_ context.Context, in *ConfigPatchInput) (*ConfigPatchOutput, error) {
 	mainYML := filepath.Join(o.config.OnRampDir, "vars", "main.yml")
 
 	base, err := o.readVarsFile(mainYML)
@@ -346,7 +346,7 @@ func (o *OnRamp) handlePatchConfig(_ context.Context, in *ConfigPatchInput) (*Co
 // Profile handlers
 // ---------------------------------------------------------------------------
 
-func (o *OnRamp) handleListProfiles(_ context.Context, _ *struct{}) (*ProfileListOutput, error) {
+func (o *OnRamp) HandleListProfiles(_ context.Context, _ *struct{}) (*ProfileListOutput, error) {
 	pattern := filepath.Join(o.config.OnRampDir, "vars", "main-*.yml")
 	matches, err := filepath.Glob(pattern)
 	if err != nil {
@@ -362,7 +362,7 @@ func (o *OnRamp) handleListProfiles(_ context.Context, _ *struct{}) (*ProfileLis
 	return &ProfileListOutput{Body: names}, nil
 }
 
-func (o *OnRamp) handleGetProfile(_ context.Context, in *ProfileGetInput) (*ProfileGetOutput, error) {
+func (o *OnRamp) HandleGetProfile(_ context.Context, in *ProfileGetInput) (*ProfileGetOutput, error) {
 	path := filepath.Join(o.config.OnRampDir, "vars", fmt.Sprintf("main-%s.yml", in.Name))
 	cfg, err := o.readVarsFile(path)
 	if err != nil {
@@ -375,7 +375,7 @@ func (o *OnRamp) handleGetProfile(_ context.Context, in *ProfileGetInput) (*Prof
 	return &ProfileGetOutput{Body: cfg}, nil
 }
 
-func (o *OnRamp) handleActivateProfile(_ context.Context, in *ProfileActivateInput) (*ProfileActivateOutput, error) {
+func (o *OnRamp) HandleActivateProfile(_ context.Context, in *ProfileActivateInput) (*ProfileActivateOutput, error) {
 	src := filepath.Join(o.config.OnRampDir, "vars", fmt.Sprintf("main-%s.yml", in.Name))
 	dst := filepath.Join(o.config.OnRampDir, "vars", "main.yml")
 
