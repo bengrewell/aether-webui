@@ -1,0 +1,288 @@
+---
+########################################################################################################################
+## Test Suite Configuration                                                                                           ##
+########################################################################################################################
+# Split-hosting deployment test. Backend API on one VM, frontend served by nginx on another. Validates that the
+# backend health check works, nginx serves the frontend, and CORS headers are correctly configured to allow
+# cross-origin requests from the frontend origin while rejecting unauthorized origins.
+suite: Aether Split Hosting Deployment Test Suite
+
+########################################################################################################################
+## Node Infrastructure Configuration                                                                                  ##
+########################################################################################################################
+lxd:
+  networks:
+    - name: split-host-test
+      type: bridge
+      subnet: 10.103.103.0/24
+      gateway: 10.103.103.1
+
+  profiles:
+    - name: backend-profile
+      description: Profile for the backend API VM
+      devices:
+        root:
+          type: disk
+          path: /
+          pool: default
+          opts:
+            size: 50GB
+      config:
+        limits.cpu: "4"
+        limits.memory: "4GB"
+
+        user.user-data: |
+          #cloud-config
+          package_update: true
+          packages:
+            - curl
+            - jq
+          runcmd:
+            - [ bash, -c, 'echo "complete" > /tmp/cloud-init.complete' ]
+
+    - name: frontend-profile
+      description: Profile for the frontend nginx VM
+      devices:
+        root:
+          type: disk
+          path: /
+          pool: default
+          opts:
+            size: 50GB
+      config:
+        limits.cpu: "4"
+        limits.memory: "4GB"
+
+        user.user-data: |
+          #cloud-config
+          package_update: true
+          packages:
+            - curl
+            - jq
+            - nginx
+            - git
+            - nodejs
+            - npm
+          runcmd:
+            - [ bash, -c, 'echo "complete" > /tmp/cloud-init.complete' ]
+
+nodes:
+  - name: localhost
+    type: local
+    options:
+      exec_opts:
+        shell: /bin/bash
+
+  - name: backend-vm
+    type: lxd-vm
+    options:
+      image: "ubuntu:24.04"
+      exec_opts:
+        shell: /bin/bash
+      networks:
+        - name: split-host-test
+          ip: 10.103.103.10
+      profiles:
+        - backend-profile
+
+  - name: frontend-vm
+    type: lxd-vm
+    options:
+      image: "ubuntu:24.04"
+      exec_opts:
+        shell: /bin/bash
+      networks:
+        - name: split-host-test
+          ip: 10.103.103.20
+      profiles:
+        - frontend-profile
+
+########################################################################################################################
+## Setup — backend API and frontend nginx                                                                             ##
+########################################################################################################################
+setup:
+  ####################################################################################################################
+  ## Backend VM setup                                                                                               ##
+  ####################################################################################################################
+  - name: "wait for cloud-init to complete on backend-vm"
+    node: backend-vm
+    step:
+      type: execute
+      options:
+        command: while [ ! -f /tmp/cloud-init.complete ]; do sleep 1; done
+
+  - name: "run preflight setup on backend-vm"
+    node: backend-vm
+    step:
+      type: execute
+      options:
+        command: "curl -fsSL https://raw.githubusercontent.com/bengrewell/aether-webui/main/scripts/preflight-setup.sh | sudo bash -s -- --yes"
+
+  - name: "install aether-webd on backend-vm"
+    node: backend-vm
+    step:
+      type: execute
+      options:
+        command: "curl -fsSL https://raw.githubusercontent.com/bengrewell/aether-webui/main/scripts/install.sh | sudo bash"
+
+  - name: "configure backend for split hosting with CORS"
+    node: backend-vm
+    step:
+      type: execute
+      options:
+        command: |
+          sudo bash -c 'cat > /etc/aether-webd/env <<EOF
+          AETHER_LISTEN=0.0.0.0:8186
+          AETHER_SERVE_FRONTEND=false
+          AETHER_CORS_ORIGINS=http://10.103.103.20
+          EOF'
+
+  - name: "restart backend and wait for readiness"
+    node: backend-vm
+    step:
+      type: execute
+      options:
+        command: |
+          sudo systemctl restart aether-webd
+          for i in $(seq 1 30); do curl -sf http://localhost:8186/healthz && exit 0; sleep 1; done; exit 1
+
+  ####################################################################################################################
+  ## Frontend VM setup                                                                                              ##
+  ####################################################################################################################
+  - name: "wait for cloud-init to complete on frontend-vm"
+    node: frontend-vm
+    step:
+      type: execute
+      options:
+        command: while [ ! -f /tmp/cloud-init.complete ]; do sleep 1; done
+
+  - name: "clone frontend repository"
+    node: frontend-vm
+    step:
+      type: execute
+      options:
+        command: git clone https://github.com/bgrewell/aether-webui-web.git /opt/aether-frontend
+
+  - name: "build frontend"
+    node: frontend-vm
+    step:
+      type: execute
+      options:
+        command: cd /opt/aether-frontend && npm install && npm run build
+
+  - name: "configure nginx for frontend"
+    node: frontend-vm
+    step:
+      type: execute
+      options:
+        command: |
+          sudo bash -c 'cat > /etc/nginx/sites-available/aether-frontend <<EOF
+          server {
+              listen 80;
+              server_name _;
+              root /opt/aether-frontend/dist;
+              index index.html;
+              location / {
+                  try_files \$uri \$uri/ /index.html;
+              }
+          }
+          EOF'
+          sudo ln -sf /etc/nginx/sites-available/aether-frontend /etc/nginx/sites-enabled/aether-frontend
+          sudo rm -f /etc/nginx/sites-enabled/default
+          sudo systemctl restart nginx
+
+  - name: "wait for nginx readiness"
+    node: frontend-vm
+    step:
+      type: execute
+      options:
+        command: for i in $(seq 1 30); do curl -sf http://localhost/ && exit 0; sleep 1; done; exit 1
+
+########################################################################################################################
+## Tests — health, frontend serving, and CORS validation                                                              ##
+########################################################################################################################
+tests:
+  - name: "backend health check returns healthy"
+    node: backend-vm
+    type: execute
+    options:
+      command: curl -sf http://localhost:8186/healthz
+      evaluate:
+        exit_code: 0
+        contains: "healthy"
+
+  - name: "nginx serves frontend index page"
+    node: frontend-vm
+    type: execute
+    options:
+      command: curl -sf http://localhost/
+      evaluate:
+        exit_code: 0
+        contains: "html"
+
+  - name: "CORS allows configured origin"
+    node: backend-vm
+    type: execute
+    options:
+      command: >-
+        curl -sf -D- -o /dev/null
+        -H "Origin: http://10.103.103.20"
+        http://localhost:8186/healthz
+        | grep -i "Access-Control-Allow-Origin: http://10.103.103.20"
+      evaluate:
+        exit_code: 0
+
+  - name: "CORS preflight returns correct headers"
+    node: backend-vm
+    type: execute
+    options:
+      command: >-
+        curl -sf -D- -o /dev/null
+        -X OPTIONS
+        -H "Origin: http://10.103.103.20"
+        -H "Access-Control-Request-Method: GET"
+        -H "Access-Control-Request-Headers: Content-Type"
+        http://localhost:8186/healthz
+        | grep -i "Access-Control-Allow-Origin: http://10.103.103.20"
+        && curl -sf -D- -o /dev/null
+        -X OPTIONS
+        -H "Origin: http://10.103.103.20"
+        -H "Access-Control-Request-Method: GET"
+        -H "Access-Control-Request-Headers: Content-Type"
+        http://localhost:8186/healthz
+        | grep -i "Access-Control-Allow-Methods"
+      evaluate:
+        exit_code: 0
+
+  - name: "CORS rejects unauthorized origin"
+    node: backend-vm
+    type: execute
+    options:
+      command: >-
+        ! curl -sf -D- -o /dev/null
+        -H "Origin: http://evil.example.com"
+        http://localhost:8186/healthz
+        | grep -i "Access-Control-Allow-Origin"
+      evaluate:
+        exit_code: 0
+
+########################################################################################################################
+## Teardown — clean up both VMs                                                                                       ##
+########################################################################################################################
+teardown:
+  - name: "uninstall aether-webd on backend-vm"
+    node: backend-vm
+    step:
+      type: execute
+      options:
+        command: curl -fsSL https://raw.githubusercontent.com/bengrewell/aether-webui/main/scripts/uninstall.sh | sudo bash -s -- --purge
+
+  - name: "remove nginx config and frontend build on frontend-vm"
+    node: frontend-vm
+    step:
+      type: execute
+      options:
+        command: |
+          sudo rm -f /etc/nginx/sites-enabled/aether-frontend /etc/nginx/sites-available/aether-frontend
+          sudo rm -rf /opt/aether-frontend
+          sudo systemctl restart nginx

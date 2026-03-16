@@ -1,0 +1,171 @@
+---
+########################################################################################################################
+## Test Suite Configuration                                                                                           ##
+########################################################################################################################
+# Multi-node deployment test. Two independent nodes on the same network, both deployed via hosted scripts. Validates
+# that each node can be independently installed and passes health checks.
+suite: Aether Multi Node Deployment Test Suite
+
+########################################################################################################################
+## Node Infrastructure Configuration                                                                                  ##
+########################################################################################################################
+lxd:
+  networks:
+    - name: multi-node-test
+      type: bridge
+      subnet: 10.103.102.0/24
+      gateway: 10.103.102.1
+
+  profiles:
+    - name: multi-node-primary
+      description: Profile for multi-node deployment test
+      devices:
+        root:
+          type: disk
+          path: /
+          pool: default
+          opts:
+            size: 50GB
+      config:
+        limits.cpu: "4"
+        limits.memory: "4GB"
+
+        user.user-data: |
+          #cloud-config
+          package_update: true
+          packages:
+            - curl
+            - jq
+          runcmd:
+            - [ bash, -c, 'echo "complete" > /tmp/cloud-init.complete' ]
+
+nodes:
+  - name: localhost
+    type: local
+    options:
+      exec_opts:
+        shell: /bin/bash
+
+  - name: node-1
+    type: lxd-vm
+    options:
+      image: "ubuntu:24.04"
+      exec_opts:
+        shell: /bin/bash
+      networks:
+        - name: multi-node-test
+          ip: 10.103.102.10
+      profiles:
+        - multi-node-primary
+
+  - name: node-2
+    type: lxd-vm
+    options:
+      image: "ubuntu:24.04"
+      exec_opts:
+        shell: /bin/bash
+      networks:
+        - name: multi-node-test
+          ip: 10.103.102.20
+      profiles:
+        - multi-node-primary
+
+########################################################################################################################
+## Setup — preflight, install, and readiness on both nodes                                                            ##
+########################################################################################################################
+setup:
+  - name: "wait for cloud-init to complete on node-1"
+    node: node-1
+    step:
+      type: execute
+      options:
+        command: while [ ! -f /tmp/cloud-init.complete ]; do sleep 1; done
+
+  - name: "wait for cloud-init to complete on node-2"
+    node: node-2
+    step:
+      type: execute
+      options:
+        command: while [ ! -f /tmp/cloud-init.complete ]; do sleep 1; done
+
+  - name: "run preflight setup on node-1"
+    node: node-1
+    step:
+      type: execute
+      options:
+        command: "curl -fsSL https://raw.githubusercontent.com/bengrewell/aether-webui/main/scripts/preflight-setup.sh | sudo bash -s -- --yes"
+
+  - name: "run preflight setup on node-2"
+    node: node-2
+    step:
+      type: execute
+      options:
+        command: "curl -fsSL https://raw.githubusercontent.com/bengrewell/aether-webui/main/scripts/preflight-setup.sh | sudo bash -s -- --yes"
+
+  - name: "install aether-webd on node-1"
+    node: node-1
+    step:
+      type: execute
+      options:
+        command: "curl -fsSL https://raw.githubusercontent.com/bengrewell/aether-webui/main/scripts/install.sh | sudo bash"
+
+  - name: "install aether-webd on node-2"
+    node: node-2
+    step:
+      type: execute
+      options:
+        command: "curl -fsSL https://raw.githubusercontent.com/bengrewell/aether-webui/main/scripts/install.sh | sudo bash"
+
+  - name: "wait for aether-webd readiness on node-1"
+    node: node-1
+    step:
+      type: execute
+      options:
+        command: for i in $(seq 1 30); do curl -sf http://localhost:8186/healthz && exit 0; sleep 1; done; exit 1
+
+  - name: "wait for aether-webd readiness on node-2"
+    node: node-2
+    step:
+      type: execute
+      options:
+        command: for i in $(seq 1 30); do curl -sf http://localhost:8186/healthz && exit 0; sleep 1; done; exit 1
+
+########################################################################################################################
+## Tests — health validation on both nodes                                                                            ##
+########################################################################################################################
+tests:
+  - name: "node-1: health check returns healthy"
+    node: node-1
+    type: execute
+    options:
+      command: curl -sf http://localhost:8186/healthz
+      evaluate:
+        exit_code: 0
+        contains: "healthy"
+
+  - name: "node-2: health check returns healthy"
+    node: node-2
+    type: execute
+    options:
+      command: curl -sf http://localhost:8186/healthz
+      evaluate:
+        exit_code: 0
+        contains: "healthy"
+
+########################################################################################################################
+## Teardown — clean uninstall on both nodes                                                                           ##
+########################################################################################################################
+teardown:
+  - name: "uninstall aether-webd on node-1"
+    node: node-1
+    step:
+      type: execute
+      options:
+        command: curl -fsSL https://raw.githubusercontent.com/bengrewell/aether-webui/main/scripts/uninstall.sh | sudo bash -s -- --purge
+
+  - name: "uninstall aether-webd on node-2"
+    node: node-2
+    step:
+      type: execute
+      options:
+        command: curl -fsSL https://raw.githubusercontent.com/bengrewell/aether-webui/main/scripts/uninstall.sh | sudo bash -s -- --purge

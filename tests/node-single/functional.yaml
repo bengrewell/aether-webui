@@ -1,0 +1,115 @@
+---
+########################################################################################################################
+## Test Suite Configuration                                                                                           ##
+########################################################################################################################
+# Minimal single-node deployment test. Validates preflight setup, install from hosted script, health check, and
+# clean uninstall with --purge on a single Ubuntu 24.04 LXD VM.
+suite: Aether Single Node Deployment Test Suite
+
+########################################################################################################################
+## Node Infrastructure Configuration                                                                                  ##
+########################################################################################################################
+lxd:
+  networks:
+    - name: sn-test
+      type: bridge
+      subnet: 10.103.101.0/24
+      gateway: 10.103.101.1
+
+  profiles:
+    - name: single-node-primary
+      description: Profile for single-node deployment test
+      devices:
+        root:
+          type: disk
+          path: /
+          pool: default
+          opts:
+            size: 50GB
+      config:
+        limits.cpu: "4"
+        limits.memory: "4GB"
+
+        user.user-data: |
+          #cloud-config
+          package_update: true
+          packages:
+            - curl
+            - jq
+          runcmd:
+            - [ bash, -c, 'echo "complete" > /tmp/cloud-init.complete' ]
+
+nodes:
+  - name: localhost
+    type: local
+    options:
+      exec_opts:
+        shell: /bin/bash
+
+  - name: node-1
+    type: lxd-vm
+    options:
+      image: "ubuntu:24.04"
+      exec_opts:
+        shell: /bin/bash
+      networks:
+        - name: sn-test
+          ip: 10.103.101.10
+      profiles:
+        - single-node-primary
+
+########################################################################################################################
+## Setup — preflight, install, and readiness                                                                          ##
+########################################################################################################################
+setup:
+  - name: "wait for cloud-init to complete"
+    node: node-1
+    step:
+      type: execute
+      options:
+        command: while [ ! -f /tmp/cloud-init.complete ]; do sleep 1; done
+
+  - name: "run preflight setup"
+    node: node-1
+    step:
+      type: execute
+      options:
+        command: "curl -fsSL https://raw.githubusercontent.com/bengrewell/aether-webui/main/scripts/preflight-setup.sh | sudo bash -s -- --yes"
+
+  - name: "install aether-webd from github release"
+    node: node-1
+    step:
+      type: execute
+      options:
+        command: "curl -fsSL https://raw.githubusercontent.com/bengrewell/aether-webui/main/scripts/install.sh | sudo bash"
+
+  - name: "wait for aether-webd service readiness"
+    node: node-1
+    step:
+      type: execute
+      options:
+        command: for i in $(seq 1 30); do curl -sf http://localhost:8186/healthz && exit 0; sleep 1; done; exit 1
+
+########################################################################################################################
+## Tests — basic health validation                                                                                    ##
+########################################################################################################################
+tests:
+  - name: "health check returns healthy"
+    node: node-1
+    type: execute
+    options:
+      command: curl -sf http://localhost:8186/healthz
+      evaluate:
+        exit_code: 0
+        contains: "healthy"
+
+########################################################################################################################
+## Teardown — clean uninstall                                                                                         ##
+########################################################################################################################
+teardown:
+  - name: "uninstall aether-webd"
+    node: node-1
+    step:
+      type: execute
+      options:
+        command: curl -fsSL https://raw.githubusercontent.com/bengrewell/aether-webui/main/scripts/uninstall.sh | sudo bash -s -- --purge
