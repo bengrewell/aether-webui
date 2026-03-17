@@ -182,6 +182,22 @@ setup:
               server_name _;
               root /opt/aether-frontend/dist;
               index index.html;
+
+              location /api/ {
+                  proxy_pass http://10.103.103.10:8186;
+              }
+              location /docs {
+                  proxy_pass http://10.103.103.10:8186;
+              }
+              location /openapi {
+                  proxy_pass http://10.103.103.10:8186;
+              }
+              location /schemas {
+                  proxy_pass http://10.103.103.10:8186;
+              }
+              location /healthz {
+                  proxy_pass http://10.103.103.10:8186;
+              }
               location / {
                   try_files \$uri \$uri/ /index.html;
               }
@@ -219,6 +235,32 @@ tests:
       evaluate:
         exit_code: 0
         contains: "html"
+
+  - name: "nginx proxies API requests to backend"
+    node: frontend-vm
+    type: execute
+    options:
+      command: curl -sf http://localhost/api/v1/meta/version | jq -e '.version'
+      evaluate:
+        exit_code: 0
+
+  - name: "nginx proxies docs to backend"
+    node: frontend-vm
+    type: execute
+    options:
+      command: curl -sf http://localhost/docs
+      evaluate:
+        exit_code: 0
+        contains: "html"
+
+  - name: "nginx proxies OpenAPI spec to backend"
+    node: frontend-vm
+    type: execute
+    options:
+      command: curl -sf http://localhost/openapi.yaml
+      evaluate:
+        exit_code: 0
+        contains: "openapi"
 
   - name: "CORS allows configured origin"
     node: backend-vm
