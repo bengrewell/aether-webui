@@ -168,7 +168,7 @@ setup:
     step:
       type: execute
       options:
-        command: cd /opt/aether-frontend && npm install && npm run build
+        command: cd /opt/aether-frontend && npm install && VITE_BACKEND_URL=http://10.103.103.10:8186 npm run build
 
   - name: "configure nginx for frontend"
     node: frontend-vm
