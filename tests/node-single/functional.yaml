@@ -67,7 +67,7 @@ setup:
     step:
       type: execute
       options:
-        command: while [ ! -f /tmp/cloud-init.complete ]; do sleep 1; done
+        command: for i in $(seq 1 300); do [ -f /tmp/cloud-init.complete ] && exit 0; sleep 1; done; echo "cloud-init timed out after 300s" >&2; exit 1
 
   - name: "run preflight setup"
     node: node-1

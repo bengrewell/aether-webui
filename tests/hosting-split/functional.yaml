@@ -109,7 +109,7 @@ setup:
     step:
       type: execute
       options:
-        command: while [ ! -f /tmp/cloud-init.complete ]; do sleep 1; done
+        command: for i in $(seq 1 300); do [ -f /tmp/cloud-init.complete ] && exit 0; sleep 1; done; echo "cloud-init timed out after 300s" >&2; exit 1
 
   - name: "run preflight setup on backend-vm"
     node: backend-vm
@@ -154,7 +154,7 @@ setup:
     step:
       type: execute
       options:
-        command: while [ ! -f /tmp/cloud-init.complete ]; do sleep 1; done
+        command: for i in $(seq 1 300); do [ -f /tmp/cloud-init.complete ] && exit 0; sleep 1; done; echo "cloud-init timed out after 300s" >&2; exit 1
 
   - name: "clone frontend repository"
     node: frontend-vm
@@ -259,10 +259,10 @@ tests:
     type: execute
     options:
       command: >-
-        ! curl -sf -D- -o /dev/null
+        curl -sf -D /tmp/cors_headers -o /dev/null
         -H "Origin: http://evil.example.com"
         http://localhost:8186/healthz
-        | grep -i "Access-Control-Allow-Origin"
+        && ! grep -qi "Access-Control-Allow-Origin" /tmp/cors_headers
       evaluate:
         exit_code: 0
 

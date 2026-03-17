@@ -75,7 +75,7 @@ setup:
     step:
       type: execute
       options:
-        command: while [ ! -f /tmp/cloud-init.complete ]; do sleep 1; done
+        command: for i in $(seq 1 300); do [ -f /tmp/cloud-init.complete ] && exit 0; sleep 1; done; echo "cloud-init timed out after 300s" >&2; exit 1
 
   - name: "run preflight setup"
     node: test-vm
@@ -311,7 +311,7 @@ tests:
       command: >-
         curl -sf -X POST http://localhost:8186/api/v1/nodes
         -H 'Content-Type: application/json'
-        -d '{"name":"localhost","ansible_host":"127.0.0.1","ansible_user":"ubuntu","password":"onramp-test","sudo_password":"onramp-test","roles":["master","worker","gnbsim","oai","ueransim","srsran","oscric","n3iwf"]}'
+        -d '{"name":"localhost","ansible_host":"127.0.0.1","ansible_user":"aether","password":"aether","sudo_password":"aether","roles":["master","worker","gnbsim","oai","ueransim","srsran","oscric","n3iwf"]}'
         | jq -e '.id != "" and .has_password == true'
       evaluate:
         exit_code: 0
