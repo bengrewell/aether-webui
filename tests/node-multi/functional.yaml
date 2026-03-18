@@ -116,6 +116,24 @@ setup:
       options:
         command: "curl -fsSL https://raw.githubusercontent.com/bengrewell/aether-webui/main/scripts/install.sh | sudo bash"
 
+  - name: "configure listen address on node-1"
+    node: node-1
+    step:
+      type: execute
+      options:
+        command: |
+          echo 'AETHER_LISTEN=0.0.0.0:8186' | sudo tee /etc/aether-webd/env
+          sudo systemctl restart aether-webd
+
+  - name: "configure listen address on node-2"
+    node: node-2
+    step:
+      type: execute
+      options:
+        command: |
+          echo 'AETHER_LISTEN=0.0.0.0:8186' | sudo tee /etc/aether-webd/env
+          sudo systemctl restart aether-webd
+
   - name: "wait for aether-webd readiness on node-1"
     node: node-1
     step:

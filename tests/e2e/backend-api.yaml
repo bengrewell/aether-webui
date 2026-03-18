@@ -104,7 +104,7 @@ setup:
       type: execute
       options:
         command: |
-          sudo bash -c 'printf "ANSIBLE_HOST_KEY_CHECKING=False\nHOME=/var/lib/aether-webd\n" >> /etc/aether-webd/env'
+          sudo bash -c 'printf "AETHER_LISTEN=0.0.0.0:8186\nANSIBLE_HOST_KEY_CHECKING=False\nHOME=/var/lib/aether-webd\n" >> /etc/aether-webd/env'
           sudo systemctl restart aether-webd
           for i in $(seq 1 30); do curl -sf http://localhost:8186/healthz && exit 0; sleep 1; done; exit 1
 
