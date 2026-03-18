@@ -67,9 +67,6 @@ func checkoutVersion(cfg Config, log *slog.Logger) error {
 	if err := gitRun(cfg.OnRampDir, "checkout", cfg.Version); err != nil {
 		return fmt.Errorf("git checkout %s: %w", cfg.Version, err)
 	}
-	if err := gitRun(cfg.OnRampDir, "submodule", "update", "--init", "--recursive"); err != nil {
-		return fmt.Errorf("submodule update: %w", err)
-	}
 	return nil
 }
 
