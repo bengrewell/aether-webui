@@ -650,6 +650,73 @@ type ComponentStateItem struct {
 }
 
 // ---------------------------------------------------------------------------
+// Deployment types
+// ---------------------------------------------------------------------------
+
+type DeployInput struct {
+	Body DeployBody
+}
+
+type DeployBody struct {
+	Actions []ComponentActionPair `json:"actions"`
+}
+
+type ComponentActionPair struct {
+	Component string `json:"component"`
+	Action    string `json:"action"`
+}
+
+type DeployOutput struct {
+	Body DeploymentItem
+}
+
+type DeploymentListInput struct {
+	Status string `query:"status" default:"" doc:"Filter by status"`
+	Limit  int    `query:"limit" default:"20" doc:"Max results"`
+	Offset int    `query:"offset" default:"0" doc:"Pagination offset"`
+}
+
+type DeploymentListOutput struct {
+	Body []DeploymentItem
+}
+
+type DeploymentGetInput struct {
+	ID string `path:"id" doc:"Deployment ID"`
+}
+
+type DeploymentGetOutput struct {
+	Body DeploymentItem
+}
+
+type DeploymentCancelInput struct {
+	ID string `path:"id" doc:"Deployment ID"`
+}
+
+type DeploymentCancelOutput struct {
+	Body struct {
+		Message string `json:"message"`
+	}
+}
+
+type DeploymentItem struct {
+	ID         string                 `json:"id"`
+	Status     string                 `json:"status"`
+	Actions    []DeploymentActionItem `json:"actions"`
+	CreatedAt  int64                  `json:"created_at"`
+	StartedAt  int64                  `json:"started_at,omitempty"`
+	FinishedAt int64                  `json:"finished_at,omitempty"`
+	Error      string                 `json:"error,omitempty"`
+}
+
+type DeploymentActionItem struct {
+	Seq       int    `json:"seq"`
+	ActionID  string `json:"action_id"`
+	Component string `json:"component"`
+	Action    string `json:"action"`
+	Status    string `json:"status"`
+}
+
+// ---------------------------------------------------------------------------
 // Inventory types
 // ---------------------------------------------------------------------------
 
