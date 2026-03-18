@@ -10,12 +10,16 @@ import (
 )
 
 // ensureRepo clones the OnRamp repo if it does not exist, checks out the
-// pinned version, and validates that expected files are present.
+// pinned version, ensures submodules are initialized, and validates that
+// expected files are present.
 func ensureRepo(cfg Config, log *slog.Logger) error {
 	if err := cloneIfMissing(cfg, log); err != nil {
 		return err
 	}
 	if err := checkoutVersion(cfg, log); err != nil {
+		return err
+	}
+	if err := ensureSubmodules(cfg, log); err != nil {
 		return err
 	}
 	return validateRepo(cfg.OnRampDir)
@@ -41,7 +45,7 @@ func cloneIfMissing(cfg Config, log *slog.Logger) error {
 }
 
 // checkoutVersion switches the repo to the configured version (tag, branch, or
-// commit) and updates submodules to match. Skipped when Version is empty or "main".
+// commit). Skipped when Version is empty or "main".
 func checkoutVersion(cfg Config, log *slog.Logger) error {
 	if cfg.Version == "" || cfg.Version == "main" {
 		return nil
@@ -63,6 +67,18 @@ func checkoutVersion(cfg Config, log *slog.Logger) error {
 	if err := gitRun(cfg.OnRampDir, "checkout", cfg.Version); err != nil {
 		return fmt.Errorf("git checkout %s: %w", cfg.Version, err)
 	}
+	if err := gitRun(cfg.OnRampDir, "submodule", "update", "--init", "--recursive"); err != nil {
+		return fmt.Errorf("submodule update: %w", err)
+	}
+	return nil
+}
+
+// ensureSubmodules runs submodule init/update unconditionally. The initial
+// clone uses --recurse-submodules, but that can silently leave submodules
+// uninitialized on transient network errors. Running this as a separate step
+// catches those cases and is a no-op when submodules are already up to date.
+func ensureSubmodules(cfg Config, log *slog.Logger) error {
+	log.Info("ensuring submodules are initialized", "dir", cfg.OnRampDir)
 	if err := gitRun(cfg.OnRampDir, "submodule", "update", "--init", "--recursive"); err != nil {
 		return fmt.Errorf("submodule update: %w", err)
 	}
