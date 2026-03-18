@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 // Client wraps a Store and Codec for typed object persistence.
@@ -142,6 +143,26 @@ func (c Client) GetComponentState(ctx context.Context, component string) (Compon
 // ListComponentStates returns the state of all tracked components.
 func (c Client) ListComponentStates(ctx context.Context) ([]ComponentState, error) {
 	return c.s.ListComponentStates(ctx)
+}
+
+// InsertDeployment creates a new deployment with its actions in a single transaction.
+func (c Client) InsertDeployment(ctx context.Context, d Deployment) error {
+	return c.s.InsertDeployment(ctx, d)
+}
+
+// UpdateDeploymentStatus updates the status, error message, and finished time of a deployment.
+func (c Client) UpdateDeploymentStatus(ctx context.Context, id, status, errMsg string, finishedAt time.Time) error {
+	return c.s.UpdateDeploymentStatus(ctx, id, status, errMsg, finishedAt)
+}
+
+// GetDeployment retrieves a deployment by ID, including its ordered actions.
+func (c Client) GetDeployment(ctx context.Context, id string) (Deployment, bool, error) {
+	return c.s.GetDeployment(ctx, id)
+}
+
+// ListDeployments returns deployments matching the filter criteria.
+func (c Client) ListDeployments(ctx context.Context, filter DeploymentFilter) ([]Deployment, error) {
+	return c.s.ListDeployments(ctx, filter)
 }
 
 func (c Client) GetSchemaVersion() (int, error) {

@@ -101,6 +101,32 @@ type ComponentState struct {
 	UpdatedAt  time.Time
 }
 
+// Deployments
+
+type Deployment struct {
+	ID         string
+	Status     string
+	CreatedAt  time.Time
+	StartedAt  time.Time
+	FinishedAt time.Time
+	Error      string
+	Actions    []DeploymentAction
+}
+
+type DeploymentAction struct {
+	DeploymentID string
+	Seq          int
+	ActionID     string
+	Component    string
+	Action       string
+}
+
+type DeploymentFilter struct {
+	Status string
+	Limit  int
+	Offset int
+}
+
 // Metrics
 
 type Sample struct {
