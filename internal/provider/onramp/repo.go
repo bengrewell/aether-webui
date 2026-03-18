@@ -70,14 +70,64 @@ func checkoutVersion(cfg Config, log *slog.Logger) error {
 	return nil
 }
 
-// ensureSubmodules runs submodule init/update unconditionally. The initial
+// ensureSubmodules syncs submodule URLs and forces initialization. The initial
 // clone uses --recurse-submodules, but that can silently leave submodules
-// uninitialized on transient network errors. Running this as a separate step
-// catches those cases and is a no-op when submodules are already up to date.
+// uninitialized on transient network errors. Running sync + update --force as
+// a separate step catches those cases. When submodules are already populated
+// the force-update is a fast no-op (git checks out the same commit).
+//
+// After the update, validateSubmodules confirms that every registered submodule
+// directory actually contains files. If any are empty the function returns an
+// error so the provider enters degraded mode instead of silently failing later.
 func ensureSubmodules(cfg Config, log *slog.Logger) error {
 	log.Info("ensuring submodules are initialized", "dir", cfg.OnRampDir)
-	if err := gitRun(cfg.OnRampDir, "submodule", "update", "--init", "--recursive"); err != nil {
+
+	// Sync ensures .git/config URLs match .gitmodules (handles URL changes).
+	if err := gitRun(cfg.OnRampDir, "submodule", "sync", "--recursive"); err != nil {
+		return fmt.Errorf("submodule sync: %w", err)
+	}
+
+	// Force re-checkout to handle partially initialized submodules where the
+	// working tree is empty but git considers the submodule "registered".
+	if err := gitRun(cfg.OnRampDir, "submodule", "update", "--init", "--recursive", "--force"); err != nil {
 		return fmt.Errorf("submodule update: %w", err)
+	}
+
+	return validateSubmodules(cfg.OnRampDir, log)
+}
+
+// validateSubmodules reads .gitmodules and confirms each registered submodule
+// directory contains at least one file. Empty directories indicate a failed or
+// incomplete submodule clone.
+func validateSubmodules(dir string, log *slog.Logger) error {
+	// Parse submodule paths from .gitmodules.
+	gitmodules := filepath.Join(dir, ".gitmodules")
+	if _, err := os.Stat(gitmodules); err != nil {
+		// No .gitmodules means no submodules to validate.
+		return nil
+	}
+
+	out, err := gitOutput(dir, "config", "--file", ".gitmodules", "--get-regexp", `submodule\..*\.path`)
+	if err != nil || out == "" {
+		return nil
+	}
+
+	for _, line := range strings.Split(out, "\n") {
+		parts := strings.SplitN(strings.TrimSpace(line), " ", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		subPath := parts[1]
+		absPath := filepath.Join(dir, subPath)
+
+		entries, err := os.ReadDir(absPath)
+		if err != nil {
+			return fmt.Errorf("submodule %s: directory missing: %w", subPath, err)
+		}
+		if len(entries) == 0 {
+			return fmt.Errorf("submodule %s: directory is empty (clone may have failed)", subPath)
+		}
+		log.Debug("submodule validated", "path", subPath, "files", len(entries))
 	}
 	return nil
 }

@@ -115,6 +115,18 @@ setup:
       options:
         command: for i in $(seq 1 120); do curl -sf http://localhost:8186/api/v1/onramp/repo | jq -e '.cloned == true' && exit 0; sleep 1; done; exit 1
 
+  - name: "verify OnRamp provider is not degraded"
+    node: test-vm
+    step:
+      type: execute
+      options:
+        command: >-
+          curl -sf http://localhost:8186/api/v1/meta/providers
+          | jq -e '.providers[] | select(.name == "onramp") | .degraded == false'
+          || { echo "=== OnRamp provider is degraded ===";
+          curl -sf http://localhost:8186/api/v1/meta/providers | jq '.providers[] | select(.name == "onramp")';
+          exit 1; }
+
 ########################################################################################################################
 ## Tests — API endpoint validation                                                                                    ##
 ########################################################################################################################
