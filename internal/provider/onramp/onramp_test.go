@@ -149,8 +149,8 @@ func TestNewProvider_ImplementsInterface(t *testing.T) {
 func TestNewProvider_EndpointCount(t *testing.T) {
 	p := newTestProvider(t, "")
 	descs := p.Base.Descriptors()
-	if len(descs) != 18 {
-		t.Errorf("registered %d endpoints, want 18", len(descs))
+	if len(descs) != 22 {
+		t.Errorf("registered %d endpoints, want 22", len(descs))
 	}
 }
 
@@ -176,6 +176,10 @@ func TestNewProvider_EndpointPaths(t *testing.T) {
 		"onramp-activate-profile":  "/api/v1/onramp/config/profiles/{name}/activate",
 		"onramp-get-inventory":     "/api/v1/onramp/inventory",
 		"onramp-sync-inventory":    "/api/v1/onramp/inventory/sync",
+		"onramp-deploy":            "/api/v1/onramp/deploy",
+		"onramp-list-deployments":  "/api/v1/onramp/deployments",
+		"onramp-get-deployment":    "/api/v1/onramp/deployments/{id}",
+		"onramp-cancel-deployment": "/api/v1/onramp/deployments/{id}",
 	}
 
 	descs := p.Base.Descriptors()

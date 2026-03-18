@@ -31,7 +31,7 @@ func NewProvider(cfg Config, opts ...provider.Option) *OnRamp {
 	o := &OnRamp{
 		Base:      base,
 		config:    cfg,
-		endpoints: make([]endpoint.AnyEndpoint, 0, 18),
+		endpoints: make([]endpoint.AnyEndpoint, 0, 22),
 		runner: taskrunner.New(taskrunner.RunnerConfig{
 			MaxConcurrent: 1,
 			Logger:        base.Log(),
@@ -268,6 +268,56 @@ func NewProvider(cfg Config, opts ...provider.Option) *OnRamp {
 			HTTP:        endpoint.HTTPHint{Path: "/api/v1/onramp/inventory/sync"},
 		},
 		Handler: o.HandleSyncInventory,
+	})
+
+	// --- Deployments ---
+
+	provider.Register(o.Base, endpoint.Endpoint[DeployInput, DeployOutput]{
+		Desc: endpoint.Descriptor{
+			OperationID: "onramp-deploy",
+			Semantics:   endpoint.Action,
+			Summary:     "Submit batch deployment",
+			Description: "Submits multiple component actions as a single deployment. The backend handles ordering and sequential execution with fail-fast behavior.",
+			Tags:        []string{"onramp"},
+			HTTP:        endpoint.HTTPHint{Path: "/api/v1/onramp/deploy"},
+		},
+		Handler: o.HandleDeploy,
+	})
+
+	provider.Register(o.Base, endpoint.Endpoint[DeploymentListInput, DeploymentListOutput]{
+		Desc: endpoint.Descriptor{
+			OperationID: "onramp-list-deployments",
+			Semantics:   endpoint.Read,
+			Summary:     "List deployments",
+			Description: "Returns paginated deployment history with optional status filter.",
+			Tags:        []string{"onramp"},
+			HTTP:        endpoint.HTTPHint{Path: "/api/v1/onramp/deployments"},
+		},
+		Handler: o.HandleListDeployments,
+	})
+
+	provider.Register(o.Base, endpoint.Endpoint[DeploymentGetInput, DeploymentGetOutput]{
+		Desc: endpoint.Descriptor{
+			OperationID: "onramp-get-deployment",
+			Semantics:   endpoint.Read,
+			Summary:     "Get deployment",
+			Description: "Returns a single deployment with enriched per-action statuses.",
+			Tags:        []string{"onramp"},
+			HTTP:        endpoint.HTTPHint{Path: "/api/v1/onramp/deployments/{id}"},
+		},
+		Handler: o.HandleGetDeployment,
+	})
+
+	provider.Register(o.Base, endpoint.Endpoint[DeploymentCancelInput, DeploymentCancelOutput]{
+		Desc: endpoint.Descriptor{
+			OperationID: "onramp-cancel-deployment",
+			Semantics:   endpoint.Delete,
+			Summary:     "Cancel deployment",
+			Description: "Cancels a running or pending deployment and marks remaining actions as canceled.",
+			Tags:        []string{"onramp"},
+			HTTP:        endpoint.HTTPHint{Path: "/api/v1/onramp/deployments/{id}"},
+		},
+		Handler: o.HandleCancelDeployment,
 	})
 
 	return o

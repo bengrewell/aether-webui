@@ -1,6 +1,9 @@
 package store
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 type Store interface {
 	Close() error
@@ -35,6 +38,12 @@ type Store interface {
 	UpsertComponentState(ctx context.Context, cs ComponentState) error
 	GetComponentState(ctx context.Context, component string) (ComponentState, bool, error)
 	ListComponentStates(ctx context.Context) ([]ComponentState, error)
+
+	// Deployments
+	InsertDeployment(ctx context.Context, d Deployment) error
+	UpdateDeploymentStatus(ctx context.Context, id, status, errMsg string, finishedAt time.Time) error
+	GetDeployment(ctx context.Context, id string) (Deployment, bool, error)
+	ListDeployments(ctx context.Context, filter DeploymentFilter) ([]Deployment, error)
 
 	// Metrics (typed)
 	AppendSample(ctx context.Context, s Sample) error
