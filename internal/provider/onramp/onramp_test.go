@@ -1,6 +1,7 @@
 package onramp
 
 import (
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -792,6 +793,80 @@ func TestValidateRepo_MissingVarsFile(t *testing.T) {
 
 	if err := validateRepo(dir); err == nil {
 		t.Error("expected error for missing vars/main.yml")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// ensureSubmodules
+// ---------------------------------------------------------------------------
+
+// TestEnsureSubmodules_RecoversDeinitialized creates a repo with a submodule,
+// deinitializes it (simulating a partial clone), and verifies ensureSubmodules
+// restores the submodule content.
+func TestEnsureSubmodules_RecoversDeinitialized(t *testing.T) {
+	// Create a "remote" repo to use as a submodule source.
+	subRemote := t.TempDir()
+	initGitRepo(t, subRemote)
+	subFile := filepath.Join(subRemote, "sub.txt")
+	if err := os.WriteFile(subFile, []byte("submodule content"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	gitRunTest(t, subRemote, "add", "sub.txt")
+	gitRunTest(t, subRemote, "commit", "-m", "add sub.txt")
+
+	// Create the main repo and add the submodule.
+	mainDir := t.TempDir()
+	initGitRepo(t, mainDir)
+	// Allow local file:// protocol for submodule operations in test environments.
+	// Set in both repos so that submodule add, deinit, and update all work.
+	gitRunTest(t, subRemote, "config", "protocol.file.allow", "always")
+	gitRunTest(t, mainDir, "config", "protocol.file.allow", "always")
+	gitRunTest(t, mainDir, "-c", "protocol.file.allow=always", "submodule", "add", subRemote, "deps/sub")
+	gitRunTest(t, mainDir, "commit", "-m", "add submodule")
+
+	// Verify the submodule file exists.
+	checkFile := filepath.Join(mainDir, "deps", "sub", "sub.txt")
+	if _, err := os.Stat(checkFile); err != nil {
+		t.Fatalf("submodule file should exist after add: %v", err)
+	}
+
+	// Deinitialize the submodule to simulate a partial clone.
+	gitRunTest(t, mainDir, "submodule", "deinit", "-f", "deps/sub")
+	if _, err := os.Stat(checkFile); err == nil {
+		t.Fatal("submodule file should be gone after deinit")
+	}
+
+	// Run ensureSubmodules and verify recovery.
+	log := slog.Default()
+	cfg := Config{OnRampDir: mainDir}
+	if err := ensureSubmodules(cfg, log); err != nil {
+		t.Fatalf("ensureSubmodules: %v", err)
+	}
+
+	if _, err := os.Stat(checkFile); err != nil {
+		t.Errorf("submodule file should be restored after ensureSubmodules: %v", err)
+	}
+}
+
+// TestEnsureSubmodules_NoopWhenInitialized verifies ensureSubmodules succeeds
+// on a repo without submodules (no-op case).
+func TestEnsureSubmodules_NoopWhenInitialized(t *testing.T) {
+	dir := t.TempDir()
+	initGitRepo(t, dir)
+
+	log := slog.Default()
+	cfg := Config{OnRampDir: dir}
+	if err := ensureSubmodules(cfg, log); err != nil {
+		t.Fatalf("ensureSubmodules on repo without submodules: %v", err)
+	}
+}
+
+// gitRunTest is a test helper that runs a git command and fails on error.
+func gitRunTest(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git %v: %v\n%s", args, err, out)
 	}
 }
 
