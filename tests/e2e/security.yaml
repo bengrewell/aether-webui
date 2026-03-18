@@ -85,7 +85,7 @@ setup:
       type: execute
       options:
         command: |
-          echo 'AETHER_API_TOKEN=test-token-e2e' > /etc/aether-webd/env
+          printf 'AETHER_LISTEN=0.0.0.0:8186\nAETHER_API_TOKEN=test-token-e2e\n' > /etc/aether-webd/env
           systemctl restart aether-webd
 
   - name: "wait for HTTP readiness with token auth"

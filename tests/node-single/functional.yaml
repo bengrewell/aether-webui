@@ -83,6 +83,15 @@ setup:
       options:
         command: "curl -fsSL https://raw.githubusercontent.com/bengrewell/aether-webui/main/scripts/install.sh | sudo bash"
 
+  - name: "configure listen address for external access"
+    node: node-1
+    step:
+      type: execute
+      options:
+        command: |
+          echo 'AETHER_LISTEN=0.0.0.0:8186' | sudo tee /etc/aether-webd/env
+          sudo systemctl restart aether-webd
+
   - name: "wait for aether-webd service readiness"
     node: node-1
     step:
