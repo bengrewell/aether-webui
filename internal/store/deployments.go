@@ -62,10 +62,15 @@ func (d *db) UpdateDeploymentStatus(ctx context.Context, id, status, errMsg stri
 		v := finishedAt.Unix()
 		fin = &v
 	}
+	now := d.now().Unix()
+	// COALESCE(started_at, ?) sets started_at on the first status transition
+	// (typically pending → running) without overwriting it on later updates.
 	res, err := d.conn.ExecContext(ctx, `
-		UPDATE deployments SET status = ?, error = ?, finished_at = ?
+		UPDATE deployments
+		SET status = ?, error = ?, finished_at = ?,
+		    started_at = COALESCE(started_at, ?)
 		WHERE id = ?
-	`, status, nullString(errMsg), fin, id)
+	`, status, nullString(errMsg), fin, now, id)
 	if err != nil {
 		return err
 	}

@@ -93,15 +93,14 @@ func (o *OnRamp) HandleDeploy(ctx context.Context, in *DeployInput) (*DeployOutp
 
 	dep := store.Deployment{
 		ID:        deployID,
-		Status:    "pending",
+		Status:    "running",
 		CreatedAt: now,
+		StartedAt: now,
 	}
 
-	// Build deployment actions and pre-insert action_history records.
+	// Build deployment actions with pre-generated IDs.
 	for i, pair := range ordered {
 		actionID := uuid.NewString()
-		target := resolveTarget(pair.Component, pair.Action)
-
 		dep.Actions = append(dep.Actions, store.DeploymentAction{
 			DeploymentID: deployID,
 			Seq:          i,
@@ -109,26 +108,9 @@ func (o *OnRamp) HandleDeploy(ctx context.Context, in *DeployInput) (*DeployOutp
 			Component:    pair.Component,
 			Action:       pair.Action,
 		})
-
-		rec := store.ActionRecord{
-			ID:        actionID,
-			Component: pair.Component,
-			Action:    pair.Action,
-			Target:    target,
-			Status:    "pending",
-			ExitCode:  -1,
-			StartedAt: now,
-		}
-		dbCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		if err := st.InsertAction(dbCtx, rec); err != nil {
-			cancel()
-			log.Error("failed to insert action record for deployment", "action_id", actionID, "error", err)
-			return nil, huma.Error500InternalServerError("failed to create deployment", err)
-		}
-		cancel()
 	}
 
-	// Insert the deployment record.
+	// Insert deployment record first so action_history rows are never orphaned.
 	dbCtx, dbCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer dbCancel()
 	if err := st.InsertDeployment(dbCtx, dep); err != nil {
@@ -136,18 +118,36 @@ func (o *OnRamp) HandleDeploy(ctx context.Context, in *DeployInput) (*DeployOutp
 		return nil, huma.Error500InternalServerError("failed to create deployment", err)
 	}
 
-	// Submit the first action to the task runner.
+	// Insert action_history records for each action.
+	for _, da := range dep.Actions {
+		target := resolveTarget(da.Component, da.Action)
+		rec := store.ActionRecord{
+			ID:        da.ActionID,
+			Component: da.Component,
+			Action:    da.Action,
+			Target:    target,
+			Status:    "pending",
+			ExitCode:  -1,
+			StartedAt: now,
+		}
+		if err := st.InsertAction(dbCtx, rec); err != nil {
+			log.Error("failed to insert action record for deployment", "action_id", da.ActionID, "error", err)
+			_ = st.UpdateDeploymentStatus(dbCtx, deployID, "failed", err.Error(), time.Now().UTC())
+			o.cancelRemainingActions(dep, 0)
+			return nil, huma.Error500InternalServerError("failed to create deployment", err)
+		}
+	}
+
+	// Submit the first action. The deployment is already "running" so there is
+	// no race if the task completes before this function returns.
 	first := dep.Actions[0]
 	target := resolveTarget(first.Component, first.Action)
 
 	if err := o.submitDeploymentAction(dep, 0, first.ActionID, first.Component, first.Action, target); err != nil {
-		// Mark deployment as failed.
 		_ = st.UpdateDeploymentStatus(dbCtx, deployID, "failed", err.Error(), time.Now().UTC())
+		o.cancelRemainingActions(dep, 0)
 		return nil, huma.Error500InternalServerError("failed to start deployment", err)
 	}
-
-	// Mark deployment as running.
-	_ = st.UpdateDeploymentStatus(dbCtx, deployID, "running", "", time.Time{})
 
 	return &DeployOutput{Body: o.buildDeploymentItem(ctx, dep)}, nil
 }
@@ -304,16 +304,18 @@ func (o *OnRamp) HandleCancelDeployment(ctx context.Context, in *DeploymentCance
 		return nil, huma.Error500InternalServerError("failed to cancel deployment", err)
 	}
 
-	// Cancel any running task and mark remaining pending actions.
+	// Attempt to cancel every action in the runner unconditionally to handle
+	// the race where a task is submitted between the status check and cancel.
+	// ErrNotFound/ErrNotRunning are expected for tasks that haven't started or
+	// have already finished.
 	for _, a := range dep.Actions {
+		_ = o.runner.Cancel(a.ActionID)
+
 		rec, ok, err := st.GetAction(ctx, a.ActionID)
 		if err != nil || !ok {
 			continue
 		}
-		switch rec.Status {
-		case "running":
-			_ = o.runner.Cancel(a.ActionID)
-		case "pending":
+		if rec.Status == "pending" || rec.Status == "running" {
 			result := store.ActionResult{
 				Status:     "canceled",
 				Error:      "deployment canceled",

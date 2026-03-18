@@ -179,6 +179,118 @@ func TestGetDeployment_NotFound(t *testing.T) {
 	}
 }
 
+func TestUpdateDeploymentStatus_SetsStartedAt(t *testing.T) {
+	st := newTestStore(t)
+	ctx := t.Context()
+
+	dep := Deployment{
+		ID:        "dep-start",
+		Status:    "pending",
+		CreatedAt: time.Now().UTC(),
+	}
+	if err := st.InsertDeployment(ctx, dep); err != nil {
+		t.Fatalf("InsertDeployment: %v", err)
+	}
+
+	// First update should set started_at via COALESCE.
+	if err := st.UpdateDeploymentStatus(ctx, "dep-start", "running", "", time.Time{}); err != nil {
+		t.Fatalf("UpdateDeploymentStatus (running): %v", err)
+	}
+
+	got, _, _ := st.GetDeployment(ctx, "dep-start")
+	if got.StartedAt.IsZero() {
+		t.Error("started_at should be set after transitioning to running")
+	}
+	startedAt := got.StartedAt
+
+	// Second update should not overwrite started_at.
+	fin := time.Now().UTC()
+	if err := st.UpdateDeploymentStatus(ctx, "dep-start", "succeeded", "", fin); err != nil {
+		t.Fatalf("UpdateDeploymentStatus (succeeded): %v", err)
+	}
+
+	got2, _, _ := st.GetDeployment(ctx, "dep-start")
+	if got2.StartedAt.Unix() != startedAt.Unix() {
+		t.Errorf("started_at changed from %v to %v", startedAt, got2.StartedAt)
+	}
+}
+
+func TestInsertDeployment_InvalidID(t *testing.T) {
+	st := newTestStore(t)
+	ctx := t.Context()
+
+	err := st.InsertDeployment(ctx, Deployment{})
+	if err != ErrInvalidArgument {
+		t.Errorf("err = %v, want ErrInvalidArgument", err)
+	}
+}
+
+func TestUpdateDeploymentStatus_InvalidArgs(t *testing.T) {
+	st := newTestStore(t)
+	ctx := t.Context()
+
+	if err := st.UpdateDeploymentStatus(ctx, "", "running", "", time.Time{}); err != ErrInvalidArgument {
+		t.Errorf("empty id: err = %v, want ErrInvalidArgument", err)
+	}
+	if err := st.UpdateDeploymentStatus(ctx, "x", "", "", time.Time{}); err != ErrInvalidArgument {
+		t.Errorf("empty status: err = %v, want ErrInvalidArgument", err)
+	}
+}
+
+func TestGetDeployment_InvalidID(t *testing.T) {
+	st := newTestStore(t)
+	ctx := t.Context()
+
+	_, _, err := st.GetDeployment(ctx, "")
+	if err != ErrInvalidArgument {
+		t.Errorf("err = %v, want ErrInvalidArgument", err)
+	}
+}
+
+func TestListDeployments_DefaultLimit(t *testing.T) {
+	st := newTestStore(t)
+	ctx := t.Context()
+
+	// Insert 1 deployment and verify default limit works.
+	dep := Deployment{
+		ID:        "default-limit",
+		Status:    "pending",
+		CreatedAt: time.Now().UTC(),
+	}
+	if err := st.InsertDeployment(ctx, dep); err != nil {
+		t.Fatalf("InsertDeployment: %v", err)
+	}
+
+	got, err := st.ListDeployments(ctx, DeploymentFilter{})
+	if err != nil {
+		t.Fatalf("ListDeployments: %v", err)
+	}
+	if len(got) != 1 {
+		t.Errorf("len = %d, want 1", len(got))
+	}
+}
+
+func TestInsertDeployment_WithStartedAt(t *testing.T) {
+	st := newTestStore(t)
+	ctx := t.Context()
+
+	now := time.Now().UTC().Truncate(time.Second)
+	dep := Deployment{
+		ID:        "dep-started",
+		Status:    "running",
+		CreatedAt: now,
+		StartedAt: now,
+	}
+	if err := st.InsertDeployment(ctx, dep); err != nil {
+		t.Fatalf("InsertDeployment: %v", err)
+	}
+
+	got, _, _ := st.GetDeployment(ctx, "dep-started")
+	if got.StartedAt.Unix() != now.Unix() {
+		t.Errorf("StartedAt = %v, want %v", got.StartedAt, now)
+	}
+}
+
 func TestUpdateDeploymentStatus_NotFound(t *testing.T) {
 	st := newTestStore(t)
 	ctx := t.Context()
