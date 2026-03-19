@@ -72,21 +72,21 @@ setup:
       options:
         command: while [ ! -f /tmp/cloud-init.complete ]; do sleep 1; done
 
+  - name: "pre-configure environment before install"
+    node: test-vm
+    step:
+      type: execute
+      options:
+        command: |
+          mkdir -p /etc/aether-webd
+          printf 'AETHER_LISTEN=0.0.0.0:8186\nAETHER_API_TOKEN=test-token-e2e\n' > /etc/aether-webd/env
+
   - name: "install aether-webd from github release"
     node: test-vm
     step:
       type: execute
       options:
         command: "curl -fsSL https://raw.githubusercontent.com/bengrewell/aether-webui/main/scripts/install.sh | sudo bash"
-
-  - name: "configure token auth and restart service"
-    node: test-vm
-    step:
-      type: execute
-      options:
-        command: |
-          printf 'AETHER_LISTEN=0.0.0.0:8186\nAETHER_API_TOKEN=test-token-e2e\n' > /etc/aether-webd/env
-          systemctl restart aether-webd
 
   - name: "wait for HTTP readiness with token auth"
     node: test-vm

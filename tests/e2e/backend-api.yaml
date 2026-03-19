@@ -84,6 +84,15 @@ setup:
       options:
         command: "curl -fsSL https://raw.githubusercontent.com/bengrewell/aether-webui/main/scripts/preflight-setup.sh | sudo bash -s -- --yes"
 
+  - name: "pre-configure environment before install"
+    node: test-vm
+    step:
+      type: execute
+      options:
+        command: |
+          sudo mkdir -p /etc/aether-webd
+          sudo bash -c 'printf "AETHER_LISTEN=0.0.0.0:8186\nANSIBLE_HOST_KEY_CHECKING=False\nHOME=/var/lib/aether-webd\n" > /etc/aether-webd/env'
+
   - name: "install aether-webd from github release"
     node: test-vm
     step:
@@ -97,16 +106,6 @@ setup:
       type: execute
       options:
         command: for i in $(seq 1 30); do curl -sf http://localhost:8186/healthz && exit 0; sleep 1; done; exit 1
-
-  - name: "configure Ansible environment for the service"
-    node: test-vm
-    step:
-      type: execute
-      options:
-        command: |
-          sudo bash -c 'printf "AETHER_LISTEN=0.0.0.0:8186\nANSIBLE_HOST_KEY_CHECKING=False\nHOME=/var/lib/aether-webd\n" >> /etc/aether-webd/env'
-          sudo systemctl restart aether-webd
-          for i in $(seq 1 30); do curl -sf http://localhost:8186/healthz && exit 0; sleep 1; done; exit 1
 
   - name: "wait for OnRamp repo clone to complete"
     node: test-vm
