@@ -329,7 +329,8 @@ func (o *OnRamp) Endpoints() []endpoint.AnyEndpoint { return o.endpoints }
 // Runner returns the task runner used by this provider.
 func (o *OnRamp) Runner() *taskrunner.Runner { return o.runner }
 
-// Start clones/validates the OnRamp repo and marks the provider as running.
+// Start clones/validates the OnRamp repo, recovers any tasks that were
+// interrupted by a previous shutdown, and marks the provider as running.
 // If repo setup fails, the provider logs the error and starts in degraded mode.
 func (o *OnRamp) Start() error {
 	log := o.Log()
@@ -339,6 +340,7 @@ func (o *OnRamp) Start() error {
 	} else {
 		o.ClearDegraded()
 	}
+	recoverStaleTasks(o.Store(), log)
 	o.SetRunning(true)
 	return nil
 }

@@ -293,6 +293,33 @@ create_data_dir() {
     chmod 750 "$DATA_DIR"
 }
 
+# Exclude aether-webd from needrestart auto-restarts.
+# Ubuntu 24.04 ships needrestart which automatically restarts services after
+# apt upgrades. OnRamp Ansible playbooks install packages (Docker, etc.) that
+# trigger needrestart, killing aether-webd mid-task execution.
+configure_needrestart() {
+    local nr_conf_dir="/etc/needrestart/conf.d"
+    if [[ ! -d "$nr_conf_dir" ]]; then
+        log_info "needrestart not installed, skipping exclusion"
+        return
+    fi
+
+    local nr_conf="${nr_conf_dir}/aether-webd.conf"
+    if [[ -f "$nr_conf" ]]; then
+        log_info "needrestart exclusion already configured"
+        return
+    fi
+
+    log_info "Configuring needrestart to exclude $SERVICE_NAME"
+    cat > "$nr_conf" << 'EOF'
+# Exclude aether-webd from automatic restarts.
+# The service runs long-lived deployment tasks that must not be interrupted
+# by package-triggered restarts.
+$nrconf{override_rc}{qr(^aether-webd)} = 0;
+EOF
+    log_info "Created $nr_conf"
+}
+
 # Enable and start the service
 enable_service() {
     log_info "Reloading systemd daemon..."
@@ -362,6 +389,7 @@ main() {
     install_service
     create_config_dir
     create_data_dir
+    configure_needrestart
     enable_service
     print_summary
 }

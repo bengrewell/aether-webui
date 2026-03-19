@@ -106,6 +106,24 @@ sudo systemctl restart aether-webd
 
 Multiple origins can be comma-separated. Use `*` to allow all origins (not recommended for production).
 
+## Preventing unwanted service restarts
+
+Ubuntu 24.04 ships with `needrestart`, a tool that automatically restarts services after package upgrades. Aether OnRamp playbooks install packages (Docker, sysctl utilities, etc.) via Ansible, which triggers `needrestart` to restart `aether-webd` mid-task execution. This kills any running deployment.
+
+The install script automatically creates a `needrestart` exclusion at `/etc/needrestart/conf.d/aether-webd.conf`. If you install manually or build from source, create this file yourself:
+
+```bash
+sudo mkdir -p /etc/needrestart/conf.d
+cat <<'EOF' | sudo tee /etc/needrestart/conf.d/aether-webd.conf
+# Exclude aether-webd from automatic restarts.
+# The service runs long-lived deployment tasks that must not be interrupted
+# by package-triggered restarts.
+$nrconf{override_rc}{qr(^aether-webd)} = 0;
+EOF
+```
+
+Note: If `needrestart` is not installed on your system, this step can be skipped. Check with `dpkg -l needrestart`.
+
 ## Configuration options
 
 The `aether-webd` binary accepts several flags for customizing behavior, including `--tls` for automatic self-signed certificate generation and `--api-token` for bearer token authentication. See the [CLI Reference](../reference/cli) for the full list of options.
