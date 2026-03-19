@@ -2,6 +2,7 @@ package onramp
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -153,19 +154,23 @@ func (o *OnRamp) HandleComposeConfig(_ context.Context, in *ConfigComposeInput) 
 		}
 	}
 
-	// Marshal and write.
-	data, err := yaml.Marshal(base)
+	// Convert the untyped map to the typed struct via JSON round-trip.
+	// Direct YAML marshal of the untyped map would quote numeric string keys
+	// (e.g. "0":) with !!str tags, which yaml.v3 cannot unmarshal into
+	// map[int] fields like SRSRanConfig.Servers. JSON handles the conversion
+	// cleanly because JSON always uses string keys.
+	jsonData, err := jsonMarshalAny(base)
 	if err != nil {
-		return nil, huma.Error500InternalServerError("failed to marshal config", err)
+		return nil, huma.Error500InternalServerError("failed to serialize config", err)
 	}
-	if err := os.WriteFile(mainPath, data, 0o644); err != nil {
-		return nil, huma.Error500InternalServerError("failed to write config", err)
+	var cfg OnRampConfig
+	if err := json.Unmarshal(jsonData, &cfg); err != nil {
+		return nil, huma.Error500InternalServerError("failed to parse config", err)
 	}
 
-	// Re-read as typed config.
-	cfg, err := o.readVarsFile(mainPath)
-	if err != nil {
-		return nil, huma.Error500InternalServerError("failed to re-read config", err)
+	// Write through the typed struct so YAML keys have correct types.
+	if err := o.writeVarsFile(mainPath, &cfg); err != nil {
+		return nil, huma.Error500InternalServerError("failed to write config", err)
 	}
 
 	return &ConfigComposeOutput{
@@ -175,6 +180,40 @@ func (o *OnRamp) HandleComposeConfig(_ context.Context, in *ConfigComposeInput) 
 			Config:           cfg,
 		},
 	}, nil
+}
+
+// jsonMarshalAny marshals an untyped map to JSON, converting any
+// map[interface{}]interface{} values (produced by yaml.v3 for maps with
+// non-string keys) into map[string]interface{} so encoding/json can handle them.
+func jsonMarshalAny(v any) ([]byte, error) {
+	return json.Marshal(convertKeysToStrings(v))
+}
+
+// convertKeysToStrings recursively converts map[interface{}]interface{} to
+// map[string]interface{} for JSON compatibility.
+func convertKeysToStrings(v any) any {
+	switch val := v.(type) {
+	case map[string]any:
+		out := make(map[string]any, len(val))
+		for k, v := range val {
+			out[k] = convertKeysToStrings(v)
+		}
+		return out
+	case map[any]any:
+		out := make(map[string]any, len(val))
+		for k, v := range val {
+			out[fmt.Sprintf("%v", k)] = convertKeysToStrings(v)
+		}
+		return out
+	case []any:
+		out := make([]any, len(val))
+		for i, v := range val {
+			out[i] = convertKeysToStrings(v)
+		}
+		return out
+	default:
+		return v
+	}
 }
 
 // readRawYAML reads a YAML file into an untyped map.
