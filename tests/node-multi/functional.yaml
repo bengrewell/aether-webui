@@ -2,10 +2,10 @@
 ########################################################################################################################
 ## Test Suite Configuration                                                                                           ##
 ########################################################################################################################
-# Multi-node deployment smoke test. A control node runs aether-webd and orchestrates deployments via Ansible to two
-# target nodes: one for the core network (k8s + 5gc) and one for the RAN (srsRAN). This test validates that the
-# multi-node environment can be provisioned, nodes registered and reachable, and components installed across machines.
-suite: Aether Multi Node Deployment Test Suite
+# Multi-node environment smoke test. Provisions a control node running aether-webd and two target nodes (core + RAN),
+# then validates node registration, inventory sync, and Ansible connectivity. Use `dart -setup` to provision the
+# environment without running tests, then interact with the API manually for debugging or development.
+suite: Aether Multi Node Environment Test Suite
 
 ########################################################################################################################
 ## Node Infrastructure Configuration                                                                                  ##
@@ -41,7 +41,7 @@ lxd:
             - [ bash, -c, 'echo "complete" > /tmp/cloud-init.complete' ]
 
     - name: core-profile
-      description: Profile for the core node (k8s + 5gc)
+      description: Profile for the core node (k8s + 5gc target)
       devices:
         root:
           type: disk
@@ -63,7 +63,7 @@ lxd:
             - [ bash, -c, 'echo "complete" > /tmp/cloud-init.complete' ]
 
     - name: ran-profile
-      description: Profile for the RAN node (srsRAN)
+      description: Profile for the RAN node (srsRAN target)
       devices:
         root:
           type: disk
@@ -128,7 +128,7 @@ nodes:
         - ran-profile
 
 ########################################################################################################################
-## Setup — control node with aether-webd, target nodes with preflight                                                 ##
+## Setup — provision infrastructure only (dart -setup stops here)                                                      ##
 ########################################################################################################################
 setup:
   ####################################################################################################################
@@ -230,92 +230,15 @@ setup:
             exit 1
           fi
 
-  ####################################################################################################################
-  ## Register target nodes and sync inventory                                                                       ##
-  ####################################################################################################################
-  - name: "register core-vm as master+worker node"
-    node: control-vm
-    step:
-      type: execute
-      options:
-        command: >-
-          curl -sf -X POST http://localhost:8186/api/v1/nodes
-          -H 'Content-Type: application/json'
-          -d '{"name":"core-vm","ansible_host":"10.103.102.20","ansible_user":"aether","password":"aether","sudo_password":"aether","roles":["master","worker"]}'
-          | jq -e '.id != ""'
-
-  - name: "register ran-vm as srsran node"
-    node: control-vm
-    step:
-      type: execute
-      options:
-        command: >-
-          curl -sf -X POST http://localhost:8186/api/v1/nodes
-          -H 'Content-Type: application/json'
-          -d '{"name":"ran-vm","ansible_host":"10.103.102.30","ansible_user":"aether","password":"aether","sudo_password":"aether","roles":["srsran"]}'
-          | jq -e '.id != ""'
-
-  - name: "sync inventory"
-    node: control-vm
-    step:
-      type: execute
-      options:
-        command: curl -sf -X POST http://localhost:8186/api/v1/onramp/inventory/sync | jq -e '.message | test("2 nodes")'
-
-  ####################################################################################################################
-  ## Verify connectivity to both target nodes                                                                       ##
-  ####################################################################################################################
-  - name: "execute pingall"
-    node: control-vm
-    step:
-      type: execute
-      options:
-        command: curl -sf -X POST http://localhost:8186/api/v1/onramp/components/cluster/pingall | jq -r '.id' | tee /tmp/pingall_task_id
-
-  - name: "wait for pingall to complete"
-    node: control-vm
-    step:
-      type: execute
-      options:
-        command: >-
-          TASK_ID=$(cat /tmp/pingall_task_id);
-          for i in $(seq 1 120); do
-            STATUS=$(curl -sf "http://localhost:8186/api/v1/onramp/tasks/${TASK_ID}" | jq -r '.status');
-            [ "$STATUS" != "running" ] && [ "$STATUS" != "pending" ] && exit 0;
-            sleep 1;
-          done;
-          exit 1
-
-  - name: "verify pingall succeeded"
-    node: control-vm
-    step:
-      type: execute
-      options:
-        command: >-
-          TASK_ID=$(cat /tmp/pingall_task_id);
-          curl -sf "http://localhost:8186/api/v1/onramp/tasks/${TASK_ID}" | jq -e '.status == "succeeded"'
-
-  - name: "dump pingall output on failure"
-    node: control-vm
-    step:
-      type: execute
-      options:
-        command: >-
-          TASK_ID=$(cat /tmp/pingall_task_id);
-          STATUS=$(curl -sf "http://localhost:8186/api/v1/onramp/tasks/${TASK_ID}" | jq -r '.status');
-          if [ "$STATUS" != "succeeded" ]; then
-            echo "=== Task status: $STATUS ===";
-            curl -sf "http://localhost:8186/api/v1/onramp/tasks/${TASK_ID}" | jq '{status, exit_code}';
-            echo "=== Task output ===";
-            curl -sf "http://localhost:8186/api/v1/onramp/tasks/${TASK_ID}" | jq -r '.output';
-          fi;
-          exit 0
-
 ########################################################################################################################
-## Tests — environment validation                                                                                     ##
+## Tests — node registration, inventory, and connectivity                                                             ##
 ########################################################################################################################
 tests:
-  - name: "control-vm: health check"
+  ######################################################################################################################
+  ## Service health                                                                                                   ##
+  ######################################################################################################################
+
+  - name: "health check returns healthy"
     node: control-vm
     type: execute
     options:
@@ -324,7 +247,35 @@ tests:
         exit_code: 0
         contains: "healthy"
 
-  - name: "control-vm: two nodes registered"
+  ######################################################################################################################
+  ## Node registration                                                                                                ##
+  ######################################################################################################################
+
+  - name: "register core-vm as master+worker node"
+    node: control-vm
+    type: execute
+    options:
+      command: >-
+        curl -sf -X POST http://localhost:8186/api/v1/nodes
+        -H 'Content-Type: application/json'
+        -d '{"name":"core-vm","ansible_host":"10.103.102.20","ansible_user":"aether","password":"aether","sudo_password":"aether","roles":["master","worker"]}'
+        | jq -e '.id != ""'
+      evaluate:
+        exit_code: 0
+
+  - name: "register ran-vm as srsran node"
+    node: control-vm
+    type: execute
+    options:
+      command: >-
+        curl -sf -X POST http://localhost:8186/api/v1/nodes
+        -H 'Content-Type: application/json'
+        -d '{"name":"ran-vm","ansible_host":"10.103.102.30","ansible_user":"aether","password":"aether","sudo_password":"aether","roles":["srsran"]}'
+        | jq -e '.id != ""'
+      evaluate:
+        exit_code: 0
+
+  - name: "two nodes registered"
     node: control-vm
     type: execute
     options:
@@ -332,7 +283,19 @@ tests:
       evaluate:
         exit_code: 0
 
-  - name: "control-vm: inventory has both nodes"
+  ######################################################################################################################
+  ## Inventory sync and validation                                                                                    ##
+  ######################################################################################################################
+
+  - name: "sync inventory"
+    node: control-vm
+    type: execute
+    options:
+      command: curl -sf -X POST http://localhost:8186/api/v1/onramp/inventory/sync | jq -e '.message | test("2 nodes")'
+      evaluate:
+        exit_code: 0
+
+  - name: "inventory has both nodes"
     node: control-vm
     type: execute
     options:
@@ -342,7 +305,7 @@ tests:
       evaluate:
         exit_code: 0
 
-  - name: "control-vm: core-vm has master+worker roles"
+  - name: "core-vm has master+worker roles"
     node: control-vm
     type: execute
     options:
@@ -352,7 +315,7 @@ tests:
       evaluate:
         exit_code: 0
 
-  - name: "control-vm: ran-vm has srsran role"
+  - name: "ran-vm has srsran role"
     node: control-vm
     type: execute
     options:
@@ -361,6 +324,62 @@ tests:
         | jq -e '.nodes[] | select(.name == "ran-vm") | .roles == ["srsran"]'
       evaluate:
         exit_code: 0
+
+  ######################################################################################################################
+  ## Ansible connectivity                                                                                             ##
+  ######################################################################################################################
+
+  - name: "execute pingall"
+    node: control-vm
+    type: execute
+    options:
+      command: curl -sf -X POST http://localhost:8186/api/v1/onramp/components/cluster/pingall | jq -r '.id' | tee /tmp/pingall_task_id
+      evaluate:
+        exit_code: 0
+
+  - name: "wait for pingall to complete"
+    node: control-vm
+    type: execute
+    options:
+      command: |
+        TASK_ID=$(cat /tmp/pingall_task_id)
+        for i in $(seq 1 120); do
+          RESP=$(curl -sf "http://localhost:8186/api/v1/onramp/tasks/${TASK_ID}" 2>/dev/null) || { sleep 1; continue; }
+          STATUS=$(echo "$RESP" | jq -r '.status' 2>/dev/null) || { sleep 1; continue; }
+          case "$STATUS" in
+            succeeded|failed|canceled) exit 0 ;;
+          esac
+          sleep 1
+        done
+        exit 1
+      evaluate:
+        exit_code: 0
+
+  - name: "verify pingall succeeded"
+    node: control-vm
+    type: execute
+    options:
+      command: >-
+        TASK_ID=$(cat /tmp/pingall_task_id);
+        curl -sf "http://localhost:8186/api/v1/onramp/tasks/${TASK_ID}"
+        | jq -e '.status == "succeeded" and (.exit_code == 0 or .exit_code == null)'
+      evaluate:
+        exit_code: 0
+
+  - name: "dump pingall output on failure"
+    node: control-vm
+    type: execute
+    options:
+      command: >-
+        TASK_ID=$(cat /tmp/pingall_task_id);
+        STATUS=$(curl -sf "http://localhost:8186/api/v1/onramp/tasks/${TASK_ID}" | jq -r '.status');
+        if [ "$STATUS" != "succeeded" ]; then
+          echo "=== Task status: $STATUS ===";
+          curl -sf "http://localhost:8186/api/v1/onramp/tasks/${TASK_ID}" | jq '{status, exit_code}';
+          echo "=== Task output ===";
+          curl -sf "http://localhost:8186/api/v1/onramp/tasks/${TASK_ID}" | jq -r '.output';
+        fi;
+        exit 0
 
 ########################################################################################################################
 ## Teardown — clean up all VMs                                                                                        ##
