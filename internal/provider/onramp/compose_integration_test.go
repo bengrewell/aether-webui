@@ -2,44 +2,9 @@ package onramp
 
 import (
 	"encoding/json"
-	"os"
 	"path/filepath"
 	"testing"
-
-	"gopkg.in/yaml.v3"
 )
-
-// rawBlueprintSRSRan is a YAML string matching the real OnRamp blueprint format.
-// Bare integer keys (0:) exercise the yaml.v3 map[any]any code path that Go
-// map literals with string keys ("0":) do not.
-const rawBlueprintSRSRan = `srsran:
-  docker:
-    container:
-      gnb_image: srsran/gnb:latest
-      ue_image: srsran/ue:latest
-    network:
-      name: srsran-net
-  simulation: true
-  servers:
-    0:
-      gnb_ip: ""
-      gnb_conf: deps/srsran/roles/gNB/templates/gnb_zmq.yaml
-      ue_conf: deps/srsran/roles/uEsimulator/templates/ue_zmq.conf
-core:
-  ran_subnet: ""
-`
-
-// writeRawBlueprint writes a raw YAML string as a blueprint file.
-func writeRawBlueprint(t *testing.T, p *OnRamp, filename, content string) {
-	t.Helper()
-	dir := filepath.Join(p.config.OnRampDir, "vars")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatalf("MkdirAll: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, filename), []byte(content), 0o644); err != nil {
-		t.Fatalf("WriteFile: %v", err)
-	}
-}
 
 // TestComposeConfig_RawYAMLBlueprint_AllFieldsSurvive verifies that compose
 // with a raw YAML blueprint (bare integer keys, like the real OnRamp files)
@@ -106,16 +71,11 @@ func TestComposeConfig_RawYAMLBlueprint_AllFieldsSurvive(t *testing.T) {
 		t.Errorf("returned servers[0].ue_conf = %q, want %q", srv.UEConf, wantUEConf)
 	}
 
-	// --- Verify disk round-trip ---
+	// --- Verify disk round-trip via readVarsFile (production read path) ---
 	mainPath := filepath.Join(p.config.OnRampDir, "vars", "main.yml")
-	diskData, err := os.ReadFile(mainPath)
+	diskCfg, err := p.readVarsFile(mainPath)
 	if err != nil {
-		t.Fatalf("ReadFile main.yml: %v", err)
-	}
-
-	var diskCfg OnRampConfig
-	if err := yaml.Unmarshal(diskData, &diskCfg); err != nil {
-		t.Fatalf("YAML unmarshal main.yml: %v", err)
+		t.Fatalf("readVarsFile main.yml: %v", err)
 	}
 
 	if diskCfg.SRSRan == nil {
