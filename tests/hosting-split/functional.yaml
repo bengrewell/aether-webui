@@ -5,6 +5,12 @@
 # Split-hosting deployment test. Backend API on one VM, frontend served by nginx on another. Validates that the
 # backend health check works, nginx serves the frontend, and CORS headers are correctly configured to allow
 # cross-origin requests from the frontend origin while rejecting unauthorized origins.
+#
+# The frontend VM includes a /usr/local/bin/deploy-frontend helper script that can be re-run manually to switch
+# to any branch, tag, or commit:
+#   deploy-frontend                  # rebuild from latest main
+#   deploy-frontend feature/foo      # switch to a branch
+#   deploy-frontend abc1234          # switch to a specific commit
 suite: Aether Split Hosting Deployment Test Suite
 
 ########################################################################################################################
@@ -61,9 +67,11 @@ lxd:
             - jq
             - nginx
             - git
-            - nodejs
-            - npm
+            - ca-certificates
+            - gnupg
           runcmd:
+            # Install Node.js 20 via nodesource (Ubuntu's default nodejs may be too old for Vite)
+            - [ bash, -c, 'curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && apt-get install -y nodejs' ]
             - [ bash, -c, 'echo "complete" > /tmp/cloud-init.complete' ]
 
 nodes:
@@ -156,56 +164,108 @@ setup:
       options:
         command: for i in $(seq 1 300); do [ -f /tmp/cloud-init.complete ] && exit 0; sleep 1; done; echo "cloud-init timed out after 300s" >&2; exit 1
 
-  - name: "clone frontend repository"
-    node: frontend-vm
-    step:
-      type: execute
-      options:
-        command: git clone https://github.com/bgrewell/aether-webui-web.git /opt/aether-frontend
-
-  - name: "build frontend"
-    node: frontend-vm
-    step:
-      type: execute
-      options:
-        command: cd /opt/aether-frontend && npm install && npm run build
-
-  - name: "configure nginx for frontend"
+  - name: "install deploy-frontend helper script"
     node: frontend-vm
     step:
       type: execute
       options:
         command: |
-          sudo bash -c 'cat > /etc/nginx/sites-available/aether-frontend <<EOF
+          cat > /usr/local/bin/deploy-frontend <<'SCRIPT'
+          #!/usr/bin/env bash
+          # deploy-frontend — Clone/update, build, and serve the Aether WebUI frontend.
+          #
+          # Usage:
+          #   deploy-frontend                # latest main
+          #   deploy-frontend <branch>       # specific branch
+          #   deploy-frontend <commit>       # specific commit/tag
+          #
+          # Re-running switches to the requested ref, rebuilds, and reloads nginx.
+
+          set -euo pipefail
+
+          REPO="https://github.com/bgrewell/aether-webui-web.git"
+          DIR="/opt/aether-frontend"
+          BACKEND="http://10.103.103.10:8186"
+          REF="${1:-main}"
+
+          log() { echo "[deploy-frontend] $*"; }
+
+          # Clone or fetch
+          if [ -d "$DIR/.git" ]; then
+              log "Fetching latest from origin"
+              git -C "$DIR" fetch --all --prune
+          else
+              log "Cloning $REPO"
+              git clone "$REPO" "$DIR"
+          fi
+
+          # Checkout requested ref
+          log "Checking out: $REF"
+          git -C "$DIR" checkout --force "$REF" 2>/dev/null \
+              || git -C "$DIR" checkout --force "origin/$REF"
+
+          # Pull if on a branch
+          if git -C "$DIR" symbolic-ref -q HEAD &>/dev/null; then
+              git -C "$DIR" pull --ff-only 2>/dev/null || true
+          fi
+
+          COMMIT=$(git -C "$DIR" rev-parse --short HEAD)
+          log "At commit $COMMIT"
+
+          # Build
+          log "Installing dependencies"
+          cd "$DIR" && npm install --no-audit --no-fund
+
+          log "Building (VITE_BACKEND_URL=$BACKEND)"
+          VITE_BACKEND_URL="$BACKEND" npm run build
+
+          if [ ! -f "$DIR/dist/index.html" ]; then
+              echo "ERROR: build failed — dist/index.html not found" >&2
+              exit 1
+          fi
+
+          # Configure nginx (idempotent)
+          cat > /etc/nginx/sites-available/aether-frontend <<NGINX
           server {
               listen 80;
               server_name _;
-              root /opt/aether-frontend/dist;
+              root ${DIR}/dist;
               index index.html;
 
               location /api/ {
-                  proxy_pass http://10.103.103.10:8186;
+                  proxy_pass ${BACKEND};
               }
               location /docs {
-                  proxy_pass http://10.103.103.10:8186;
+                  proxy_pass ${BACKEND};
               }
               location /openapi {
-                  proxy_pass http://10.103.103.10:8186;
+                  proxy_pass ${BACKEND};
               }
               location /schemas {
-                  proxy_pass http://10.103.103.10:8186;
+                  proxy_pass ${BACKEND};
               }
               location /healthz {
-                  proxy_pass http://10.103.103.10:8186;
+                  proxy_pass ${BACKEND};
               }
               location / {
                   try_files \$uri \$uri/ /index.html;
               }
           }
-          EOF'
-          sudo ln -sf /etc/nginx/sites-available/aether-frontend /etc/nginx/sites-enabled/aether-frontend
-          sudo rm -f /etc/nginx/sites-enabled/default
-          sudo systemctl restart nginx
+          NGINX
+          ln -sf /etc/nginx/sites-available/aether-frontend /etc/nginx/sites-enabled/aether-frontend
+          rm -f /etc/nginx/sites-enabled/default
+          nginx -t && systemctl reload nginx
+
+          log "Frontend deployed at $COMMIT (ref: $REF)"
+          SCRIPT
+          chmod +x /usr/local/bin/deploy-frontend
+
+  - name: "deploy frontend from main"
+    node: frontend-vm
+    step:
+      type: execute
+      options:
+        command: deploy-frontend main
 
   - name: "wait for nginx readiness"
     node: frontend-vm

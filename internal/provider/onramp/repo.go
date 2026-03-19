@@ -1,6 +1,7 @@
 package onramp
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -97,18 +98,29 @@ func ensureSubmodules(cfg Config, log *slog.Logger) error {
 }
 
 // validateSubmodules reads .gitmodules and confirms each registered submodule
-// directory contains at least one file. Empty directories indicate a failed or
+// directory contains checked-out content (at least one non-.git entry). Empty
+// directories or directories with only a .git entry indicate a failed or
 // incomplete submodule clone.
 func validateSubmodules(dir string, log *slog.Logger) error {
 	// Parse submodule paths from .gitmodules.
 	gitmodules := filepath.Join(dir, ".gitmodules")
-	if _, err := os.Stat(gitmodules); err != nil {
+	if _, err := os.Stat(gitmodules); errors.Is(err, os.ErrNotExist) {
 		// No .gitmodules means no submodules to validate.
 		return nil
+	} else if err != nil {
+		return fmt.Errorf("stat .gitmodules: %w", err)
 	}
 
 	out, err := gitOutput(dir, "config", "--file", ".gitmodules", "--get-regexp", `submodule\..*\.path`)
-	if err != nil || out == "" {
+	if err != nil {
+		// Exit code 1 means no matches (no submodule paths configured).
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) && exitErr.ExitCode() == 1 {
+			return nil
+		}
+		return fmt.Errorf("parse .gitmodules: %w", err)
+	}
+	if out == "" {
 		return nil
 	}
 
@@ -124,10 +136,19 @@ func validateSubmodules(dir string, log *slog.Logger) error {
 		if err != nil {
 			return fmt.Errorf("submodule %s: directory missing: %w", subPath, err)
 		}
-		if len(entries) == 0 {
-			return fmt.Errorf("submodule %s: directory is empty (clone may have failed)", subPath)
+
+		// Count non-.git entries; a submodule with only a .git file/dir
+		// but no checked-out content is still broken.
+		contentCount := 0
+		for _, e := range entries {
+			if e.Name() != ".git" {
+				contentCount++
+			}
 		}
-		log.Debug("submodule validated", "path", subPath, "files", len(entries))
+		if contentCount == 0 {
+			return fmt.Errorf("submodule %s: no checked-out content (clone may have failed)", subPath)
+		}
+		log.Debug("submodule validated", "path", subPath, "files", contentCount)
 	}
 	return nil
 }
