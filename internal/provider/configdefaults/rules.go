@@ -85,6 +85,30 @@ var defaultRules = []Rule{
 			return f.DefaultIface, "default route interface on " + f.NodeName
 		},
 	},
+	{
+		Component: "srsran",
+		Field:     "srsran.servers.0.gnb_ip",
+		Label:     "srsRAN gNB IP",
+		Roles:     []string{"srsran"},
+		ComputeFn: func(f nodefacts.NodeFacts) (any, string) {
+			if f.DefaultIP == "" {
+				return nil, ""
+			}
+			return f.DefaultIP, "primary IP on " + f.DefaultIface
+		},
+	},
+	{
+		Component: "oai",
+		Field:     "oai.servers.0.gnb_ip",
+		Label:     "OAI gNB IP",
+		Roles:     []string{"oai"},
+		ComputeFn: func(f nodefacts.NodeFacts) (any, string) {
+			if f.DefaultIP == "" {
+				return nil, ""
+			}
+			return f.DefaultIP, "primary IP on " + f.DefaultIface
+		},
+	},
 }
 
 // matchesRole returns true if the node has any of the required roles.

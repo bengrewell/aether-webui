@@ -731,6 +731,26 @@ type InventoryNode struct {
 	Roles       []string `json:"roles"`
 }
 
+// --- Config Compose ---
+
+type ConfigComposeInput struct {
+	Body ConfigComposeBody
+}
+
+type ConfigComposeBody struct {
+	Components []string `json:"components"`
+}
+
+type ConfigComposeOutput struct {
+	Body ConfigComposeResult
+}
+
+type ConfigComposeResult struct {
+	ActiveBlueprints []string     `json:"active_blueprints,omitempty"`
+	Components       []string     `json:"components"`
+	Config           OnRampConfig `json:"config"`
+}
+
 type InventoryGetOutput struct {
 	Body InventoryData
 }
