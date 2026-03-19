@@ -113,6 +113,48 @@ curl -X POST http://localhost:8186/api/v1/onramp/components/cluster/pingall
 
 Poll the resulting task for results. Connectivity failures indicate SSH credential or network issues. See [Managing Nodes](node-management) for credential setup.
 
+## Task interrupted by service restart
+
+### Symptom
+
+A deployment or task that was in progress suddenly shows `status: "failed"` with the error `"service restarted while task was running"`. The service journal shows a SIGTERM during task execution.
+
+### Cause
+
+Something restarted the `aether-webd` service while a task was running. The most common trigger is Ubuntu's `needrestart` tool, which automatically restarts services after `apt` installs or upgrades packages. Since Aether OnRamp playbooks install packages (Docker, Python modules, etc.) via Ansible, `needrestart` detects that `aether-webd` is using updated libraries and restarts it mid-task.
+
+### Diagnosis
+
+Check the service journal for the restart event:
+
+```bash
+journalctl -u aether-webd --no-pager -b | grep -E 'SIGTERM|Stop|Start'
+```
+
+Check if `needrestart` is installed and whether `aether-webd` is excluded:
+
+```bash
+dpkg -l needrestart
+cat /etc/needrestart/conf.d/aether-webd.conf
+```
+
+### Fix
+
+Create a `needrestart` exclusion so it never restarts `aether-webd`:
+
+```bash
+sudo mkdir -p /etc/needrestart/conf.d
+cat <<'EOF' | sudo tee /etc/needrestart/conf.d/aether-webd.conf
+$nrconf{override_rc}{qr(^aether-webd)} = 0;
+EOF
+```
+
+Note: The install script creates this file automatically. This step is only needed for manual or source-built installations.
+
+### Recovery
+
+On startup, `aether-webd` automatically detects actions and deployments that were interrupted by the previous shutdown and marks them as failed. Re-submit the deployment to retry.
+
 ## 409 Conflict: task already running
 
 Only one task can run at a time. A `409` response means a task is already in progress:
