@@ -436,3 +436,77 @@ func TestMultiNodeMultiRole(t *testing.T) {
 		t.Errorf("gnbsim.router.data_iface = %v, want eth0", v)
 	}
 }
+
+func TestSRSRanGNBIPRule(t *testing.T) {
+	g := &mockGatherer{
+		facts: map[string]nodefacts.NodeFacts{
+			"10.0.0.30": {
+				DefaultIface: "ens18",
+				DefaultIP:    "10.0.0.30",
+				GatheredAt:   time.Now().UTC(),
+			},
+		},
+	}
+
+	p, st := newTestProvider(t, g)
+	ctx := t.Context()
+
+	if err := st.UpsertNode(ctx, store.Node{
+		ID: "node-srsran", Name: "srsran1", AnsibleHost: "10.0.0.30",
+		AnsibleUser: "ubuntu", Password: []byte("pass"),
+		Roles: []string{"srsran"}, CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := p.handleApplyConfigDefaults(ctx, &ConfigDefaultsApplyInput{Refresh: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	appliedFields := make(map[string]any)
+	for _, a := range out.Body.Applied {
+		appliedFields[a.Field] = a.Value
+	}
+
+	if v := appliedFields["srsran.servers.0.gnb_ip"]; v != "10.0.0.30" {
+		t.Errorf("srsran.servers.0.gnb_ip = %v, want 10.0.0.30", v)
+	}
+}
+
+func TestOAIGNBIPRule(t *testing.T) {
+	g := &mockGatherer{
+		facts: map[string]nodefacts.NodeFacts{
+			"10.0.0.40": {
+				DefaultIface: "ens18",
+				DefaultIP:    "10.0.0.40",
+				GatheredAt:   time.Now().UTC(),
+			},
+		},
+	}
+
+	p, st := newTestProvider(t, g)
+	ctx := t.Context()
+
+	if err := st.UpsertNode(ctx, store.Node{
+		ID: "node-oai", Name: "oai1", AnsibleHost: "10.0.0.40",
+		AnsibleUser: "ubuntu", Password: []byte("pass"),
+		Roles: []string{"oai"}, CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := p.handleApplyConfigDefaults(ctx, &ConfigDefaultsApplyInput{Refresh: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	appliedFields := make(map[string]any)
+	for _, a := range out.Body.Applied {
+		appliedFields[a.Field] = a.Value
+	}
+
+	if v := appliedFields["oai.servers.0.gnb_ip"]; v != "10.0.0.40" {
+		t.Errorf("oai.servers.0.gnb_ip = %v, want 10.0.0.40", v)
+	}
+}

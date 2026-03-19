@@ -31,7 +31,7 @@ func NewProvider(cfg Config, opts ...provider.Option) *OnRamp {
 	o := &OnRamp{
 		Base:      base,
 		config:    cfg,
-		endpoints: make([]endpoint.AnyEndpoint, 0, 22),
+		endpoints: make([]endpoint.AnyEndpoint, 0, 23),
 		runner: taskrunner.New(taskrunner.RunnerConfig{
 			MaxConcurrent: 1,
 			Logger:        base.Log(),
@@ -242,6 +242,20 @@ func NewProvider(cfg Config, opts ...provider.Option) *OnRamp {
 			HTTP:        endpoint.HTTPHint{Path: "/api/v1/onramp/config/profiles/{name}/activate"},
 		},
 		Handler: o.HandleActivateProfile,
+	})
+
+	// --- Config Compose ---
+
+	provider.Register(o.Base, endpoint.Endpoint[ConfigComposeInput, ConfigComposeOutput]{
+		Desc: endpoint.Descriptor{
+			OperationID: "onramp-compose-config",
+			Semantics:   endpoint.Action,
+			Summary:     "Compose config from blueprints",
+			Description: "Builds vars/main.yml from the base config plus selected component blueprints, pruning sections for unselected components.",
+			Tags:        []string{"onramp"},
+			HTTP:        endpoint.HTTPHint{Path: "/api/v1/onramp/config/compose"},
+		},
+		Handler: o.HandleComposeConfig,
 	})
 
 	// --- Inventory ---
