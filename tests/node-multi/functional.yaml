@@ -2,9 +2,10 @@
 ########################################################################################################################
 ## Test Suite Configuration                                                                                           ##
 ########################################################################################################################
-# Multi-node deployment test. Two independent nodes on the same network, both deployed via hosted scripts. Validates
-# that each node can be independently installed and passes health checks.
-suite: Aether Multi Node Deployment Test Suite
+# Multi-node environment smoke test. Provisions a control node running aether-webd and two target nodes (core + RAN),
+# then validates node registration, inventory sync, and Ansible connectivity. Use `dart -setup` to provision the
+# environment without running tests, then interact with the API manually for debugging or development.
+suite: Aether Multi Node Environment Test Suite
 
 ########################################################################################################################
 ## Node Infrastructure Configuration                                                                                  ##
@@ -17,8 +18,8 @@ lxd:
       gateway: 10.103.102.1
 
   profiles:
-    - name: multi-node-primary
-      description: Profile for multi-node deployment test
+    - name: control-profile
+      description: Profile for the control node (runs aether-webd + Ansible)
       devices:
         root:
           type: disk
@@ -27,8 +28,52 @@ lxd:
           opts:
             size: 50GB
       config:
-        limits.cpu: "4"
+        limits.cpu: "2"
         limits.memory: "4GB"
+
+        user.user-data: |
+          #cloud-config
+          package_update: true
+          packages:
+            - curl
+            - jq
+          runcmd:
+            - [ bash, -c, 'echo "complete" > /tmp/cloud-init.complete' ]
+
+    - name: core-profile
+      description: Profile for the core node (k8s + 5gc target)
+      devices:
+        root:
+          type: disk
+          path: /
+          pool: default
+          opts:
+            size: 100GB
+      config:
+        limits.cpu: "4"
+        limits.memory: "8GB"
+
+        user.user-data: |
+          #cloud-config
+          package_update: true
+          packages:
+            - curl
+            - jq
+          runcmd:
+            - [ bash, -c, 'echo "complete" > /tmp/cloud-init.complete' ]
+
+    - name: ran-profile
+      description: Profile for the RAN node (srsRAN target)
+      devices:
+        root:
+          type: disk
+          path: /
+          pool: default
+          opts:
+            size: 100GB
+      config:
+        limits.cpu: "4"
+        limits.memory: "8GB"
 
         user.user-data: |
           #cloud-config
@@ -46,7 +91,7 @@ nodes:
       exec_opts:
         shell: /bin/bash
 
-  - name: node-1
+  - name: control-vm
     type: lxd-vm
     options:
       image: "ubuntu:24.04"
@@ -56,9 +101,9 @@ nodes:
         - name: multi-node-test
           ip: 10.103.102.10
       profiles:
-        - multi-node-primary
+        - control-profile
 
-  - name: node-2
+  - name: core-vm
     type: lxd-vm
     options:
       image: "ubuntu:24.04"
@@ -68,92 +113,133 @@ nodes:
         - name: multi-node-test
           ip: 10.103.102.20
       profiles:
-        - multi-node-primary
+        - core-profile
+
+  - name: ran-vm
+    type: lxd-vm
+    options:
+      image: "ubuntu:24.04"
+      exec_opts:
+        shell: /bin/bash
+      networks:
+        - name: multi-node-test
+          ip: 10.103.102.30
+      profiles:
+        - ran-profile
 
 ########################################################################################################################
-## Setup — preflight, install, and readiness on both nodes                                                            ##
+## Setup — provision infrastructure only (dart -setup stops here)                                                      ##
 ########################################################################################################################
 setup:
-  - name: "wait for cloud-init to complete on node-1"
-    node: node-1
+  ####################################################################################################################
+  ## Wait for cloud-init on all VMs                                                                                 ##
+  ####################################################################################################################
+  - name: "wait for cloud-init on control-vm"
+    node: control-vm
     step:
       type: execute
       options:
         command: for i in $(seq 1 300); do [ -f /tmp/cloud-init.complete ] && exit 0; sleep 1; done; echo "cloud-init timed out after 300s" >&2; exit 1
 
-  - name: "wait for cloud-init to complete on node-2"
-    node: node-2
+  - name: "wait for cloud-init on core-vm"
+    node: core-vm
     step:
       type: execute
       options:
         command: for i in $(seq 1 300); do [ -f /tmp/cloud-init.complete ] && exit 0; sleep 1; done; echo "cloud-init timed out after 300s" >&2; exit 1
 
-  - name: "run preflight setup on node-1"
-    node: node-1
+  - name: "wait for cloud-init on ran-vm"
+    node: ran-vm
+    step:
+      type: execute
+      options:
+        command: for i in $(seq 1 300); do [ -f /tmp/cloud-init.complete ] && exit 0; sleep 1; done; echo "cloud-init timed out after 300s" >&2; exit 1
+
+  ####################################################################################################################
+  ## Preflight setup on all nodes (creates aether user, enables SSH, installs packages)                             ##
+  ####################################################################################################################
+  - name: "run preflight setup on control-vm"
+    node: control-vm
     step:
       type: execute
       options:
         command: "curl -fsSL https://raw.githubusercontent.com/bengrewell/aether-webui/main/scripts/preflight-setup.sh | sudo bash -s -- --yes"
 
-  - name: "run preflight setup on node-2"
-    node: node-2
+  - name: "run preflight setup on core-vm"
+    node: core-vm
     step:
       type: execute
       options:
         command: "curl -fsSL https://raw.githubusercontent.com/bengrewell/aether-webui/main/scripts/preflight-setup.sh | sudo bash -s -- --yes"
 
-  - name: "pre-configure environment on node-1"
-    node: node-1
+  - name: "run preflight setup on ran-vm"
+    node: ran-vm
+    step:
+      type: execute
+      options:
+        command: "curl -fsSL https://raw.githubusercontent.com/bengrewell/aether-webui/main/scripts/preflight-setup.sh | sudo bash -s -- --yes"
+
+  ####################################################################################################################
+  ## Install aether-webd on the control node only                                                                   ##
+  ####################################################################################################################
+  - name: "pre-configure environment on control-vm"
+    node: control-vm
     step:
       type: execute
       options:
         command: |
           sudo mkdir -p /etc/aether-webd
-          echo 'AETHER_LISTEN=0.0.0.0:8186' | sudo tee /etc/aether-webd/env
+          sudo bash -c 'printf "AETHER_LISTEN=0.0.0.0:8186\nANSIBLE_HOST_KEY_CHECKING=False\nHOME=/var/lib/aether-webd\n" > /etc/aether-webd/env'
 
-  - name: "pre-configure environment on node-2"
-    node: node-2
+  - name: "install aether-webd on control-vm"
+    node: control-vm
+    step:
+      type: execute
+      options:
+        command: "curl -fsSL https://raw.githubusercontent.com/bengrewell/aether-webui/main/scripts/install.sh | sudo bash"
+
+  - name: "wait for aether-webd readiness"
+    node: control-vm
+    step:
+      type: execute
+      options:
+        command: for i in $(seq 1 30); do curl -sf http://localhost:8186/healthz && exit 0; sleep 1; done; exit 1
+
+  - name: "wait for OnRamp repo clone to complete"
+    node: control-vm
+    step:
+      type: execute
+      options:
+        command: for i in $(seq 1 120); do curl -sf http://localhost:8186/api/v1/onramp/repo | jq -e '.cloned == true' && exit 0; sleep 1; done; exit 1
+
+  - name: "verify OnRamp provider is not degraded"
+    node: control-vm
     step:
       type: execute
       options:
         command: |
-          sudo mkdir -p /etc/aether-webd
-          echo 'AETHER_LISTEN=0.0.0.0:8186' | sudo tee /etc/aether-webd/env
-
-  - name: "install aether-webd on node-1"
-    node: node-1
-    step:
-      type: execute
-      options:
-        command: "curl -fsSL https://raw.githubusercontent.com/bengrewell/aether-webui/main/scripts/install.sh | sudo bash"
-
-  - name: "install aether-webd on node-2"
-    node: node-2
-    step:
-      type: execute
-      options:
-        command: "curl -fsSL https://raw.githubusercontent.com/bengrewell/aether-webui/main/scripts/install.sh | sudo bash"
-
-  - name: "wait for aether-webd readiness on node-1"
-    node: node-1
-    step:
-      type: execute
-      options:
-        command: for i in $(seq 1 30); do curl -sf http://localhost:8186/healthz && exit 0; sleep 1; done; exit 1
-
-  - name: "wait for aether-webd readiness on node-2"
-    node: node-2
-    step:
-      type: execute
-      options:
-        command: for i in $(seq 1 30); do curl -sf http://localhost:8186/healthz && exit 0; sleep 1; done; exit 1
+          PROVIDERS=$(curl -sf http://localhost:8186/api/v1/meta/providers)
+          if ! echo "$PROVIDERS" | jq -e '.providers | any(.name == "onramp")' > /dev/null 2>&1; then
+            echo "ERROR: onramp provider not found in providers list"
+            echo "$PROVIDERS" | jq .
+            exit 1
+          fi
+          if echo "$PROVIDERS" | jq -e '.providers[] | select(.name == "onramp") | .degraded' | grep -q true; then
+            echo "ERROR: onramp provider is degraded"
+            echo "$PROVIDERS" | jq '.providers[] | select(.name == "onramp")'
+            exit 1
+          fi
 
 ########################################################################################################################
-## Tests — health validation on both nodes                                                                            ##
+## Tests — node registration, inventory, and connectivity                                                             ##
 ########################################################################################################################
 tests:
-  - name: "node-1: health check returns healthy"
-    node: node-1
+  ######################################################################################################################
+  ## Service health                                                                                                   ##
+  ######################################################################################################################
+
+  - name: "health check returns healthy"
+    node: control-vm
     type: execute
     options:
       command: curl -sf http://localhost:8186/healthz
@@ -161,28 +247,146 @@ tests:
         exit_code: 0
         contains: "healthy"
 
-  - name: "node-2: health check returns healthy"
-    node: node-2
+  ######################################################################################################################
+  ## Node registration                                                                                                ##
+  ######################################################################################################################
+
+  - name: "register core-vm as master+worker node"
+    node: control-vm
     type: execute
     options:
-      command: curl -sf http://localhost:8186/healthz
+      command: >-
+        curl -sf -X POST http://localhost:8186/api/v1/nodes
+        -H 'Content-Type: application/json'
+        -d '{"name":"core-vm","ansible_host":"10.103.102.20","ansible_user":"aether","password":"aether","sudo_password":"aether","roles":["master","worker"]}'
+        | jq -e '.id != ""'
       evaluate:
         exit_code: 0
-        contains: "healthy"
+
+  - name: "register ran-vm as srsran node"
+    node: control-vm
+    type: execute
+    options:
+      command: >-
+        curl -sf -X POST http://localhost:8186/api/v1/nodes
+        -H 'Content-Type: application/json'
+        -d '{"name":"ran-vm","ansible_host":"10.103.102.30","ansible_user":"aether","password":"aether","sudo_password":"aether","roles":["srsran"]}'
+        | jq -e '.id != ""'
+      evaluate:
+        exit_code: 0
+
+  - name: "two nodes registered"
+    node: control-vm
+    type: execute
+    options:
+      command: curl -sf http://localhost:8186/api/v1/nodes | jq -e 'length == 2'
+      evaluate:
+        exit_code: 0
+
+  ######################################################################################################################
+  ## Inventory sync and validation                                                                                    ##
+  ######################################################################################################################
+
+  - name: "sync inventory"
+    node: control-vm
+    type: execute
+    options:
+      command: curl -sf -X POST http://localhost:8186/api/v1/onramp/inventory/sync | jq -e '.message | test("2 nodes")'
+      evaluate:
+        exit_code: 0
+
+  - name: "inventory has both nodes"
+    node: control-vm
+    type: execute
+    options:
+      command: >-
+        curl -sf http://localhost:8186/api/v1/onramp/inventory
+        | jq -e '.nodes | length == 2 and any(.[]; .name == "core-vm") and any(.[]; .name == "ran-vm")'
+      evaluate:
+        exit_code: 0
+
+  - name: "core-vm has master+worker roles"
+    node: control-vm
+    type: execute
+    options:
+      command: >-
+        curl -sf http://localhost:8186/api/v1/onramp/inventory
+        | jq -e '.nodes[] | select(.name == "core-vm") | (.roles | sort) == ["master","worker"]'
+      evaluate:
+        exit_code: 0
+
+  - name: "ran-vm has srsran role"
+    node: control-vm
+    type: execute
+    options:
+      command: >-
+        curl -sf http://localhost:8186/api/v1/onramp/inventory
+        | jq -e '.nodes[] | select(.name == "ran-vm") | .roles == ["srsran"]'
+      evaluate:
+        exit_code: 0
+
+  ######################################################################################################################
+  ## Ansible connectivity                                                                                             ##
+  ######################################################################################################################
+
+  - name: "execute pingall"
+    node: control-vm
+    type: execute
+    options:
+      command: curl -sf -X POST http://localhost:8186/api/v1/onramp/components/cluster/pingall | jq -r '.id' | tee /tmp/pingall_task_id
+      evaluate:
+        exit_code: 0
+
+  - name: "wait for pingall to complete"
+    node: control-vm
+    type: execute
+    options:
+      command: |
+        TASK_ID=$(cat /tmp/pingall_task_id)
+        for i in $(seq 1 120); do
+          RESP=$(curl -sf "http://localhost:8186/api/v1/onramp/tasks/${TASK_ID}" 2>/dev/null) || { sleep 1; continue; }
+          STATUS=$(echo "$RESP" | jq -r '.status' 2>/dev/null) || { sleep 1; continue; }
+          case "$STATUS" in
+            succeeded|failed|canceled) exit 0 ;;
+          esac
+          sleep 1
+        done
+        exit 1
+      evaluate:
+        exit_code: 0
+
+  - name: "verify pingall succeeded"
+    node: control-vm
+    type: execute
+    options:
+      command: >-
+        TASK_ID=$(cat /tmp/pingall_task_id);
+        curl -sf "http://localhost:8186/api/v1/onramp/tasks/${TASK_ID}"
+        | jq -e '.status == "succeeded" and (.exit_code == 0 or .exit_code == null)'
+      evaluate:
+        exit_code: 0
+
+  - name: "dump pingall output on failure"
+    node: control-vm
+    type: execute
+    options:
+      command: >-
+        TASK_ID=$(cat /tmp/pingall_task_id);
+        STATUS=$(curl -sf "http://localhost:8186/api/v1/onramp/tasks/${TASK_ID}" | jq -r '.status');
+        if [ "$STATUS" != "succeeded" ]; then
+          echo "=== Task status: $STATUS ===";
+          curl -sf "http://localhost:8186/api/v1/onramp/tasks/${TASK_ID}" | jq '{status, exit_code}';
+          echo "=== Task output ===";
+          curl -sf "http://localhost:8186/api/v1/onramp/tasks/${TASK_ID}" | jq -r '.output';
+        fi;
+        exit 0
 
 ########################################################################################################################
-## Teardown — clean uninstall on both nodes                                                                           ##
+## Teardown — clean up all VMs                                                                                        ##
 ########################################################################################################################
 teardown:
-  - name: "uninstall aether-webd on node-1"
-    node: node-1
-    step:
-      type: execute
-      options:
-        command: curl -fsSL https://raw.githubusercontent.com/bengrewell/aether-webui/main/scripts/uninstall.sh | sudo bash -s -- --purge
-
-  - name: "uninstall aether-webd on node-2"
-    node: node-2
+  - name: "uninstall aether-webd on control-vm"
+    node: control-vm
     step:
       type: execute
       options:
