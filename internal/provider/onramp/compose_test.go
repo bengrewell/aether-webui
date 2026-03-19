@@ -8,6 +8,38 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// rawBlueprintSRSRan is a YAML string matching the real OnRamp blueprint format.
+// Bare integer keys (0:) exercise the yaml.v3 map[any]any code path that Go
+// map literals with string keys ("0":) do not.
+const rawBlueprintSRSRan = `srsran:
+  docker:
+    container:
+      gnb_image: srsran/gnb:latest
+      ue_image: srsran/ue:latest
+    network:
+      name: srsran-net
+  simulation: true
+  servers:
+    0:
+      gnb_ip: ""
+      gnb_conf: deps/srsran/roles/gNB/templates/gnb_zmq.yaml
+      ue_conf: deps/srsran/roles/uEsimulator/templates/ue_zmq.conf
+core:
+  ran_subnet: ""
+`
+
+// writeRawBlueprint writes a raw YAML string as a blueprint file.
+func writeRawBlueprint(t *testing.T, p *OnRamp, filename, content string) {
+	t.Helper()
+	dir := filepath.Join(p.config.OnRampDir, "vars")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, filename), []byte(content), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+}
+
 // writeBlueprint writes a blueprint YAML file into the provider's vars directory.
 func writeBlueprint(t *testing.T, p *OnRamp, filename string, content map[string]any) {
 	t.Helper()
