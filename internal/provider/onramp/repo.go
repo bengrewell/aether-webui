@@ -52,12 +52,10 @@ func checkoutVersion(cfg Config, log *slog.Logger) error {
 		return nil
 	}
 
-	// Determine current HEAD ref to avoid unnecessary checkout.
 	head, err := gitOutput(cfg.OnRampDir, "rev-parse", "HEAD")
 	if err != nil {
 		return fmt.Errorf("rev-parse HEAD: %w", err)
 	}
-	// Resolve the desired version to a commit hash for comparison.
 	desired, err := gitOutput(cfg.OnRampDir, "rev-parse", cfg.Version)
 	if err == nil && head == desired {
 		log.Info("onramp repo already at desired version", "version", cfg.Version)
@@ -71,41 +69,42 @@ func checkoutVersion(cfg Config, log *slog.Logger) error {
 	return nil
 }
 
-// ensureSubmodules syncs submodule URLs and forces initialization. The initial
-// clone uses --recurse-submodules, but that can silently leave submodules
-// uninitialized on transient network errors. Running sync + update --force as
-// a separate step catches those cases. When submodules are already populated
-// the force-update is a fast no-op (git checks out the same commit).
+// ensureSubmodules initializes submodules and forces a working-tree checkout.
 //
-// After the update, validateSubmodules confirms that every registered submodule
-// directory actually contains files. If any are empty the function returns an
-// error so the provider enters degraded mode instead of silently failing later.
+// Three steps:
+//  1. sync — ensures .git/config URLs match .gitmodules.
+//  2. update --init — clones any submodules whose objects are missing.
+//  3. foreach checkout -f — unconditionally writes the working tree for every
+//     submodule. This is the critical step: if the process was killed mid-clone,
+//     git may have fetched the submodule objects and recorded the correct HEAD
+//     but never populated the working tree. Steps 1-2 consider such a submodule
+//     "up to date" and skip it; only an explicit checkout recovers the files.
+//
+// After checkout, validateSubmodules confirms every submodule directory has
+// content. If any are empty the provider enters degraded mode.
 func ensureSubmodules(cfg Config, log *slog.Logger) error {
 	log.Info("ensuring submodules are initialized", "dir", cfg.OnRampDir)
 
-	// Sync ensures .git/config URLs match .gitmodules (handles URL changes).
 	if err := gitRun(cfg.OnRampDir, "submodule", "sync", "--recursive"); err != nil {
 		return fmt.Errorf("submodule sync: %w", err)
 	}
 
-	// Force re-checkout to handle partially initialized submodules where the
-	// working tree is empty but git considers the submodule "registered".
-	if err := gitRun(cfg.OnRampDir, "submodule", "update", "--init", "--recursive", "--force"); err != nil {
+	if err := gitRun(cfg.OnRampDir, "submodule", "update", "--init", "--recursive"); err != nil {
 		return fmt.Errorf("submodule update: %w", err)
+	}
+
+	if err := gitRun(cfg.OnRampDir, "submodule", "foreach", "--recursive", "git checkout -f HEAD"); err != nil {
+		return fmt.Errorf("submodule foreach checkout: %w", err)
 	}
 
 	return validateSubmodules(cfg.OnRampDir, log)
 }
 
-// validateSubmodules reads .gitmodules and confirms each registered submodule
-// directory contains checked-out content (at least one non-.git entry). Empty
-// directories or directories with only a .git entry indicate a failed or
-// incomplete submodule clone.
+// validateSubmodules confirms each registered submodule directory contains
+// checked-out content (at least one non-.git entry).
 func validateSubmodules(dir string, log *slog.Logger) error {
-	// Parse submodule paths from .gitmodules.
 	gitmodules := filepath.Join(dir, ".gitmodules")
 	if _, err := os.Stat(gitmodules); errors.Is(err, os.ErrNotExist) {
-		// No .gitmodules means no submodules to validate.
 		return nil
 	} else if err != nil {
 		return fmt.Errorf("stat .gitmodules: %w", err)
@@ -113,7 +112,6 @@ func validateSubmodules(dir string, log *slog.Logger) error {
 
 	out, err := gitOutput(dir, "config", "--file", ".gitmodules", "--get-regexp", `submodule\..*\.path`)
 	if err != nil {
-		// Exit code 1 means no matches (no submodule paths configured).
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) && exitErr.ExitCode() == 1 {
 			return nil
@@ -137,8 +135,6 @@ func validateSubmodules(dir string, log *slog.Logger) error {
 			return fmt.Errorf("submodule %s: directory missing: %w", subPath, err)
 		}
 
-		// Count non-.git entries; a submodule with only a .git file/dir
-		// but no checked-out content is still broken.
 		contentCount := 0
 		for _, e := range entries {
 			if e.Name() != ".git" {
