@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 
 	"github.com/danielgtaylor/huma/v2"
 	"gopkg.in/yaml.v3"
@@ -65,14 +66,20 @@ func (o *OnRamp) HandleComposeConfig(_ context.Context, in *ConfigComposeInput) 
 		}
 	}
 
-	// Expand implicit deps.
-	selected := make(map[string]bool, len(in.Body.Components))
+	// Expand implicit deps into a deduplicated, sorted slice for
+	// deterministic merge order and stable output.
+	seen := make(map[string]bool, len(in.Body.Components))
 	for _, c := range in.Body.Components {
-		selected[c] = true
+		seen[c] = true
 		for _, dep := range implicitDeps[c] {
-			selected[dep] = true
+			seen[dep] = true
 		}
 	}
+	components := make([]string, 0, len(seen))
+	for c := range seen {
+		components = append(components, c)
+	}
+	sort.Strings(components)
 
 	varsDir := filepath.Join(o.config.OnRampDir, "vars")
 	mainPath := filepath.Join(varsDir, "main.yml")
@@ -83,9 +90,9 @@ func (o *OnRamp) HandleComposeConfig(_ context.Context, in *ConfigComposeInput) 
 		return nil, huma.Error500InternalServerError("failed to read base config", err)
 	}
 
-	// Merge blueprints for selected components.
+	// Merge blueprints in sorted order for deterministic results.
 	var activeBlueprints []string
-	for comp := range selected {
+	for _, comp := range components {
 		bpFile, hasBP := componentBlueprint[comp]
 		if !hasBP {
 			continue
@@ -133,7 +140,7 @@ func (o *OnRamp) HandleComposeConfig(_ context.Context, in *ConfigComposeInput) 
 
 	// Determine which YAML keys are "kept" by selected components.
 	keptKeys := make(map[string]bool)
-	for comp := range selected {
+	for _, comp := range components {
 		if key, ok := componentYAMLKey[comp]; ok {
 			keptKeys[key] = true
 		}
@@ -159,12 +166,6 @@ func (o *OnRamp) HandleComposeConfig(_ context.Context, in *ConfigComposeInput) 
 	cfg, err := o.readVarsFile(mainPath)
 	if err != nil {
 		return nil, huma.Error500InternalServerError("failed to re-read config", err)
-	}
-
-	// Build canonical component list from selected set.
-	components := make([]string, 0, len(selected))
-	for c := range selected {
-		components = append(components, c)
 	}
 
 	return &ConfigComposeOutput{

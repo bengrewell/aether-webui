@@ -3,7 +3,6 @@ package onramp
 import (
 	"os"
 	"path/filepath"
-	"sort"
 	"testing"
 
 	"gopkg.in/yaml.v3"
@@ -253,7 +252,7 @@ func TestComposeConfig_WritesMainYML(t *testing.T) {
 	}
 }
 
-func TestComposeConfig_ComponentsSorted(t *testing.T) {
+func TestComposeConfig_DeterministicOutput(t *testing.T) {
 	p := newTestProvider(t, baseConfig())
 
 	out, err := p.HandleComposeConfig(t.Context(), &ConfigComposeInput{
@@ -263,10 +262,28 @@ func TestComposeConfig_ComponentsSorted(t *testing.T) {
 		t.Fatalf("HandleComposeConfig: %v", err)
 	}
 
-	// Components should include 5gc, k8s (implicit), amp.
+	// Components should be sorted and include implicit deps.
+	want := []string{"5gc", "amp", "k8s"}
 	comps := out.Body.Components
-	sort.Strings(comps)
-	if len(comps) != 3 {
-		t.Fatalf("expected 3 components (5gc, amp, k8s), got %v", comps)
+	if len(comps) != len(want) {
+		t.Fatalf("components = %v, want %v", comps, want)
+	}
+	for i, c := range comps {
+		if c != want[i] {
+			t.Errorf("components[%d] = %q, want %q", i, c, want[i])
+		}
+	}
+
+	// A second call should produce identical output.
+	out2, err := p.HandleComposeConfig(t.Context(), &ConfigComposeInput{
+		Body: ConfigComposeBody{Components: []string{"5gc", "amp"}},
+	})
+	if err != nil {
+		t.Fatalf("second call: %v", err)
+	}
+	for i, c := range out2.Body.Components {
+		if c != want[i] {
+			t.Errorf("second call components[%d] = %q, want %q", i, c, want[i])
+		}
 	}
 }
