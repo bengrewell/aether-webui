@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/bengrewell/aether-webui/internal/store"
 	"gopkg.in/yaml.v3"
 )
 
@@ -113,5 +114,65 @@ func TestComposeConfig_ServerEntriesSurviveRoundTrip(t *testing.T) {
 	// Simulation on disk
 	if cfg.SRSRan.Simulation == nil || !*cfg.SRSRan.Simulation {
 		t.Error("expected srsran.simulation = true on disk")
+	}
+}
+
+// TestComposeConfig_DerivesComponentsFromNodeRoles verifies that an empty
+// components list causes the handler to look up node roles and derive the
+// component set automatically.
+func TestComposeConfig_DerivesComponentsFromNodeRoles(t *testing.T) {
+	p := newTestProviderWithStore(t, baseConfig())
+	writeRawBlueprint(t, p, "main-srsran.yml", rawBlueprintSRSRan)
+
+	ctx := t.Context()
+
+	// Register nodes with master + srsran roles.
+	if err := p.Store().UpsertNode(ctx, store.Node{
+		ID:          "node-master",
+		Name:        "master1",
+		AnsibleHost: "10.0.0.1",
+		Roles:       []string{"master"},
+	}); err != nil {
+		t.Fatalf("UpsertNode master: %v", err)
+	}
+	if err := p.Store().UpsertNode(ctx, store.Node{
+		ID:          "node-srsran",
+		Name:        "srsran1",
+		AnsibleHost: "10.0.0.2",
+		Roles:       []string{"srsran"},
+	}); err != nil {
+		t.Fatalf("UpsertNode srsran: %v", err)
+	}
+
+	// Call with empty components — should derive from node roles.
+	out, err := p.HandleComposeConfig(ctx, &ConfigComposeInput{
+		Body: ConfigComposeBody{Components: []string{}},
+	})
+	if err != nil {
+		t.Fatalf("HandleComposeConfig: %v", err)
+	}
+
+	// master → k8s + 5gc, srsran → srsran
+	wantComponents := []string{"5gc", "k8s", "srsran"}
+	if len(out.Body.Components) != len(wantComponents) {
+		t.Fatalf("components = %v, want %v", out.Body.Components, wantComponents)
+	}
+	for i, c := range wantComponents {
+		if out.Body.Components[i] != c {
+			t.Errorf("components[%d] = %q, want %q", i, out.Body.Components[i], c)
+		}
+	}
+
+	// Verify srsran section is present with blueprint data.
+	if out.Body.Config.SRSRan == nil {
+		t.Fatal("expected srsran section in returned config")
+	}
+	if len(out.Body.Config.SRSRan.Servers) == 0 {
+		t.Fatal("expected srsran.servers in returned config")
+	}
+
+	// Verify core section is present (from 5gc).
+	if out.Body.Config.Core == nil {
+		t.Fatal("expected core section in returned config")
 	}
 }

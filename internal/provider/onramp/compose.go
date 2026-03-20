@@ -12,6 +12,32 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// rolesToComponents derives compose components from node role assignments.
+// master → k8s + 5gc, worker → nothing, other roles map 1:1 if they exist
+// in componentYAMLKey.
+func rolesToComponents(roles []string) []string {
+	seen := make(map[string]bool)
+	for _, role := range roles {
+		switch role {
+		case "master":
+			seen["k8s"] = true
+			seen["5gc"] = true
+		case "worker":
+			// no corresponding compose component
+		default:
+			if _, ok := componentYAMLKey[role]; ok {
+				seen[role] = true
+			}
+		}
+	}
+	out := make([]string, 0, len(seen))
+	for c := range seen {
+		out = append(out, c)
+	}
+	sort.Strings(out)
+	return out
+}
+
 // componentBlueprint maps component names to their blueprint filenames.
 // Only components that have a separate blueprint file are included.
 var componentBlueprint = map[string]string{
@@ -56,9 +82,31 @@ var prunableKeys = map[string]bool{
 
 // HandleComposeConfig builds vars/main.yml from the base config plus selected
 // component blueprints, pruning sections for unselected components.
-func (o *OnRamp) HandleComposeConfig(_ context.Context, in *ConfigComposeInput) (*ConfigComposeOutput, error) {
+func (o *OnRamp) HandleComposeConfig(ctx context.Context, in *ConfigComposeInput) (*ConfigComposeOutput, error) {
+	components := in.Body.Components
+
+	// Derive from node roles when the caller doesn't specify.
+	if len(components) == 0 {
+		sc := o.Store()
+		if sc.Path() == "" {
+			return nil, huma.Error503ServiceUnavailable(
+				"store not configured; cannot derive components from node roles",
+				fmt.Errorf("onramp provider store client is not configured"),
+			)
+		}
+		infos, err := sc.ListNodes(ctx)
+		if err != nil {
+			return nil, huma.Error500InternalServerError("failed to list nodes", err)
+		}
+		var allRoles []string
+		for _, ni := range infos {
+			allRoles = append(allRoles, ni.Roles...)
+		}
+		components = rolesToComponents(allRoles)
+	}
+
 	// Validate all components.
-	for _, c := range in.Body.Components {
+	for _, c := range components {
 		if _, ok := componentYAMLKey[c]; !ok {
 			return nil, huma.Error422UnprocessableEntity(
 				fmt.Sprintf("unknown component: %s", c),
@@ -69,14 +117,14 @@ func (o *OnRamp) HandleComposeConfig(_ context.Context, in *ConfigComposeInput) 
 
 	// Expand implicit deps into a deduplicated, sorted slice for
 	// deterministic merge order and stable output.
-	seen := make(map[string]bool, len(in.Body.Components))
-	for _, c := range in.Body.Components {
+	seen := make(map[string]bool, len(components))
+	for _, c := range components {
 		seen[c] = true
 		for _, dep := range implicitDeps[c] {
 			seen[dep] = true
 		}
 	}
-	components := make([]string, 0, len(seen))
+	components = make([]string, 0, len(seen))
 	for c := range seen {
 		components = append(components, c)
 	}
