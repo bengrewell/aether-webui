@@ -87,7 +87,14 @@ func (o *OnRamp) HandleComposeConfig(ctx context.Context, in *ConfigComposeInput
 
 	// Derive from node roles when the caller doesn't specify.
 	if len(components) == 0 {
-		infos, err := o.Store().ListNodes(ctx)
+		sc := o.Store()
+		if sc.Path() == "" {
+			return nil, huma.Error503ServiceUnavailable(
+				"store not configured; cannot derive components from node roles",
+				fmt.Errorf("onramp provider store client is not configured"),
+			)
+		}
+		infos, err := sc.ListNodes(ctx)
 		if err != nil {
 			return nil, huma.Error500InternalServerError("failed to list nodes", err)
 		}
